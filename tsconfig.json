@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [{ "path": "./tsconfig.app.json" }],
+  "compilerOptions": {
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true
+  }
+}

@@ -1,0 +1,32 @@
+/**
+ * Pawbook worker — binds only Pawbook's dedicated D1 + KV.
+ * TOKEN_SECRET is a secret (set via `wrangler secret put TOKEN_SECRET`), never committed here.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pawbook",
+  "compatibility_date": "2026-06-05",
+  "main": "./server/index.ts",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "EMBED_PROTO_DB",
+      "database_name": "pawbook-db",
+      "database_id": "db7d32b9-58a3-4d01-9da9-e840accaa3fc",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "EMBED_PROTO_CACHE",
+      "id": "2617a820f8e248b69e2f0d253939de57",
+    },
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/embed/*", "/admin/*", "/demo"],
+  },
+}
