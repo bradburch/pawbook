@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import './admin.css';
+import { useCallback, useEffect, useState } from "react";
+import "./admin.css";
 
 /**
  * Sitter dashboard. Auth is email + password → an admin session token, held in localStorage
@@ -9,7 +9,7 @@ import './admin.css';
 
 type Session = { token: string; slug: string; displayName: string };
 
-const TOKEN_KEY = 'bradpaws-admin-token';
+const TOKEN_KEY = "pawbook-admin-token";
 
 function getStoredToken(): string | null {
   try {
@@ -59,35 +59,40 @@ type Settings = {
 
 class AuthError extends Error {}
 
-async function adminFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+async function adminFetch<T>(
+  token: string,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const res = await fetch(path, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
       ...(init?.headers ?? {}),
     },
   });
-  if (res.status === 401 || res.status === 403) throw new AuthError('Your session expired.');
+  if (res.status === 401 || res.status === 403)
+    throw new AuthError("Your session expired.");
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(body.error ?? 'Request failed.');
+  if (!res.ok) throw new Error(body.error ?? "Request failed.");
   return body;
 }
 
 function Login({ onLogin }: { onLogin: (s: Session) => void }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
     if (busy) return;
-    setError('');
+    setError("");
     setBusy(true);
     try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const body = (await res.json().catch(() => ({}))) as {
@@ -97,13 +102,17 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
         error?: string;
       };
       if (!res.ok || !body.token || !body.slug) {
-        setError(body.error ?? 'Invalid email or password.');
+        setError(body.error ?? "Invalid email or password.");
         return;
       }
       storeToken(body.token);
-      onLogin({ token: body.token, slug: body.slug, displayName: body.displayName ?? body.slug });
+      onLogin({
+        token: body.token,
+        slug: body.slug,
+        displayName: body.displayName ?? body.slug,
+      });
     } catch {
-      setError('Could not reach the server.');
+      setError("Could not reach the server.");
     } finally {
       setBusy(false);
     }
@@ -119,7 +128,7 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
           value={email}
           autoComplete="username"
           onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void submit()}
+          onKeyDown={(e) => e.key === "Enter" && void submit()}
         />
       </label>
       <label>
@@ -129,11 +138,11 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
           value={password}
           autoComplete="current-password"
           onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && void submit()}
+          onKeyDown={(e) => e.key === "Enter" && void submit()}
         />
       </label>
       <button onClick={submit} disabled={busy}>
-        {busy ? 'Signing in…' : 'Sign in'}
+        {busy ? "Signing in…" : "Sign in"}
       </button>
       {error && <p className="ad-error">{error}</p>}
       <p className="ad-hint">
@@ -144,7 +153,10 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
 }
 
 function Snippets({ session }: { session: Session }) {
-  const [snippets, setSnippets] = useState<{ script: string; iframe: string } | null>(null);
+  const [snippets, setSnippets] = useState<{
+    script: string;
+    iframe: string;
+  } | null>(null);
 
   useEffect(() => {
     adminFetch<{ script: string; iframe: string }>(
@@ -159,31 +171,47 @@ function Snippets({ session }: { session: Session }) {
   return (
     <div>
       <p>
-        <strong>Squarespace</strong> (Code Block, Core plan or higher) and most sites — paste this
-        auto-resizing snippet:
+        <strong>Squarespace</strong> (Code Block, Core plan or higher) and most
+        sites — paste this auto-resizing snippet:
       </p>
-      <textarea readOnly rows={3} value={snippets.script} onFocus={(e) => e.target.select()} />
+      <textarea
+        readOnly
+        rows={3}
+        value={snippets.script}
+        onFocus={(e) => e.target.select()}
+      />
       <p>
-        <strong>Wix</strong> ("Embed a site") and script-stripping hosts — use the plain iframe
-        (fixed height, scrolls internally):
+        <strong>Wix</strong> ("Embed a site") and script-stripping hosts — use
+        the plain iframe (fixed height, scrolls internally):
       </p>
-      <textarea readOnly rows={3} value={snippets.iframe} onFocus={(e) => e.target.select()} />
+      <textarea
+        readOnly
+        rows={3}
+        value={snippets.iframe}
+        onFocus={(e) => e.target.select()}
+      />
     </div>
   );
 }
 
-function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
+function Dashboard({
+  session,
+  onSignOut,
+}: {
+  session: Session;
+  onSignOut: () => void;
+}) {
   const { token, slug } = session;
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [blockStart, setBlockStart] = useState('');
-  const [blockEnd, setBlockEnd] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [blockStart, setBlockStart] = useState("");
+  const [blockEnd, setBlockEnd] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   const handle = useCallback(
     (e: unknown) => {
       if (e instanceof AuthError) onSignOut();
-      else setError(e instanceof Error ? e.message : 'Try again.');
+      else setError(e instanceof Error ? e.message : "Try again.");
     },
     [onSignOut],
   );
@@ -194,7 +222,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   );
 
   const refresh = async () => {
-    setError('');
+    setError("");
     try {
       setSettings(await loadSettings());
     } catch (e) {
@@ -204,16 +232,18 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
   const save = async () => {
     if (!settings) return;
-    setError('');
-    setMessage('');
+    setError("");
+    setMessage("");
     try {
       await adminFetch(token, `/api/${slug}/admin/settings`, {
-        method: 'PUT',
+        method: "PUT",
         body: JSON.stringify({
           displayName: settings.displayName,
           accentColor: settings.accentColor,
           maxBoardingPets: settings.maxBoardingPets,
-          petTypes: settings.petTypes.filter((p) => p.enabled).map((p) => p.petType),
+          petTypes: settings.petTypes
+            .filter((p) => p.enabled)
+            .map((p) => p.petType),
           services: settings.services.map((s) => ({
             type: s.type,
             enabled: s.enabled,
@@ -225,21 +255,21 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           })),
         }),
       });
-      setMessage('Saved — the widget reflects this on next load.');
+      setMessage("Saved — the widget reflects this on next load.");
     } catch (e) {
       handle(e);
     }
   };
 
   const addBlock = async () => {
-    setError('');
+    setError("");
     try {
       await adminFetch(token, `/api/${slug}/admin/blocked`, {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify({ startDate: blockStart, endDate: blockEnd }),
       });
-      setBlockStart('');
-      setBlockEnd('');
+      setBlockStart("");
+      setBlockEnd("");
       await refresh();
     } catch (e) {
       handle(e);
@@ -247,9 +277,11 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   };
 
   const removeBlock = async (id: string) => {
-    setError('');
+    setError("");
     try {
-      await adminFetch(token, `/api/${slug}/admin/blocked/${id}`, { method: 'DELETE' });
+      await adminFetch(token, `/api/${slug}/admin/blocked/${id}`, {
+        method: "DELETE",
+      });
       await refresh();
     } catch (e) {
       handle(e);
@@ -257,11 +289,15 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   };
 
   const connect = async (capability: string) => {
-    setError('');
+    setError("");
     try {
-      await adminFetch(token, `/api/${slug}/admin/providers/${capability}/connect`, {
-        method: 'POST',
-      });
+      await adminFetch(
+        token,
+        `/api/${slug}/admin/providers/${capability}/connect`,
+        {
+          method: "POST",
+        },
+      );
       await refresh();
     } catch (e) {
       handle(e);
@@ -296,7 +332,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           Display name
           <input
             value={settings.displayName}
-            onChange={(e) => setSettings({ ...settings, displayName: e.target.value })}
+            onChange={(e) =>
+              setSettings({ ...settings, displayName: e.target.value })
+            }
           />
         </label>
         <label>
@@ -304,7 +342,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           <input
             type="color"
             value={settings.accentColor}
-            onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
+            onChange={(e) =>
+              setSettings({ ...settings, accentColor: e.target.value })
+            }
           />
         </label>
         <label>
@@ -314,7 +354,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
             min={1}
             max={50}
             value={settings.maxBoardingPets}
-            onChange={(e) => setSettings({ ...settings, maxBoardingPets: Number(e.target.value) })}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                maxBoardingPets: Number(e.target.value),
+              })
+            }
           />
         </label>
       </section>
@@ -332,7 +377,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
                 setSettings({ ...settings, petTypes });
               }}
             />
-            {p.petType === 'dog' ? 'Dogs' : 'Cats'}
+            {p.petType === "dog" ? "Dogs" : "Cats"}
           </label>
         ))}
       </section>
@@ -351,7 +396,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
                 <input
                   type="checkbox"
                   checked={s.enabled}
-                  onChange={(e) => setService({ ...s, enabled: e.target.checked })}
+                  onChange={(e) =>
+                    setService({ ...s, enabled: e.target.checked })
+                  }
                 />
                 {s.label}
               </label>
@@ -367,7 +414,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
                         ...s,
                         options: [
                           {
-                            label: 'Standard',
+                            label: "Standard",
                             durationMinutes: null,
                             rate: Number(e.target.value),
                           },
@@ -410,7 +457,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
                       /{s.rateUnit}
                       <button
                         onClick={() =>
-                          setService({ ...s, options: s.options.filter((_, k) => k !== oi) })
+                          setService({
+                            ...s,
+                            options: s.options.filter((_, k) => k !== oi),
+                          })
                         }
                       >
                         Remove
@@ -421,7 +471,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
                     onClick={() =>
                       setService({
                         ...s,
-                        options: [...s.options, { label: '30 min', durationMinutes: 30, rate: 20 }],
+                        options: [
+                          ...s.options,
+                          { label: "30 min", durationMinutes: 30, rate: 20 },
+                        ],
                       })
                     }
                   >
@@ -445,14 +498,22 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         <ul>
           {settings.blocked.map((b) => (
             <li key={b.id}>
-              {b.startDate} → {b.endDate} (end exclusive){' '}
+              {b.startDate} → {b.endDate} (end exclusive){" "}
               <button onClick={() => void removeBlock(b.id)}>Remove</button>
             </li>
           ))}
         </ul>
         <div className="ad-inline">
-          <input type="date" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} />
-          <input type="date" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} />
+          <input
+            type="date"
+            value={blockStart}
+            onChange={(e) => setBlockStart(e.target.value)}
+          />
+          <input
+            type="date"
+            value={blockEnd}
+            onChange={(e) => setBlockEnd(e.target.value)}
+          />
           <button onClick={addBlock}>Block range</button>
         </div>
       </section>
@@ -462,15 +523,19 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         <ul>
           {settings.providers.map((p) => (
             <li key={p.capability}>
-              {p.label} — <em>{p.status}</em>{' '}
-              {p.status === 'disconnected' && (
-                <button onClick={() => void connect(p.capability)}>Connect (stub)</button>
+              {p.label} — <em>{p.status}</em>{" "}
+              {p.status === "disconnected" && (
+                <button onClick={() => void connect(p.capability)}>
+                  Connect (stub)
+                </button>
               )}
             </li>
           ))}
         </ul>
         <p>
-          <small>No real OAuth happens here — connecting only flips persisted state.</small>
+          <small>
+            No real OAuth happens here — connecting only flips persisted state.
+          </small>
         </p>
       </section>
 
@@ -494,15 +559,20 @@ export default function App() {
 
   // Restore a stored session on load by validating the token (setState only in promise callbacks).
   useEffect(() => {
-    document.title = 'Sitter dashboard';
+    document.title = "Sitter dashboard";
     const token = getStoredToken();
     if (!token) return;
     let active = true;
-    fetch('/api/admin/session', { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/admin/session", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
       .then(async (res) => {
         if (!active) return;
         if (res.ok) {
-          const body = (await res.json()) as { slug: string; displayName: string };
+          const body = (await res.json()) as {
+            slug: string;
+            displayName: string;
+          };
           setSession({ token, slug: body.slug, displayName: body.displayName });
         } else {
           storeToken(null);

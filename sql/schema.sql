@@ -1,4 +1,4 @@
--- bradpaws-embed-proto schema (prototype-only D1: embed-proto-db)
+-- pawbook schema (isolated D1: pawbook-db)
 -- Model A invariants: TenantId on every table, composite uniqueness, immutable Tenants.Id.
 
 CREATE TABLE IF NOT EXISTS Tenants (

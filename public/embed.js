@@ -1,7 +1,7 @@
 /**
- * bradpaws embed loader — dependency-free, paste-into-any-CMS.
+ * pawbook embed loader — dependency-free, paste-into-any-CMS.
  *
- *   <script src="https://<worker>/embed.js" data-bradpaws-tenant="your-slug"></script>
+ *   <script src="https://<worker>/embed.js" data-pawbook-tenant="your-slug"></script>
  *
  * Injects the booking-widget iframe where the script tag sits, auto-resizes it via
  * origin-checked postMessage, and re-dispatches booking events as a DOM CustomEvent.
@@ -12,13 +12,13 @@
   var script =
     document.currentScript ||
     (function () {
-      var candidates = document.querySelectorAll('script[data-bradpaws-tenant]');
+      var candidates = document.querySelectorAll('script[data-pawbook-tenant]');
       return candidates[candidates.length - 1];
     })();
   if (!script) return;
-  var slug = script.getAttribute('data-bradpaws-tenant');
+  var slug = script.getAttribute('data-pawbook-tenant');
   if (!slug) {
-    console.error('bradpaws embed: data-bradpaws-tenant attribute is required');
+    console.error('pawbook embed: data-pawbook-tenant attribute is required');
     return;
   }
 
@@ -35,11 +35,11 @@
     // Only accept messages from OUR origin AND our specific iframe.
     if (event.origin !== widgetOrigin || event.source !== iframe.contentWindow) return;
     var data = event.data || {};
-    if (data.type === 'bradpaws:resize' && typeof data.height === 'number') {
+    if (data.type === 'pawbook:resize' && typeof data.height === 'number') {
       iframe.style.height = Math.max(240, Math.min(2000, Math.ceil(data.height))) + 'px';
-    } else if (data.type === 'bradpaws:booked') {
+    } else if (data.type === 'pawbook:booked') {
       window.dispatchEvent(
-        new CustomEvent('bradpaws:booked', { detail: { requestId: data.requestId } }),
+        new CustomEvent('pawbook:booked', { detail: { requestId: data.requestId } }),
       );
     }
   });

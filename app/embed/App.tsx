@@ -159,7 +159,7 @@ function BookTab({ config }: { config: TenantConfig }) {
       );
       setResult(null);
       window.parent.postMessage(
-        { type: "bradpaws:booked", requestId: res.id },
+        { type: "pawbook:booked", requestId: res.id },
         "*",
       );
     } catch (e) {
@@ -398,7 +398,7 @@ function useResizeReporter() {
       window.parent.postMessage(
         // No secrets ever cross postMessage; the loader filters by origin + source.
         {
-          type: "bradpaws:resize",
+          type: "pawbook:resize",
           height: document.documentElement.scrollHeight,
         },
         "*",

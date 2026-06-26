@@ -4,7 +4,7 @@
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "bradpaws-embed-proto",
+  "name": "pawbook",
   "compatibility_date": "2026-06-05",
   "main": "./server/index.ts",
   "workers_dev": true,

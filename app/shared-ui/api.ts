@@ -9,8 +9,8 @@ export type ServiceOption = {
 export type ServiceConfig = {
   type: string;
   label: string;
-  shape: 'range' | 'single';
-  rateUnit: 'night' | 'day' | 'visit';
+  shape: "range" | "single";
+  rateUnit: "night" | "day" | "visit";
   hasDuration: boolean;
   options: ServiceOption[];
 };
@@ -49,29 +49,38 @@ export class ApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new ApiError(res.status, body.error ?? 'Something went wrong — try again.');
+  if (!res.ok)
+    throw new ApiError(
+      res.status,
+      body.error ?? "Something went wrong — try again.",
+    );
   return body;
 }
 
 const authHeaders = (token: string) => ({ Authorization: `Bearer ${token}` });
-const jsonHeaders = { 'Content-Type': 'application/json' };
+const jsonHeaders = { "Content-Type": "application/json" };
 
 export const api = {
   config: (slug: string) => request<TenantConfig>(`/api/${slug}/config`),
 
   availability: (slug: string, params: Record<string, string>) =>
-    request<Availability>(`/api/${slug}/availability?${new URLSearchParams(params)}`),
+    request<Availability>(
+      `/api/${slug}/availability?${new URLSearchParams(params)}`,
+    ),
 
   identify: (slug: string, email: string) =>
-    request<{ codeId: string; prototypeCode: string }>(`/api/${slug}/identify`, {
-      method: 'POST',
-      headers: jsonHeaders,
-      body: JSON.stringify({ email }),
-    }),
+    request<{ codeId: string; prototypeCode: string }>(
+      `/api/${slug}/identify`,
+      {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ email }),
+      },
+    ),
 
   verify: (slug: string, codeId: string, code: string) =>
     request<{ token: string }>(`/api/${slug}/verify`, {
-      method: 'POST',
+      method: "POST",
       headers: jsonHeaders,
       body: JSON.stringify({ codeId, code }),
     }),
@@ -88,11 +97,14 @@ export const api = {
       petCount: number;
     },
   ) =>
-    request<{ id: string; estCost: number; status: string }>(`/api/${slug}/bookings`, {
-      method: 'POST',
-      headers: { ...jsonHeaders, ...authHeaders(token) },
-      body: JSON.stringify(body),
-    }),
+    request<{ id: string; estCost: number; status: string }>(
+      `/api/${slug}/bookings`,
+      {
+        method: "POST",
+        headers: { ...jsonHeaders, ...authHeaders(token) },
+        body: JSON.stringify(body),
+      },
+    ),
 
   myBookings: (slug: string, token: string) =>
     request<{ bookings: Booking[] }>(`/api/${slug}/bookings/mine`, {
@@ -109,7 +121,7 @@ export const api = {
  * live in the side-by-side demo as a 403 "Wrong tenant." in the second widget.
  */
 const memoryTokens = new Map<string, string>();
-const storageKey = (slug: string) => `bradpaws-embed-token:${slug}`;
+const storageKey = (slug: string) => `pawbook-embed-token:${slug}`;
 
 export function getToken(slug: string): string | null {
   const inMemory = memoryTokens.get(slug);
