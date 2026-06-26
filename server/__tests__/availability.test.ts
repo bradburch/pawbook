@@ -31,21 +31,21 @@ describe("tenantRangeHasConflict", () => {
   it("matches shared rangeHasConflict exactly at max = 2 (parity pin for the D-E deviation)", () => {
     const scenarios: CapacityEvent[][] = [
       [],
-      [boarding("2026-08-01", "2026-08-05", 1)],
-      [boarding("2026-08-01", "2026-08-05", 2)],
+      [boarding("2028-08-01", "2028-08-05", 1)],
+      [boarding("2028-08-01", "2028-08-05", 2)],
       [
-        boarding("2026-08-01", "2026-08-03", 1),
-        boarding("2026-08-03", "2026-08-06", 1),
+        boarding("2028-08-01", "2028-08-03", 1),
+        boarding("2028-08-03", "2028-08-06", 1),
       ],
-      [blocked("2026-08-02", "2026-08-04")],
-      [boarding("2026-08-04", "2026-08-08", 2)],
+      [blocked("2028-08-02", "2028-08-04")],
+      [boarding("2028-08-04", "2028-08-08", 2)],
     ];
     const requests: [string, string, number][] = [
-      ["2026-08-01", "2026-08-05", 1],
-      ["2026-08-01", "2026-08-05", 2],
-      ["2026-08-03", "2026-08-06", 1],
-      ["2026-08-05", "2026-08-07", 2],
-      ["2026-07-30", "2026-08-02", 1],
+      ["2028-08-01", "2028-08-05", 1],
+      ["2028-08-01", "2028-08-05", 2],
+      ["2028-08-03", "2028-08-06", 1],
+      ["2028-08-05", "2028-08-07", 2],
+      ["2028-07-30", "2028-08-02", 1],
     ];
     for (const events of scenarios) {
       const capacity = buildCapacity(events);
@@ -59,32 +59,32 @@ describe("tenantRangeHasConflict", () => {
   });
 
   it("honors a per-tenant max above the shared hardcoded 2", () => {
-    const capacity = buildCapacity([boarding("2026-08-01", "2026-08-05", 2)]);
+    const capacity = buildCapacity([boarding("2028-08-01", "2028-08-05", 2)]);
     // 2 pets already boarding mid-range: a 1-pet request conflicts at max 2 but fits at max 4.
     expect(
-      tenantRangeHasConflict("2026-08-02", "2026-08-04", capacity, 1, 2),
+      tenantRangeHasConflict("2028-08-02", "2028-08-04", capacity, 1, 2),
     ).toBe(true);
     expect(
-      tenantRangeHasConflict("2026-08-02", "2026-08-04", capacity, 1, 4),
+      tenantRangeHasConflict("2028-08-02", "2028-08-04", capacity, 1, 4),
     ).toBe(false);
     // …and at max 4, a 3-pet request still conflicts (2 + 3 > 4).
     expect(
-      tenantRangeHasConflict("2026-08-02", "2026-08-04", capacity, 3, 4),
+      tenantRangeHasConflict("2028-08-02", "2028-08-04", capacity, 3, 4),
     ).toBe(true);
   });
 
   it("blocked days conflict regardless of capacity", () => {
-    const capacity = buildCapacity([blocked("2026-08-02", "2026-08-03")]);
+    const capacity = buildCapacity([blocked("2028-08-02", "2028-08-03")]);
     expect(
-      tenantRangeHasConflict("2026-08-01", "2026-08-04", capacity, 1, 99),
+      tenantRangeHasConflict("2028-08-01", "2028-08-04", capacity, 1, 99),
     ).toBe(true);
   });
 
   it("allows sharing a boundary day (soft bookend)", () => {
     // Existing booking checks out Aug 3 (exclusive end) with max pets — new booking may check in Aug 3.
-    const capacity = buildCapacity([boarding("2026-08-01", "2026-08-03", 2)]);
+    const capacity = buildCapacity([boarding("2028-08-01", "2028-08-03", 2)]);
     expect(
-      tenantRangeHasConflict("2026-08-03", "2026-08-05", capacity, 2, 2),
+      tenantRangeHasConflict("2028-08-03", "2028-08-05", capacity, 2, 2),
     ).toBe(false);
   });
 });
@@ -166,7 +166,7 @@ describe("availability API — regression guards", () => {
     const { env } = createTestEnv();
     // Seed: Jun 20-25 has 1 pet at Brad Paws (max 2) and 2 pets at Happy Tails (max 4).
     // A 2-pet request fits Happy Tails (2+2=4) but not Brad Paws (1+2>2).
-    const query = "type=boarding&start=2026-06-21&end=2026-06-24&pets=2";
+    const query = "type=boarding&start=2028-06-21&end=2028-06-24&pets=2";
     const a = (await (
       await app.request(`/api/brad-paws/availability?${query}`, {}, env)
     ).json()) as { available: boolean };
@@ -184,14 +184,14 @@ describe("availability API — regression guards", () => {
     // Jul 3 is blocked in seed; Jun 21 has boarding but walks ignore boarding load.
     const onBlocked = (await (
       await app.request(
-        "/api/brad-paws/availability?type=walk&start=2026-07-03",
+        "/api/brad-paws/availability?type=walk&start=2028-07-03",
         {},
         env,
       )
     ).json()) as { available: boolean };
     const onBusy = (await (
       await app.request(
-        "/api/brad-paws/availability?type=walk&start=2026-06-21",
+        "/api/brad-paws/availability?type=walk&start=2028-06-21",
         {},
         env,
       )
@@ -204,7 +204,7 @@ describe("availability API — regression guards", () => {
   it("validates inputs", async () => {
     const { env } = createTestEnv();
     const badType = await app.request(
-      "/api/brad-paws/availability?type=spa&start=2026-08-01",
+      "/api/brad-paws/availability?type=spa&start=2028-08-01",
       {},
       env,
     );
@@ -214,7 +214,7 @@ describe("availability API — regression guards", () => {
       env,
     );
     const badRange = await app.request(
-      "/api/brad-paws/availability?type=boarding&start=2026-08-05&end=2026-08-05",
+      "/api/brad-paws/availability?type=boarding&start=2028-08-05&end=2028-08-05",
       {},
       env,
     );
@@ -232,8 +232,8 @@ describe("rowsToCapacityEvents", () => {
         TenantId: "t",
         EndUserId: null,
         ServiceType: "blocked",
-        StartDate: "2026-08-01",
-        EndDate: "2026-08-03",
+        StartDate: "2028-08-01",
+        EndDate: "2028-08-03",
         OptionKey: null,
         PetType: null,
         PetCount: 1,
@@ -246,8 +246,8 @@ describe("rowsToCapacityEvents", () => {
         TenantId: "t",
         EndUserId: "u",
         ServiceType: "boarding",
-        StartDate: "2026-08-04",
-        EndDate: "2026-08-06",
+        StartDate: "2028-08-04",
+        EndDate: "2028-08-06",
         OptionKey: null,
         PetType: null,
         PetCount: 2,
@@ -258,7 +258,7 @@ describe("rowsToCapacityEvents", () => {
     ]);
     expect(events[0]).toMatchObject({
       type: "blocked",
-      start_date: "2026-08-01",
+      start_date: "2028-08-01",
     });
     expect(events[1]).toMatchObject({ type: "boarding", petCount: 2 });
   });
@@ -287,7 +287,7 @@ describe("config + availability — service options and pet types", () => {
     const { env } = createTestEnv();
     const r = (await (
       await app.request(
-        "/api/brad-paws/availability?type=walk&option=d60&start=2026-08-01",
+        "/api/brad-paws/availability?type=walk&option=d60&start=2028-08-01",
         {},
         env,
       )
@@ -298,7 +298,7 @@ describe("config + availability — service options and pet types", () => {
   it("rejects an unknown option", async () => {
     const { env } = createTestEnv();
     const r = await app.request(
-      "/api/brad-paws/availability?type=walk&option=nope&start=2026-08-01",
+      "/api/brad-paws/availability?type=walk&option=nope&start=2028-08-01",
       {},
       env,
     );
@@ -335,7 +335,7 @@ describe("checkAvailability", () => {
       tenant,
       "walk",
       opt({ Rate: 35 }),
-      "2026-08-01",
+      "2028-08-01",
       "",
     );
     expect(res).toMatchObject({ available: true, estCost: 35 });
@@ -362,8 +362,8 @@ describe("checkAvailability", () => {
       tenant,
       "boarding",
       o,
-      "2026-08-10",
-      "2026-08-13",
+      "2028-08-10",
+      "2028-08-13",
       1,
     );
     expect(res).toMatchObject({ available: true, estCost: 150, nights: 3 });
@@ -391,8 +391,8 @@ describe("checkAvailability", () => {
       tenant,
       "housesitting",
       o,
-      "2026-06-21",
-      "2026-06-23",
+      "2028-06-21",
+      "2028-06-23",
       2,
     );
     expect(res).toMatchObject({ available: false });

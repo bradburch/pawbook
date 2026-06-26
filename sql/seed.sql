@@ -49,10 +49,10 @@ INSERT OR REPLACE INTO TenantPetTypes (TenantId, PetType, Enabled) VALUES
 -- Happy Tails (max 4 pets): June 20-25 has 2 pets boarding -> 2 slots left.
 -- Both tenants blocked July 3-5 (exclusive end: blocked days are Jul 3 and Jul 4).
 INSERT OR REPLACE INTO BookingRequests (Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, PetCount, EstCost, Status) VALUES
-  ('seed_bp_board1', 'tnt_bradpaws', NULL, 'boarding', '2026-06-20', '2026-06-25', 1, 250, 'confirmed'),
-  ('seed_bp_block1', 'tnt_bradpaws', NULL, 'blocked', '2026-07-03', '2026-07-05', 1, NULL, 'confirmed'),
-  ('seed_ht_board1', 'tnt_happytails', NULL, 'boarding', '2026-06-20', '2026-06-25', 2, 400, 'confirmed'),
-  ('seed_ht_block1', 'tnt_happytails', NULL, 'blocked', '2026-07-03', '2026-07-05', 1, NULL, 'confirmed');
+  ('seed_bp_board1', 'tnt_bradpaws', NULL, 'boarding', '2028-06-20', '2028-06-25', 1, 250, 'confirmed'),
+  ('seed_bp_block1', 'tnt_bradpaws', NULL, 'blocked', '2028-07-03', '2028-07-05', 1, NULL, 'confirmed'),
+  ('seed_ht_board1', 'tnt_happytails', NULL, 'boarding', '2028-06-20', '2028-06-25', 2, 400, 'confirmed'),
+  ('seed_ht_block1', 'tnt_happytails', NULL, 'blocked', '2028-07-03', '2028-07-05', 1, NULL, 'confirmed');
 
 INSERT OR REPLACE INTO ProviderConnections (Id, TenantId, Capability, Provider, Status) VALUES
   ('seed_bp_cal', 'tnt_bradpaws', 'calendar', 'google-calendar', 'disconnected'),

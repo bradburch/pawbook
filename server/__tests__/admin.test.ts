@@ -127,7 +127,7 @@ describe('tenant admin', () => {
     // Seed: Jun 21-24 at Brad Paws has 1 pet, max 2 -> a 2-pet request conflicts.
     const before = (await (
       await app.request(
-        '/api/brad-paws/availability?type=boarding&start=2026-06-21&end=2026-06-24&pets=2',
+        '/api/brad-paws/availability?type=boarding&start=2028-06-21&end=2028-06-24&pets=2',
         {},
         env,
       )
@@ -146,7 +146,7 @@ describe('tenant admin', () => {
 
     const after = (await (
       await app.request(
-        '/api/brad-paws/availability?type=boarding&start=2026-06-21&end=2026-06-24&pets=2',
+        '/api/brad-paws/availability?type=boarding&start=2028-06-21&end=2028-06-24&pets=2',
         {},
         env,
       )
@@ -176,7 +176,7 @@ describe('tenant admin', () => {
     };
     expect(config.services.map((s) => s.type)).not.toContain('walk');
     const avail = await app.request(
-      '/api/brad-paws/availability?type=walk&start=2026-08-01',
+      '/api/brad-paws/availability?type=walk&start=2028-08-01',
       {},
       env,
     );
@@ -191,18 +191,18 @@ describe('tenant admin', () => {
         {
           method: 'POST',
           headers: await auth(TENANT_A, true),
-          body: JSON.stringify({ startDate: '2026-09-01', endDate: '2026-09-03' }),
+          body: JSON.stringify({ startDate: '2028-09-01', endDate: '2028-09-03' }),
         },
         env,
       )
     ).json()) as { id: string };
 
     const walk = (await (
-      await app.request('/api/brad-paws/availability?type=walk&start=2026-09-01', {}, env)
+      await app.request('/api/brad-paws/availability?type=walk&start=2028-09-01', {}, env)
     ).json()) as { available: boolean };
     const boarding = (await (
       await app.request(
-        '/api/brad-paws/availability?type=boarding&start=2026-08-30&end=2026-09-05&pets=1',
+        '/api/brad-paws/availability?type=boarding&start=2028-08-30&end=2028-09-05&pets=1',
         {},
         env,
       )
@@ -216,7 +216,7 @@ describe('tenant admin', () => {
       env,
     );
     const walkAfter = (await (
-      await app.request('/api/brad-paws/availability?type=walk&start=2026-09-01', {}, env)
+      await app.request('/api/brad-paws/availability?type=walk&start=2028-09-01', {}, env)
     ).json()) as { available: boolean };
     expect(walkAfter.available).toBe(true);
   });

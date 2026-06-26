@@ -45,8 +45,8 @@ describe('booking flow', () => {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'boarding',
-          startDate: '2026-08-10',
-          endDate: '2026-08-15',
+          startDate: '2028-08-10',
+          endDate: '2028-08-15',
           petCount: 1,
         }),
       },
@@ -77,8 +77,8 @@ describe('booking flow', () => {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'boarding',
-          startDate: '2026-06-21',
-          endDate: '2026-06-24',
+          startDate: '2028-06-21',
+          endDate: '2028-06-24',
           petCount: 2,
         }),
       },
@@ -172,7 +172,7 @@ describe('booking flow', () => {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'walk',
-          startDate: '2026-09-01',
+          startDate: '2028-09-01',
           optionKey: 'd60',
           petType: 'dog',
           petCount: 1,
@@ -204,7 +204,7 @@ describe('booking flow', () => {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'walk',
-          startDate: '2026-09-01',
+          startDate: '2028-09-01',
           petType: 'cat',
           petCount: 1,
         }),

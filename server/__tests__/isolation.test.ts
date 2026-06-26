@@ -31,8 +31,8 @@ describe('tenant isolation', () => {
     await insertBookingRequest(env.EMBED_PROTO_DB, TENANT_A, {
       endUserId: userA.Id,
       serviceType: 'boarding',
-      startDate: '2026-08-01',
-      endDate: '2026-08-03',
+      startDate: '2028-08-01',
+      endDate: '2028-08-03',
       optionKey: null,
       petType: null,
       petCount: 1,
@@ -55,8 +55,8 @@ describe('tenant isolation', () => {
         headers: { Authorization: `Bearer ${tokenForA}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'boarding',
-          startDate: '2026-08-01',
-          endDate: '2026-08-03',
+          startDate: '2028-08-01',
+          endDate: '2028-08-03',
           petCount: 1,
         }),
       },
@@ -73,7 +73,7 @@ describe('tenant isolation', () => {
     await insertBookingRequest(env.EMBED_PROTO_DB, TENANT_A, {
       endUserId: userA.Id,
       serviceType: 'walk',
-      startDate: '2026-08-01',
+      startDate: '2028-08-01',
       endDate: null,
       optionKey: null,
       petType: null,
