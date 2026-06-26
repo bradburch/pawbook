@@ -1,5 +1,5 @@
-import { formatShortDate } from '@brad-paws/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { formatShortDate } from "../../src/shared/index.js";
+import { useCallback, useEffect, useState } from "react";
 import {
   api,
   ApiError,
@@ -8,45 +8,50 @@ import {
   type Availability,
   type Booking,
   type TenantConfig,
-} from '../shared-ui/api';
-import './widget.css';
+} from "../shared-ui/api";
+import "./widget.css";
 
 /** Widget tenant comes from the iframe path: /embed/:slug — never from the host page. */
-const slug = window.location.pathname.split('/').filter(Boolean)[1] ?? '';
+const slug = window.location.pathname.split("/").filter(Boolean)[1] ?? "";
 
 type IdentifyState =
-  | { step: 'email' }
-  | { step: 'code'; codeId: string; prototypeCode: string; email: string };
+  | { step: "email" }
+  | { step: "code"; codeId: string; prototypeCode: string; email: string };
 
 function Identify({ onDone }: { onDone: () => void }) {
-  const [state, setState] = useState<IdentifyState>({ step: 'email' });
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [error, setError] = useState('');
+  const [state, setState] = useState<IdentifyState>({ step: "email" });
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
 
   const submitEmail = async () => {
-    setError('');
+    setError("");
     try {
       const res = await api.identify(slug, email);
-      setState({ step: 'code', codeId: res.codeId, prototypeCode: res.prototypeCode, email });
+      setState({
+        step: "code",
+        codeId: res.codeId,
+        prototypeCode: res.prototypeCode,
+        email,
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Try again.');
+      setError(e instanceof Error ? e.message : "Try again.");
     }
   };
 
   const submitCode = async () => {
-    if (state.step !== 'code') return;
-    setError('');
+    if (state.step !== "code") return;
+    setError("");
     try {
       const res = await api.verify(slug, state.codeId, code);
       setToken(slug, res.token);
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Try again.');
+      setError(e instanceof Error ? e.message : "Try again.");
     }
   };
 
-  if (state.step === 'email') {
+  if (state.step === "email") {
     return (
       <div className="bp-identify">
         <p>Enter your email to continue:</p>
@@ -82,47 +87,55 @@ function Identify({ onDone }: { onDone: () => void }) {
 }
 
 function BookTab({ config }: { config: TenantConfig }) {
-  const [type, setType] = useState(config.services[0]?.type ?? 'boarding');
-  const service = config.services.find((s) => s.type === type) ?? config.services[0];
-  const [optionKey, setOptionKey] = useState(service?.options[0]?.optionKey ?? '');
-  const [petType, setPetType] = useState(config.petTypes[0] ?? '');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
+  const [type, setType] = useState(config.services[0]?.type ?? "boarding");
+  const service =
+    config.services.find((s) => s.type === type) ?? config.services[0];
+  const [optionKey, setOptionKey] = useState(
+    service?.options[0]?.optionKey ?? "",
+  );
+  const [petType, setPetType] = useState(config.petTypes[0] ?? "");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
   const [pets, setPets] = useState(1);
   const [result, setResult] = useState<Availability | null>(null);
   const [needIdentify, setNeedIdentify] = useState(false);
-  const [confirmation, setConfirmation] = useState('');
-  const [error, setError] = useState('');
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const resetCheck = () => {
     setResult(null);
-    setConfirmation('');
+    setConfirmation("");
   };
 
   const onServiceChange = (next: string) => {
     setType(next);
     const svc = config.services.find((s) => s.type === next);
-    setOptionKey(svc?.options[0]?.optionKey ?? '');
+    setOptionKey(svc?.options[0]?.optionKey ?? "");
     resetCheck();
   };
 
   const check = async () => {
-    setError('');
-    setConfirmation('');
+    setError("");
+    setConfirmation("");
     setResult(null);
     try {
-      const params: Record<string, string> = { type, option: optionKey, start, pets: String(pets) };
-      if (service?.shape === 'range') params.end = end;
+      const params: Record<string, string> = {
+        type,
+        option: optionKey,
+        start,
+        pets: String(pets),
+      };
+      if (service?.shape === "range") params.end = end;
       setResult(await api.availability(slug, params));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Try again.');
+      setError(e instanceof Error ? e.message : "Try again.");
     }
   };
 
   const submit = async () => {
     if (submitting) return;
-    setError('');
+    setError("");
     const token = getToken(slug);
     if (!token) {
       setNeedIdentify(true);
@@ -139,18 +152,23 @@ function BookTab({ config }: { config: TenantConfig }) {
         petCount: number;
       } = { type, optionKey, startDate: start, petCount: pets };
       if (petType) body.petType = petType;
-      if (service?.shape === 'range') body.endDate = end;
+      if (service?.shape === "range") body.endDate = end;
       const res = await api.createBooking(slug, token, body);
-      setConfirmation(`Request sent! Estimated cost $${res.estCost}. Status: ${res.status}.`);
+      setConfirmation(
+        `Request sent! Estimated cost $${res.estCost}. Status: ${res.status}.`,
+      );
       setResult(null);
-      window.parent.postMessage({ type: 'bradpaws:booked', requestId: res.id }, '*');
+      window.parent.postMessage(
+        { type: "bradpaws:booked", requestId: res.id },
+        "*",
+      );
     } catch (e) {
       if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
         setToken(slug, null);
         setNeedIdentify(true);
         return;
       }
-      setError(e instanceof Error ? e.message : 'Try again.');
+      setError(e instanceof Error ? e.message : "Try again.");
     } finally {
       setSubmitting(false);
     }
@@ -216,7 +234,7 @@ function BookTab({ config }: { config: TenantConfig }) {
           >
             {config.petTypes.map((p) => (
               <option key={p} value={p}>
-                {p === 'dog' ? 'Dog' : 'Cat'}
+                {p === "dog" ? "Dog" : "Cat"}
               </option>
             ))}
           </select>
@@ -224,7 +242,7 @@ function BookTab({ config }: { config: TenantConfig }) {
       )}
 
       <label>
-        {service.shape === 'range' ? 'Check-in' : 'Date'}
+        {service.shape === "range" ? "Check-in" : "Date"}
         <input
           type="date"
           value={start}
@@ -234,7 +252,7 @@ function BookTab({ config }: { config: TenantConfig }) {
           }}
         />
       </label>
-      {service.shape === 'range' && (
+      {service.shape === "range" && (
         <label>
           Checkout
           <input
@@ -265,14 +283,14 @@ function BookTab({ config }: { config: TenantConfig }) {
         (result.available ? (
           <div className="bp-result bp-ok">
             <p>
-              Available!{' '}
+              Available!{" "}
               {result.nights != null
-                ? `${result.nights} night${result.nights === 1 ? '' : 's'} · `
-                : ''}
+                ? `${result.nights} night${result.nights === 1 ? "" : "s"} · `
+                : ""}
               Est. cost <strong>${result.estCost}</strong>
             </p>
             <button onClick={submit} disabled={submitting}>
-              {submitting ? 'Sending…' : 'Confirm & request'}
+              {submitting ? "Sending…" : "Confirm & request"}
             </button>
           </div>
         ) : (
@@ -290,7 +308,7 @@ function MineTab() {
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   // Seed from token presence so the effect never sets state synchronously (react-hooks rule).
   const [needIdentify, setNeedIdentify] = useState(() => !getToken(slug));
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // Resolve the bookings load to a settled outcome, with NO setState — the caller applies it.
   // Keeping setState out of this function lets the effect call setState only inside a `.then`
@@ -299,32 +317,40 @@ function MineTab() {
     async (
       token: string,
     ): Promise<
-      { kind: 'ok'; bookings: Booking[] } | { kind: 'reauth' } | { kind: 'error'; message: string }
+      | { kind: "ok"; bookings: Booking[] }
+      | { kind: "reauth" }
+      | { kind: "error"; message: string }
     > => {
       try {
         const res = await api.myBookings(slug, token);
-        return { kind: 'ok', bookings: res.bookings };
+        return { kind: "ok", bookings: res.bookings };
       } catch (e) {
         if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
           setToken(slug, null);
-          return { kind: 'reauth' };
+          return { kind: "reauth" };
         }
-        return { kind: 'error', message: e instanceof Error ? e.message : 'Try again.' };
+        return {
+          kind: "error",
+          message: e instanceof Error ? e.message : "Try again.",
+        };
       }
     },
     [],
   );
 
-  const apply = useCallback((outcome: Awaited<ReturnType<typeof loadOutcome>>) => {
-    if (outcome.kind === 'ok') {
-      setBookings(outcome.bookings);
-      setNeedIdentify(false);
-    } else if (outcome.kind === 'reauth') {
-      setNeedIdentify(true);
-    } else {
-      setError(outcome.message);
-    }
-  }, []);
+  const apply = useCallback(
+    (outcome: Awaited<ReturnType<typeof loadOutcome>>) => {
+      if (outcome.kind === "ok") {
+        setBookings(outcome.bookings);
+        setNeedIdentify(false);
+      } else if (outcome.kind === "reauth") {
+        setNeedIdentify(true);
+      } else {
+        setError(outcome.message);
+      }
+    },
+    [],
+  );
 
   const reload = () => {
     const token = getToken(slug);
@@ -354,9 +380,11 @@ function MineTab() {
       {bookings.map((b) => (
         <li key={b.id}>
           <strong>{b.type}</strong> {formatShortDate(b.startDate)}
-          {b.endDate ? ` → ${formatShortDate(b.endDate)}` : ''} · {b.petCount} pet
-          {b.petCount === 1 ? '' : 's'}
-          {b.estCost != null ? ` · est. $${b.estCost}` : ''} · <em>{b.status}</em>
+          {b.endDate ? ` → ${formatShortDate(b.endDate)}` : ""} · {b.petCount}{" "}
+          pet
+          {b.petCount === 1 ? "" : "s"}
+          {b.estCost != null ? ` · est. $${b.estCost}` : ""} ·{" "}
+          <em>{b.status}</em>
         </li>
       ))}
     </ul>
@@ -369,8 +397,11 @@ function useResizeReporter() {
     const report = () =>
       window.parent.postMessage(
         // No secrets ever cross postMessage; the loader filters by origin + source.
-        { type: 'bradpaws:resize', height: document.documentElement.scrollHeight },
-        '*',
+        {
+          type: "bradpaws:resize",
+          height: document.documentElement.scrollHeight,
+        },
+        "*",
       );
     report();
     const observer = new ResizeObserver(report);
@@ -381,8 +412,8 @@ function useResizeReporter() {
 
 export default function App() {
   const [config, setConfig] = useState<TenantConfig | null>(null);
-  const [tab, setTab] = useState<'book' | 'mine'>('book');
-  const [error, setError] = useState('');
+  const [tab, setTab] = useState<"book" | "mine">("book");
+  const [error, setError] = useState("");
   useResizeReporter();
 
   useEffect(() => {
@@ -390,10 +421,15 @@ export default function App() {
       .config(slug)
       .then((c) => {
         setConfig(c);
-        document.documentElement.style.setProperty('--bp-accent', c.accentColor);
+        document.documentElement.style.setProperty(
+          "--bp-accent",
+          c.accentColor,
+        );
         document.title = `Book with ${c.displayName}`;
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load.'));
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Could not load."),
+      );
   }, []);
 
   if (error) return <p className="bp-error">{error}</p>;
@@ -404,15 +440,21 @@ export default function App() {
       <header>
         <h1>{config.displayName}</h1>
         <nav>
-          <button className={tab === 'book' ? 'bp-active' : ''} onClick={() => setTab('book')}>
+          <button
+            className={tab === "book" ? "bp-active" : ""}
+            onClick={() => setTab("book")}
+          >
             Book
           </button>
-          <button className={tab === 'mine' ? 'bp-active' : ''} onClick={() => setTab('mine')}>
+          <button
+            className={tab === "mine" ? "bp-active" : ""}
+            onClick={() => setTab("mine")}
+          >
             My bookings
           </button>
         </nav>
       </header>
-      {tab === 'book' ? <BookTab config={config} /> : <MineTab />}
+      {tab === "book" ? <BookTab config={config} /> : <MineTab />}
     </div>
   );
 }

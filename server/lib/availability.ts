@@ -6,10 +6,10 @@ import {
   walkHasConflict,
   type CapacityEvent,
   type DayCapacity,
-} from '@brad-paws/shared';
-import { listCapacityRows } from '../db/repo';
-import { SERVICE_CATALOG, type ServiceType } from '../lib/services';
-import type { BookingRow, Tenant, TenantServiceOption } from '../types';
+} from "../../src/shared/index.js";
+import { listCapacityRows } from "../db/repo";
+import { SERVICE_CATALOG, type ServiceType } from "../lib/services";
+import type { BookingRow, Tenant, TenantServiceOption } from "../types";
 
 /**
  * Per-tenant availability. Counting, boundary, and blocked semantics come from shared
@@ -20,7 +20,11 @@ import type { BookingRow, Tenant, TenantServiceOption } from '../types';
  * Graduation path: add an optional `maxPets` param to the shared functions instead.
  */
 
-function dayBlocksBoarding(capacity: DayCapacity, requestPets: number, maxPets: number): boolean {
+function dayBlocksBoarding(
+  capacity: DayCapacity,
+  requestPets: number,
+  maxPets: number,
+): boolean {
   const pets = Math.max(1, requestPets);
   if (capacity.blocked >= 1 || capacity.houseSits >= 1) return true;
   return capacity.boarding + pets > maxPets;
@@ -48,7 +52,8 @@ export function tenantRangeHasConflict(
     // room for this request — the existing booking is ending here.
     if (isRequestEndpoint && capacity.blocked === 0) {
       const next = capacityByDate.get(addDays(date, 1));
-      if (!next || !dayBlocksBoarding(next, requestPets, maxBoardingPets)) continue;
+      if (!next || !dayBlocksBoarding(next, requestPets, maxBoardingPets))
+        continue;
     }
 
     return true;
@@ -63,7 +68,7 @@ export function rowsToCapacityEvents(rows: BookingRow[]): CapacityEvent[] {
     end_date: row.EndDate ?? undefined,
     // boarding AND housesitting both consume a boarding slot in this prototype (conscious
     // simplification, like the D-E deviation): a real model would block the day exclusively.
-    type: row.ServiceType === 'blocked' ? 'blocked' : 'boarding',
+    type: row.ServiceType === "blocked" ? "blocked" : "boarding",
     petCount: row.PetCount,
   }));
 }
@@ -84,7 +89,7 @@ async function checkRange(
   // calendar — the range walk skips days with no existing rows, so this isolation check is
   // what actually enforces MaxBoardingPets when there's nothing to conflict with.
   if (petCount > tenant.MaxBoardingPets) {
-    return { available: false, reason: 'That exceeds our boarding capacity.' };
+    return { available: false, reason: "That exceeds our boarding capacity." };
   }
   // Fetch one day PAST checkout so the soft-bookend look-ahead (which peeks at the day after the
   // last occupied night) sees a booking that starts exactly on the checkout day. Without the +1,
@@ -97,12 +102,22 @@ async function checkRange(
   );
   const capacity = buildCapacity(rowsToCapacityEvents(rows));
   if (
-    tenantRangeHasConflict(startDate, endDateExclusive, capacity, petCount, tenant.MaxBoardingPets)
+    tenantRangeHasConflict(
+      startDate,
+      endDateExclusive,
+      capacity,
+      petCount,
+      tenant.MaxBoardingPets,
+    )
   ) {
-    return { available: false, reason: 'Those dates are not available.' };
+    return { available: false, reason: "Those dates are not available." };
   }
   const nights = nightsBetween(startDate, endDateExclusive);
-  return { available: true, estCost: option.Rate * billableUnits(nights, 'night'), nights };
+  return {
+    available: true,
+    estCost: option.Rate * billableUnits(nights, "night"),
+    nights,
+  };
 }
 
 async function checkSingle(
@@ -111,10 +126,15 @@ async function checkSingle(
   option: TenantServiceOption,
   date: string,
 ): Promise<AvailabilityResult> {
-  const rows = await listCapacityRows(env.EMBED_PROTO_DB, tenant.Id, date, addDays(date, 1));
+  const rows = await listCapacityRows(
+    env.EMBED_PROTO_DB,
+    tenant.Id,
+    date,
+    addDays(date, 1),
+  );
   const capacity = buildCapacity(rowsToCapacityEvents(rows));
   if (walkHasConflict(date, capacity)) {
-    return { available: false, reason: 'That day is blocked off.' };
+    return { available: false, reason: "That day is blocked off." };
   }
   // Single-visit/day cost is just the picked option's price (billableUnits has no 'visit' unit).
   return { available: true, estCost: option.Rate };
@@ -129,7 +149,7 @@ export function checkAvailability(
   endDateExclusive: string,
   petCount = 1,
 ): Promise<AvailabilityResult> {
-  return SERVICE_CATALOG[serviceType].shape === 'range'
+  return SERVICE_CATALOG[serviceType].shape === "range"
     ? checkRange(env, tenant, option, startDate, endDateExclusive, petCount)
     : checkSingle(env, tenant, option, startDate);
 }

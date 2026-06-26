@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@brad-paws/shared": "*",
     "hono": "^4.12.25",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
@@ -17,6 +16,7 @@
     "typescript": "6.0.3",
     "vite": "^7.3.5",
     "vitest": "^4.1.8",
+    "concurrently": "^10.0.3",
     "wrangler": "^4.98.0"
   },
   "scripts": {

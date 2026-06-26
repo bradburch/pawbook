@@ -3,6 +3,7 @@
   "include": [
     "app/**/*",
     "server/**/*",
+    "src/**/*",
     "worker-configuration.d.ts",
     "vite.config.ts",
     "vitest.config.ts"
