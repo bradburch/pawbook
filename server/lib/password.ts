@@ -47,7 +47,7 @@ export async function hashPassword(password: string): Promise<string> {
  * timing parity can't silently drift if ITERATIONS is raised.
  */
 export const DUMMY_PASSWORD_HASH =
-  'pbkdf2$600000$4f4aa1b2f29635a386a62fbce18336ae$8eaa4c479048f11664af6dd8a6118996921474eb6c72ba6c4b6caf66155fc6ae';
+  'pbkdf2$600000$a33cd73eff7c27b9b9e7dce5cdd9c49d$af3af0107bc6bfe119b372878b96b3031f7271c0a32c6d1a0e7b5a0859246ed2';
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split('$');

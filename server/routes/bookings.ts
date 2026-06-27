@@ -94,7 +94,16 @@ export const bookingRoutes = new Hono<AppEnv>()
       status: 'pending',
     });
 
-    const check = await checkAvailability(c.env, tenant, type, option, start, end, pets, id);
+    let check;
+    try {
+      check = await checkAvailability(c.env, tenant, type, option, start, end, pets, id);
+    } catch (err) {
+      // The optimistic row is already persisted; if the capacity check fails, don't leave it
+      // orphaned (a pending row counts against capacity and never expires). Best-effort cleanup,
+      // then surface the original error.
+      await deleteBookingRequest(c.env.PAWBOOK_DB, tenant.Id, id).catch(() => {});
+      throw err;
+    }
     if (!check.available) {
       await deleteBookingRequest(c.env.PAWBOOK_DB, tenant.Id, id);
       return c.json({ error: 'Sorry — those dates just filled up.' }, 409);
