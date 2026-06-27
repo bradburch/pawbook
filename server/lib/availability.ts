@@ -72,13 +72,31 @@ export type AvailabilityResult =
   | { available: true; estCost: number; nights?: number }
   | { available: false; reason: string };
 
+/**
+ * The estimated cost of a booking — the ONE place the price formula lives, so the availability
+ * quote and the stored booking cost can't diverge. Range services bill per night; single-day
+ * services (daycare/walk/check-in) are a flat per-booking rate. Pure (no DB), so callers that
+ * already know the dates can price a booking without a capacity read.
+ */
+export function estimateCost(
+  serviceType: ServiceType,
+  option: TenantServiceOption,
+  startDate: string,
+  endDateExclusive: string,
+): number {
+  if (SERVICE_CATALOG[serviceType].shape !== 'range') return option.Rate;
+  return option.Rate * billableUnits(nightsBetween(startDate, endDateExclusive), 'night');
+}
+
 async function checkRange(
   env: Env,
   tenant: Tenant,
+  serviceType: ServiceType,
   option: TenantServiceOption,
   startDate: string,
   endDateExclusive: string,
   petCount: number,
+  excludeBookingId?: string,
 ): Promise<AvailabilityResult> {
   // A request for more pets than the tenant's per-day cap can never fit, even on an empty
   // calendar — the range walk skips days with no existing rows, so this isolation check is
@@ -94,6 +112,7 @@ async function checkRange(
     tenant.Id,
     startDate,
     addDays(endDateExclusive, 1),
+    excludeBookingId,
   );
   const capacity = buildCapacity(rowsToCapacityEvents(rows));
   if (
@@ -101,27 +120,33 @@ async function checkRange(
   ) {
     return { available: false, reason: 'Those dates are not available.' };
   }
-  const nights = nightsBetween(startDate, endDateExclusive);
   return {
     available: true,
-    estCost: option.Rate * billableUnits(nights, 'night'),
-    nights,
+    estCost: estimateCost(serviceType, option, startDate, endDateExclusive),
+    nights: nightsBetween(startDate, endDateExclusive),
   };
 }
 
 async function checkSingle(
   env: Env,
   tenant: Tenant,
+  serviceType: ServiceType,
   option: TenantServiceOption,
   date: string,
+  excludeBookingId?: string,
 ): Promise<AvailabilityResult> {
-  const rows = await listCapacityRows(env.PAWBOOK_DB, tenant.Id, date, addDays(date, 1));
+  const rows = await listCapacityRows(
+    env.PAWBOOK_DB,
+    tenant.Id,
+    date,
+    addDays(date, 1),
+    excludeBookingId,
+  );
   const capacity = buildCapacity(rowsToCapacityEvents(rows));
   if (walkHasConflict(date, capacity)) {
     return { available: false, reason: 'That day is blocked off.' };
   }
-  // Single-visit/day cost is just the picked option's price (billableUnits has no 'visit' unit).
-  return { available: true, estCost: option.Rate };
+  return { available: true, estCost: estimateCost(serviceType, option, date, date) };
 }
 
 export function checkAvailability(
@@ -132,8 +157,18 @@ export function checkAvailability(
   startDate: string,
   endDateExclusive: string,
   petCount = 1,
+  excludeBookingId?: string,
 ): Promise<AvailabilityResult> {
   return SERVICE_CATALOG[serviceType].shape === 'range'
-    ? checkRange(env, tenant, option, startDate, endDateExclusive, petCount)
-    : checkSingle(env, tenant, option, startDate);
+    ? checkRange(
+        env,
+        tenant,
+        serviceType,
+        option,
+        startDate,
+        endDateExclusive,
+        petCount,
+        excludeBookingId,
+      )
+    : checkSingle(env, tenant, serviceType, option, startDate, excludeBookingId);
 }

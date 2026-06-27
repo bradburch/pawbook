@@ -4,7 +4,9 @@
  *   pbkdf2$<iterations>$<saltHex>$<hashHex>
  */
 
-const ITERATIONS = 600_000;
+import { constantTimeEqual } from './timing';
+
+export const ITERATIONS = 600_000;
 const KEY_BYTES = 32;
 const SALT_BYTES = 16;
 const encoder = new TextEncoder();
@@ -37,13 +39,15 @@ export async function hashPassword(password: string): Promise<string> {
   return `pbkdf2$${ITERATIONS}$${toHex(salt)}$${toHex(hash)}`;
 }
 
-/** Constant-time equality for two equal-length hex strings. */
-function timingSafeEqualHex(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
+/**
+ * A real PBKDF2 hash (at {@link ITERATIONS}) of a random string nobody knows. Verifying any
+ * password against this costs the same as verifying a real user's hash, so the login route can
+ * run a derive on the email-not-found path and avoid a user-enumeration timing oracle. The
+ * embedded iteration count MUST match ITERATIONS — `password.test.ts` asserts this so the
+ * timing parity can't silently drift if ITERATIONS is raised.
+ */
+export const DUMMY_PASSWORD_HASH =
+  'pbkdf2$600000$a33cd73eff7c27b9b9e7dce5cdd9c49d$af3af0107bc6bfe119b372878b96b3031f7271c0a32c6d1a0e7b5a0859246ed2';
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split('$');
@@ -51,5 +55,5 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const iterations = Number(parts[1]);
   if (!Number.isInteger(iterations) || iterations < 1) return false;
   const hash = await derive(password, fromHex(parts[2]), iterations);
-  return timingSafeEqualHex(toHex(hash), parts[3]);
+  return constantTimeEqual(toHex(hash), parts[3]);
 }

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { consumeLoginCode, createLoginCode, upsertEndUser } from '../db/repo';
+import { isEmailConfigured, sendLoginCode } from '../lib/email';
 import { mintToken } from '../lib/token';
 import type { AppEnv } from '../types';
 
@@ -23,9 +24,23 @@ export const authRoutes = new Hono<AppEnv>()
     const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
     const codeId = await createLoginCode(c.env.PAWBOOK_DB, tenant.Id, user.Id, code, expiresAt);
 
-    // PROTOTYPE ONLY: the code is returned to the client and displayed on screen instead of
-    // being emailed (PRD FR9). Real email delivery is a graduation task.
-    return c.json({ codeId, prototypeCode: code });
+    // When email is configured, send the code and NEVER return it — returning it would be an
+    // unauthenticated account-takeover (anyone knowing the email could read the code).
+    if (isEmailConfigured(c.env)) {
+      try {
+        await sendLoginCode(c.env, email, code);
+      } catch {
+        return c.json({ error: 'Could not send your code. Try again shortly.' }, 502);
+      }
+      return c.json({ codeId });
+    }
+    // No email provider configured. Only show the code on screen in explicit local development —
+    // gating on an env signal (not merely on the secrets being absent) so a production deploy that
+    // forgot to set RESEND_* fails CLOSED instead of silently leaking codes.
+    if (c.env.ENVIRONMENT === 'development') {
+      return c.json({ codeId, prototypeCode: code });
+    }
+    return c.json({ error: 'Login is temporarily unavailable.' }, 503);
   })
 
   .post('/:slug/verify', async (c) => {

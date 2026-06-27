@@ -18,7 +18,7 @@ const slug = window.location.pathname.split('/').filter(Boolean)[1] ?? '';
 
 type IdentifyState =
   | { step: 'email' }
-  | { step: 'code'; codeId: string; prototypeCode: string; email: string };
+  | { step: 'code'; codeId: string; prototypeCode?: string; email: string };
 
 function Identify({ onDone }: { onDone: () => void }) {
   const [state, setState] = useState<IdentifyState>({ step: 'email' });
@@ -72,9 +72,17 @@ function Identify({ onDone }: { onDone: () => void }) {
   return (
     <div className="bp-identify">
       <p className="bp-proto-code">
-        Your code: <strong>{state.prototypeCode}</strong>
-        <br />
-        <small>(prototype: this would be emailed to {state.email})</small>
+        {state.prototypeCode ? (
+          <>
+            Your code: <strong>{state.prototypeCode}</strong>
+            <br />
+            <small>(dev mode: this would be emailed to {state.email})</small>
+          </>
+        ) : (
+          <>
+            We emailed a 6-digit code to <strong>{state.email}</strong>.
+          </>
+        )}
       </p>
       <input
         inputMode="numeric"

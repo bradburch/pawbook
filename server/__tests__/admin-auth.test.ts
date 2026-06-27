@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import app from '../index';
-import { hashPassword, verifyPassword } from '../lib/password';
+import { DUMMY_PASSWORD_HASH, hashPassword, ITERATIONS, verifyPassword } from '../lib/password';
 import { ADMIN_EMAIL_A, ADMIN_EMAIL_B, ADMIN_PASSWORD, createTestEnv } from './helpers';
 
 describe('password hashing', () => {
@@ -23,6 +23,13 @@ describe('password hashing', () => {
   it('rejects malformed stored values without throwing', async () => {
     expect(await verifyPassword('x', 'garbage')).toBe(false);
     expect(await verifyPassword('x', 'pbkdf2$notanumber$aa$bb')).toBe(false);
+  });
+
+  it('DUMMY_PASSWORD_HASH uses the current iteration count (login timing parity)', () => {
+    // The miss-path dummy verify only costs the same as a real verify if its iterations match.
+    const [scheme, iterations] = DUMMY_PASSWORD_HASH.split('$');
+    expect(scheme).toBe('pbkdf2');
+    expect(Number(iterations)).toBe(ITERATIONS);
   });
 });
 

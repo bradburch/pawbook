@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import {
+  deleteBookingRequest,
   insertBookingRequest,
   listBookingsForUser,
   listPetTypes,
   listServiceOptions,
   listServices,
 } from '../db/repo';
-import { checkAvailability } from '../lib/availability';
+import { checkAvailability, estimateCost } from '../lib/availability';
 import { SERVICE_CATALOG, isServiceType, isPetType } from '../lib/services';
 import type { PetType } from '../lib/services';
 import { endUserAuth } from '../lib/middleware';
@@ -67,26 +68,20 @@ export const bookingRoutes = new Hono<AppEnv>()
       if (!accepted) return c.json({ error: 'That pet type is not accepted.' }, 400);
     }
 
-    // Re-validate at submit time with the same logic the widget used (PRD FR13).
-    let estCost: number;
-    let endDate: string | null;
+    // Re-validate dates at submit time with the same logic the widget used (PRD FR13).
     const shape = SERVICE_CATALOG[type].shape;
-    if (shape === 'range') {
-      const rangeError = validateBoardingRange(start, end);
-      if (rangeError) return c.json({ error: rangeError.error }, rangeError.status);
-      const result = await checkAvailability(c.env, tenant, type, option, start, end, pets);
-      if (!result.available) return c.json({ error: 'Sorry — those dates just filled up.' }, 409);
-      estCost = result.estCost;
-      endDate = end;
-    } else {
-      const dateError = validateSingleDate(start);
-      if (dateError) return c.json({ error: dateError.error }, dateError.status);
-      const result = await checkAvailability(c.env, tenant, type, option, start, end, pets);
-      if (!result.available) return c.json({ error: 'Sorry — that day just filled up.' }, 409);
-      estCost = result.estCost;
-      endDate = null;
-    }
+    const dateError =
+      shape === 'range' ? validateBoardingRange(start, end) : validateSingleDate(start);
+    if (dateError) return c.json({ error: dateError.error }, dateError.status);
+    const endDate = shape === 'range' ? end : null;
 
+    // Price is computed server-side (never trusted from the client) and is pure — no DB read.
+    const estCost = estimateCost(type, option, start, end);
+
+    // Optimistic insert, then a single capacity check that excludes our own just-inserted row.
+    // The check covers both "those dates were already full" and the check-then-insert race (a
+    // concurrent booking taking the last slot); either way we delete and 409. Two simultaneous
+    // racers may both roll back — fail-safe, never an overbooking. This is the ONLY capacity read.
     const id = await insertBookingRequest(c.env.PAWBOOK_DB, tenant.Id, {
       endUserId: c.get('endUserId'),
       serviceType: type,
@@ -98,6 +93,22 @@ export const bookingRoutes = new Hono<AppEnv>()
       estCost,
       status: 'pending',
     });
+
+    let check;
+    try {
+      check = await checkAvailability(c.env, tenant, type, option, start, end, pets, id);
+    } catch (err) {
+      // The optimistic row is already persisted; if the capacity check fails, don't leave it
+      // orphaned (a pending row counts against capacity and never expires). Best-effort cleanup,
+      // then surface the original error.
+      await deleteBookingRequest(c.env.PAWBOOK_DB, tenant.Id, id).catch(() => {});
+      throw err;
+    }
+    if (!check.available) {
+      await deleteBookingRequest(c.env.PAWBOOK_DB, tenant.Id, id);
+      return c.json({ error: 'Sorry — those dates just filled up.' }, 409);
+    }
+
     return c.json({ id, estCost, status: 'pending' }, 201);
   })
 
