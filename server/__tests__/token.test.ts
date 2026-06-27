@@ -66,3 +66,15 @@ describe('widget token', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('TOKEN_SECRET guard', () => {
+  it.each(['', 'short', 'local-dev-secret-change-me', 'embed-proto-dev-secret-not-for-production'])(
+    'returns 503 for missing/weak secret %j',
+    async (secret) => {
+      const { env } = createTestEnv();
+      env.TOKEN_SECRET = secret;
+      const res = await app.request('/api/sunny-paws/config', {}, env);
+      expect(res.status).toBe(503);
+    },
+  );
+});

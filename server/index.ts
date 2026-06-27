@@ -18,18 +18,21 @@ const LOCKED_CSP = `${EMBEDDABLE_CSP}; frame-ancestors 'none'`;
 const app = new Hono<AppEnv>();
 
 // Known publicly-shipped/placeholder secrets that must never sign real tokens — anyone with the
-// repo knows them, so reusing one in production makes every session token forgeable. Includes the
-// embedded proto default and older README dev placeholders. New setups should generate a random
-// secret (`openssl rand -base64 32`) for dev too, so there is no fixed string to leak.
+// repo knows them, so reusing one in production makes every session token forgeable. New setups
+// generate a random secret (`openssl rand -base64 32`) for dev too, so no fixed string can leak.
+// (Short placeholders like "change-me" are already caught by the length floor below.)
 const KNOWN_INSECURE_SECRETS = new Set([
   'embed-proto-dev-secret-not-for-production',
   'local-dev-secret-change-me',
-  'change-me',
 ]);
 const MIN_TOKEN_SECRET_LENGTH = 16;
+
+function isInsecureTokenSecret(secret: string | undefined): boolean {
+  return !secret || secret.length < MIN_TOKEN_SECRET_LENGTH || KNOWN_INSECURE_SECRETS.has(secret);
+}
+
 app.use('*', async (c, next) => {
-  const secret = c.env.TOKEN_SECRET;
-  if (!secret || secret.length < MIN_TOKEN_SECRET_LENGTH || KNOWN_INSECURE_SECRETS.has(secret)) {
+  if (isInsecureTokenSecret(c.env.TOKEN_SECRET)) {
     return c.json({ error: 'Server misconfigured: TOKEN_SECRET is missing or insecure.' }, 503);
   }
   return next();

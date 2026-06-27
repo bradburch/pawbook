@@ -80,6 +80,7 @@ export function createTestEnv(): { env: Env; raw: DatabaseSync } {
     PAWBOOK_DB: makeD1(raw),
     PAWBOOK_CACHE: makeKV(),
     TOKEN_SECRET: TEST_SECRET,
+    ENVIRONMENT: 'development', // lets /identify return prototypeCode when no email provider is set
     ASSETS: { fetch: async () => new Response('<!doctype html>') },
   } as unknown as Env;
   return { env, raw };

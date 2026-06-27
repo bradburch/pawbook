@@ -54,7 +54,7 @@ resolved from the slug; capacity and pricing rules live in `src/shared/` (pure f
 ```bash
 npm install
 npm run seed:local                                # schema + demo tenants (Sunny Paws, Happy Tails)
-echo "TOKEN_SECRET=$(openssl rand -base64 32)" > .dev.vars   # random secret, even in dev
+printf 'TOKEN_SECRET=%s\nENVIRONMENT=development\n' "$(openssl rand -base64 32)" > .dev.vars
 npm run dev                                        # builds the widget + runs wrangler dev
 ```
 
@@ -74,8 +74,9 @@ npm run seed:remote                                # ⚠️ demo tenants/logins 
 
 ### Email delivery (login codes)
 
-In dev, login codes are shown on screen. To email them in production, set two secrets — login
-then falls back to nothing if they are absent, so this step is optional for a demo:
+In local development (`ENVIRONMENT=development`) login codes are shown on screen. **Production
+emails them and fails closed if no provider is configured** — `/identify` returns 503 rather than
+ever leaking a code. Set two secrets to enable email:
 
 ```bash
 npx wrangler secret put RESEND_API_KEY             # from https://resend.com (free tier)

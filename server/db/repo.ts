@@ -10,7 +10,7 @@ import type {
   TenantUser,
 } from '../types';
 import type { ServiceType } from '../lib/services';
-import { constantTimeEqual } from '../lib/password';
+import { constantTimeEqual } from '../lib/timing';
 
 /**
  * The ONLY module allowed to touch PAWBOOK_DB. Every function below either resolves a

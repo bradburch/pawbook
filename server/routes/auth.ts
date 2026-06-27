@@ -24,9 +24,8 @@ export const authRoutes = new Hono<AppEnv>()
     const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
     const codeId = await createLoginCode(c.env.PAWBOOK_DB, tenant.Id, user.Id, code, expiresAt);
 
-    // When email is configured (prod), send the code and NEVER return it — returning it would be
-    // an unauthenticated account-takeover (anyone knowing the email could read the code). Without
-    // email configured (local dev), fall back to returning it so the flow is testable offline.
+    // When email is configured, send the code and NEVER return it — returning it would be an
+    // unauthenticated account-takeover (anyone knowing the email could read the code).
     if (isEmailConfigured(c.env)) {
       try {
         await sendLoginCode(c.env, email, code);
@@ -35,7 +34,13 @@ export const authRoutes = new Hono<AppEnv>()
       }
       return c.json({ codeId });
     }
-    return c.json({ codeId, prototypeCode: code });
+    // No email provider configured. Only show the code on screen in explicit local development —
+    // gating on an env signal (not merely on the secrets being absent) so a production deploy that
+    // forgot to set RESEND_* fails CLOSED instead of silently leaking codes.
+    if (c.env.ENVIRONMENT === 'development') {
+      return c.json({ codeId, prototypeCode: code });
+    }
+    return c.json({ error: 'Login is temporarily unavailable.' }, 503);
   })
 
   .post('/:slug/verify', async (c) => {

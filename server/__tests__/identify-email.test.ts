@@ -43,4 +43,13 @@ describe('identify with email configured', () => {
     const res = await identify(env);
     expect(res.status).toBe(502);
   });
+
+  it('fails closed (503) in production when no email provider is configured', async () => {
+    const { env } = createTestEnv();
+    env.ENVIRONMENT = 'production'; // not development, and no RESEND_* set
+    const res = await identify(env);
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { prototypeCode?: string };
+    expect(body.prototypeCode).toBeUndefined();
+  });
 });

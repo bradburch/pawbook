@@ -8,4 +8,9 @@ interface Env {
   RESEND_API_KEY?: string;
   /** Verified Resend sender, e.g. "Pawbook <bookings@yourdomain.com>". Required to send email. */
   RESEND_FROM?: string;
+  /**
+   * Deployment environment. Only `'development'` (set in local `.dev.vars`) may show login codes
+   * on screen when email is unconfigured; anything else (incl. unset) fails closed in production.
+   */
+  ENVIRONMENT?: string;
 }

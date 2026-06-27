@@ -71,17 +71,19 @@ function Identify({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="bp-identify">
-      {state.prototypeCode ? (
-        <p className="bp-proto-code">
-          Your code: <strong>{state.prototypeCode}</strong>
-          <br />
-          <small>(dev mode: this would be emailed to {state.email})</small>
-        </p>
-      ) : (
-        <p className="bp-proto-code">
-          We emailed a 6-digit code to <strong>{state.email}</strong>.
-        </p>
-      )}
+      <p className="bp-proto-code">
+        {state.prototypeCode ? (
+          <>
+            Your code: <strong>{state.prototypeCode}</strong>
+            <br />
+            <small>(dev mode: this would be emailed to {state.email})</small>
+          </>
+        ) : (
+          <>
+            We emailed a 6-digit code to <strong>{state.email}</strong>.
+          </>
+        )}
+      </p>
       <input
         inputMode="numeric"
         value={code}
