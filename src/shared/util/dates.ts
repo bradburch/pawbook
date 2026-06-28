@@ -5,7 +5,8 @@ export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Instance-default business timezone used when a tenant has none set. */
 export const DEFAULT_TIMEZONE = 'America/Los_Angeles';
-/** @deprecated internal alias for offset helpers; prefer DEFAULT_TIMEZONE. */
+/** Internal alias used by the Pacific-specific offset helpers below; new code should
+ *  prefer DEFAULT_TIMEZONE (and accept an explicit timezone where a tenant can set one). */
 export const PACIFIC = DEFAULT_TIMEZONE;
 
 /**
@@ -100,11 +101,11 @@ export function addDays(dateStr: string, days: number): string {
 }
 
 /**
- * Today (or `date`) as a `YYYY-MM-DD` string in Pacific time — the business's
- * timezone. All "is this in the past / what day is it" checks across the chat
- * agent, MCP server, and booking service must use this rather than the
- * runtime's local or UTC date, so a booking near midnight resolves to the
- * correct Pacific day.
+ * Today (or `date`) as a `YYYY-MM-DD` string in the given `timezone` (defaults to
+ * DEFAULT_TIMEZONE — the instance business timezone). All "is this in the past / what
+ * day is it" checks across the chat agent, MCP server, and booking service must use this
+ * rather than the runtime's local or UTC date, so a booking near midnight resolves to the
+ * correct business day. Pass a tenant's configured timezone to honor a non-default sitter.
  */
 export function getPacificDateStr(date: Date = new Date(), timezone: string = DEFAULT_TIMEZONE): string {
   return date.toLocaleDateString('en-CA', { timeZone: timezone });
