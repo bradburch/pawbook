@@ -3,67 +3,36 @@ import {
   billableUnits,
   buildCapacity,
   nightsBetween,
+  rangeHasConflict,
   walkHasConflict,
   type CapacityEvent,
-  type DayCapacity,
+  type CapacityLimits,
 } from '../../src/shared/index.js';
 import { listCapacityRows } from '../db/repo';
 import { SERVICE_CATALOG, type ServiceType } from '../lib/services';
 import type { BookingRow, Tenant, TenantServiceOption } from '../types';
 
 /**
- * Per-tenant availability. Counting, boundary, and blocked semantics come from shared
- * `buildCapacity`/`walkHasConflict`. The range-conflict walk below is a faithful port of
- * shared `rangeHasConflict`'s boarding path with the hardcoded max of 2 replaced by the
- * tenant's `MaxBoardingPets` — a CONSCIOUS deviation recorded in the architecture doc (D-E);
- * `availability.test.ts` pins this port to the shared implementation at max = 2.
- * Graduation path: add an optional `maxPets` param to the shared functions instead.
+ * Per-tenant availability built on the shared capacity engine. The tenant's nullable config
+ * columns map straight onto CapacityLimits (null = unlimited / auto pass-through).
  */
-
-function dayBlocksBoarding(capacity: DayCapacity, requestPets: number, maxPets: number): boolean {
-  const pets = Math.max(1, requestPets);
-  if (capacity.blocked >= 1 || capacity.houseSits >= 1) return true;
-  return capacity.boarding + pets > maxPets;
-}
-
-export function tenantRangeHasConflict(
-  startDate: string,
-  endDateExclusive: string,
-  capacityByDate: Map<string, DayCapacity>,
-  requestPetCount: number,
-  maxBoardingPets: number,
-): boolean {
-  const requestEnd = addDays(endDateExclusive, -1); // last occupied night
-  const requestPets = Math.max(1, requestPetCount);
-
-  for (let date = startDate; date < endDateExclusive; date = addDays(date, 1)) {
-    const capacity = capacityByDate.get(date);
-    if (!capacity) continue;
-    if (!dayBlocksBoarding(capacity, requestPets, maxBoardingPets)) continue;
-
-    const isRequestEndpoint = date === startDate || date === requestEnd;
-    if (isRequestEndpoint && capacity.isBoundary) continue;
-
-    // Soft bookend: an unavailable (non-blocked) endpoint is allowed when the next day has
-    // room for this request — the existing booking is ending here.
-    if (isRequestEndpoint && capacity.blocked === 0) {
-      const next = capacityByDate.get(addDays(date, 1));
-      if (!next || !dayBlocksBoarding(next, requestPets, maxBoardingPets)) continue;
-    }
-
-    return true;
-  }
-
-  return false;
+function tenantLimits(tenant: Tenant): CapacityLimits {
+  return {
+    maxBoardingPets: tenant.MaxBoardingPets,
+    maxHouseSitsPerDay: tenant.MaxHouseSitsPerDay,
+  };
 }
 
 export function rowsToCapacityEvents(rows: BookingRow[]): CapacityEvent[] {
   return rows.map((row) => ({
     start_date: row.StartDate,
     end_date: row.EndDate ?? undefined,
-    // boarding AND housesitting both consume a boarding slot in this prototype (conscious
-    // simplification, like the D-E deviation): a real model would block the day exclusively.
-    type: row.ServiceType === 'blocked' ? 'blocked' : 'boarding',
+    type:
+      row.ServiceType === 'blocked'
+        ? 'blocked'
+        : row.ServiceType === 'housesitting'
+          ? 'house-sit'
+          : 'boarding',
     petCount: row.PetCount,
   }));
 }
@@ -98,15 +67,19 @@ async function checkRange(
   petCount: number,
   excludeBookingId?: string,
 ): Promise<AvailabilityResult> {
-  // A request for more pets than the tenant's per-day cap can never fit, even on an empty
-  // calendar — the range walk skips days with no existing rows, so this isolation check is
-  // what actually enforces MaxBoardingPets when there's nothing to conflict with.
-  if (petCount > tenant.MaxBoardingPets) {
+  const requestType = serviceType === 'housesitting' ? 'house-sit' : 'boarding';
+  const limits = tenantLimits(tenant);
+  // A boarding request for more pets than a CONFIGURED per-day cap can never fit, even on an empty
+  // calendar (the range walk skips empty days). Skipped entirely when boarding is unlimited.
+  if (
+    requestType === 'boarding' &&
+    tenant.MaxBoardingPets !== null &&
+    petCount > tenant.MaxBoardingPets
+  ) {
     return { available: false, reason: 'That exceeds our boarding capacity.' };
   }
-  // Fetch one day PAST checkout so the soft-bookend look-ahead (which peeks at the day after the
-  // last occupied night) sees a booking that starts exactly on the checkout day. Without the +1,
-  // listCapacityRows' `StartDate < end` clips that row and a full final night can be double-booked.
+  // Fetch one day PAST checkout so the soft-bookend look-ahead sees a booking starting on the
+  // checkout day (without +1, listCapacityRows clips that row and a final night can double-book).
   const rows = await listCapacityRows(
     env.PAWBOOK_DB,
     tenant.Id,
@@ -115,9 +88,7 @@ async function checkRange(
     excludeBookingId,
   );
   const capacity = buildCapacity(rowsToCapacityEvents(rows));
-  if (
-    tenantRangeHasConflict(startDate, endDateExclusive, capacity, petCount, tenant.MaxBoardingPets)
-  ) {
+  if (rangeHasConflict(startDate, endDateExclusive, requestType, capacity, limits, petCount)) {
     return { available: false, reason: 'Those dates are not available.' };
   }
   return {

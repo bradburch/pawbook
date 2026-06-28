@@ -1,76 +1,24 @@
-import { buildCapacity, rangeHasConflict, type CapacityEvent } from '../../src/shared/index.js';
 import { describe, expect, it } from 'vitest';
 import app from '../index';
 import { insertBookingRequest } from '../db/repo';
-import {
-  checkAvailability,
-  rowsToCapacityEvents,
-  tenantRangeHasConflict,
-} from '../lib/availability';
+import { checkAvailability, rowsToCapacityEvents } from '../lib/availability';
 import { SERVICE_CATALOG } from '../lib/services';
-import type { TenantServiceOption } from '../types';
+import type { Tenant, TenantServiceOption } from '../types';
 import { createTestEnv, TENANT_A } from './helpers';
 
-const boarding = (start: string, end: string, petCount = 1): CapacityEvent => ({
-  start_date: start,
-  end_date: end,
-  type: 'boarding',
-  petCount,
-});
-const blocked = (start: string, end: string): CapacityEvent => ({
-  start_date: start,
-  end_date: end,
-  type: 'blocked',
-});
-
-describe('tenantRangeHasConflict', () => {
-  it('matches shared rangeHasConflict exactly at max = 2 (parity pin for the D-E deviation)', () => {
-    const scenarios: CapacityEvent[][] = [
-      [],
-      [boarding('2028-08-01', '2028-08-05', 1)],
-      [boarding('2028-08-01', '2028-08-05', 2)],
-      [boarding('2028-08-01', '2028-08-03', 1), boarding('2028-08-03', '2028-08-06', 1)],
-      [blocked('2028-08-02', '2028-08-04')],
-      [boarding('2028-08-04', '2028-08-08', 2)],
-    ];
-    const requests: [string, string, number][] = [
-      ['2028-08-01', '2028-08-05', 1],
-      ['2028-08-01', '2028-08-05', 2],
-      ['2028-08-03', '2028-08-06', 1],
-      ['2028-08-05', '2028-08-07', 2],
-      ['2028-07-30', '2028-08-02', 1],
-    ];
-    for (const events of scenarios) {
-      const capacity = buildCapacity(events);
-      for (const [start, end, pets] of requests) {
-        expect(
-          tenantRangeHasConflict(start, end, capacity, pets, 2),
-          `events=${JSON.stringify(events)} request=${start}→${end}×${pets}`,
-        ).toBe(rangeHasConflict(start, end, 'boarding', capacity, pets));
-      }
-    }
-  });
-
-  it('honors a per-tenant max above the shared hardcoded 2', () => {
-    const capacity = buildCapacity([boarding('2028-08-01', '2028-08-05', 2)]);
-    // 2 pets already boarding mid-range: a 1-pet request conflicts at max 2 but fits at max 4.
-    expect(tenantRangeHasConflict('2028-08-02', '2028-08-04', capacity, 1, 2)).toBe(true);
-    expect(tenantRangeHasConflict('2028-08-02', '2028-08-04', capacity, 1, 4)).toBe(false);
-    // …and at max 4, a 3-pet request still conflicts (2 + 3 > 4).
-    expect(tenantRangeHasConflict('2028-08-02', '2028-08-04', capacity, 3, 4)).toBe(true);
-  });
-
-  it('blocked days conflict regardless of capacity', () => {
-    const capacity = buildCapacity([blocked('2028-08-02', '2028-08-03')]);
-    expect(tenantRangeHasConflict('2028-08-01', '2028-08-04', capacity, 1, 99)).toBe(true);
-  });
-
-  it('allows sharing a boundary day (soft bookend)', () => {
-    // Existing booking checks out Aug 3 (exclusive end) with max pets — new booking may check in Aug 3.
-    const capacity = buildCapacity([boarding('2028-08-01', '2028-08-03', 2)]);
-    expect(tenantRangeHasConflict('2028-08-03', '2028-08-05', capacity, 2, 2)).toBe(false);
-  });
-});
+function tenant(over: Partial<Tenant> = {}): Tenant {
+  return {
+    Id: TENANT_A,
+    Slug: 'sunny-paws',
+    DisplayName: 'Sunny Paws',
+    AccentColor: '#000000',
+    MaxBoardingPets: 2,
+    MaxHouseSitsPerDay: null,
+    MaxStayNights: null,
+    Timezone: null,
+    ...over,
+  };
+}
 
 describe('availability API — regression guards', () => {
   it('rejects a pet count over the tenant cap even on an empty calendar', async () => {
@@ -296,26 +244,14 @@ describe('checkAvailability', () => {
 
   it('single-visit cost is the picked option price (no nights math)', async () => {
     const { env } = createTestEnv();
-    const tenant = {
-      Id: TENANT_A,
-      Slug: 'sunny-paws',
-      DisplayName: 'Sunny Paws',
-      AccentColor: '#000000',
-      MaxBoardingPets: 2,
-    };
-    const res = await checkAvailability(env, tenant, 'walk', opt({ Rate: 35 }), '2028-08-01', '');
+    const t = tenant();
+    const res = await checkAvailability(env, t, 'walk', opt({ Rate: 35 }), '2028-08-01', '');
     expect(res).toMatchObject({ available: true, estCost: 35 });
   });
 
   it('range cost is option price times nights', async () => {
     const { env } = createTestEnv();
-    const tenant = {
-      Id: TENANT_A,
-      Slug: 'sunny-paws',
-      DisplayName: 'Sunny Paws',
-      AccentColor: '#000000',
-      MaxBoardingPets: 2,
-    };
+    const t = tenant();
     const o = opt({
       ServiceType: 'boarding',
       OptionKey: 'standard',
@@ -323,19 +259,13 @@ describe('checkAvailability', () => {
       Rate: 50,
       RateUnit: 'night',
     });
-    const res = await checkAvailability(env, tenant, 'boarding', o, '2028-08-10', '2028-08-13', 1);
+    const res = await checkAvailability(env, t, 'boarding', o, '2028-08-10', '2028-08-13', 1);
     expect(res).toMatchObject({ available: true, estCost: 150, nights: 3 });
   });
 
-  it('house-sitting consumes a boarding slot (blocks a full boarding day)', async () => {
+  it('house-sit conflicts when it overlaps existing boarding by more than a day', async () => {
     const { env } = createTestEnv();
-    const tenant = {
-      Id: TENANT_A,
-      Slug: 'sunny-paws',
-      DisplayName: 'Sunny Paws',
-      AccentColor: '#000000',
-      MaxBoardingPets: 2,
-    };
+    const t = tenant(); // MaxHouseSitsPerDay null = unlimited; conflict must come from overlap rule
     const o = opt({
       ServiceType: 'housesitting',
       OptionKey: 'standard',
@@ -343,17 +273,32 @@ describe('checkAvailability', () => {
       Rate: 70,
       RateUnit: 'night',
     });
-    // Seed has 1 boarding pet Jun 20-25 at max 2 -> a 2-pet house-sit overlapping conflicts.
-    const res = await checkAvailability(
-      env,
-      tenant,
-      'housesitting',
-      o,
-      '2028-06-21',
-      '2028-06-23',
-      2,
-    );
+    // Seed: 1 pet boarding Jun 20-25. A house-sit Jun 21-23 overlaps boarding on Jun 21 AND 22.
+    const res = await checkAvailability(env, t, 'housesitting', o, '2028-06-21', '2028-06-23', 2);
     expect(res).toMatchObject({ available: false });
     expect(SERVICE_CATALOG.housesitting.shape).toBe('range');
+  });
+
+  it('unlimited tenant (paws-and-relax) accepts overlapping boardings', async () => {
+    const { env } = createTestEnv();
+    await insertBookingRequest(env.PAWBOOK_DB, 'tnt_pawsandrelax', {
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2028-05-01',
+      endDate: '2028-05-10',
+      optionKey: null,
+      petType: null,
+      petCount: 8,
+      estCost: null,
+      status: 'confirmed',
+    });
+    const res = (await (
+      await app.request(
+        '/api/paws-and-relax/availability?type=boarding&start=2028-05-02&end=2028-05-06&pets=9',
+        {},
+        env,
+      )
+    ).json()) as { available: boolean };
+    expect(res.available).toBe(true);
   });
 });
