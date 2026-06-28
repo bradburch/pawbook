@@ -44,7 +44,10 @@ type ServiceForm = {
 type Settings = {
   displayName: string;
   accentColor: string;
-  maxBoardingPets: number;
+  maxBoardingPets: number | null;
+  maxHouseSitsPerDay: number | null;
+  maxStayNights: number | null;
+  timezone: string | null;
   petTypes: { petType: string; enabled: boolean }[];
   services: ServiceForm[];
   blocked: { id: string; startDate: string; endDate: string | null }[];
@@ -220,6 +223,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           displayName: settings.displayName,
           accentColor: settings.accentColor,
           maxBoardingPets: settings.maxBoardingPets,
+          maxHouseSitsPerDay: settings.maxHouseSitsPerDay,
+          maxStayNights: settings.maxStayNights,
+          timezone: settings.timezone,
           petTypes: settings.petTypes.filter((p) => p.enabled).map((p) => p.petType),
           services: settings.services.map((s) => ({
             type: s.type,
@@ -317,16 +323,57 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           />
         </label>
         <label>
-          Max boarding pets per day
+          Max boarding pets per day <span className="ad-hint">(blank = no limit)</span>
           <input
             type="number"
             min={1}
-            max={50}
-            value={settings.maxBoardingPets}
+            value={settings.maxBoardingPets ?? ''}
             onChange={(e) =>
               setSettings({
                 ...settings,
-                maxBoardingPets: Number(e.target.value),
+                maxBoardingPets: e.target.value === '' ? null : Number(e.target.value),
+              })
+            }
+          />
+        </label>
+        <label>
+          Max house-sits per day <span className="ad-hint">(blank = no limit)</span>
+          <input
+            type="number"
+            min={1}
+            value={settings.maxHouseSitsPerDay ?? ''}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                maxHouseSitsPerDay: e.target.value === '' ? null : Number(e.target.value),
+              })
+            }
+          />
+        </label>
+        <label>
+          Max stay length (nights) <span className="ad-hint">(blank = no limit)</span>
+          <input
+            type="number"
+            min={1}
+            value={settings.maxStayNights ?? ''}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                maxStayNights: e.target.value === '' ? null : Number(e.target.value),
+              })
+            }
+          />
+        </label>
+        <label>
+          Business timezone <span className="ad-hint">(blank = America/Los_Angeles)</span>
+          <input
+            type="text"
+            placeholder="America/Los_Angeles"
+            value={settings.timezone ?? ''}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                timezone: e.target.value === '' ? null : e.target.value,
               })
             }
           />
