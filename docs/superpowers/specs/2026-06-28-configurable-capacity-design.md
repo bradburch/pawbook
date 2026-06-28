@@ -195,8 +195,13 @@ fields so the widget calendar's availability UX matches the server.
   defensive rail rejects absurd ranges even when unlimited.
 - Timezone test: `isFutureOrToday` respects a passed non-Pacific timezone.
 - Update `sql/seed.sql`: keep Sunny Paws at an explicit `MaxBoardingPets = 2` and
-  Happy Tails at `4` to demonstrate configured limits; optionally add a third
-  "unlimited" demo tenant (all limits NULL) to exercise the pass-through path.
+  Happy Tails at `4` to demonstrate configured limits; **add a third demo tenant
+  that uses the new defaults** — all four config columns omitted/`NULL`
+  (unlimited boarding, unlimited house-sits, unlimited stay length, default
+  timezone). This represents a brand-new sitter and exercises the auto
+  pass-through path. It has a slug + dashboard login so its values can be edited
+  later through the admin dashboard. It is enabled for the standard services with
+  example rates so it is bookable out of the box.
 
 ## Files touched
 
