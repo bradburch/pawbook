@@ -286,7 +286,7 @@ describe('checkAvailability', () => {
       serviceType: 'boarding',
       startDate: '2028-05-01',
       endDate: '2028-05-10',
-      optionKey: null,
+      optionKey: 'standard',
       petType: null,
       petCount: 8,
       estCost: null,

@@ -4,3 +4,4 @@ dist/
 .dev.vars
 worker-configuration.d.ts
 *.tsbuildinfo
+.superpowers/

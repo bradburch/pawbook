@@ -5,8 +5,7 @@
 --   npx wrangler d1 execute pawbook-db --local  --file ./migrations/0002_tenant_config_limits.sql
 --   npx wrangler d1 execute pawbook-db --remote --file ./migrations/0002_tenant_config_limits.sql
 PRAGMA foreign_keys=OFF;
-ALTER TABLE Tenants RENAME TO Tenants_old;
-CREATE TABLE Tenants (
+CREATE TABLE Tenants_new (
   Id TEXT PRIMARY KEY,
   Slug TEXT NOT NULL UNIQUE,
   DisplayName TEXT NOT NULL,
@@ -17,7 +16,8 @@ CREATE TABLE Tenants (
   Timezone TEXT,
   CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
 );
-INSERT INTO Tenants (Id, Slug, DisplayName, AccentColor, MaxBoardingPets, CreatedAt)
-  SELECT Id, Slug, DisplayName, AccentColor, MaxBoardingPets, CreatedAt FROM Tenants_old;
-DROP TABLE Tenants_old;
+INSERT INTO Tenants_new (Id, Slug, DisplayName, AccentColor, MaxBoardingPets, CreatedAt)
+  SELECT Id, Slug, DisplayName, AccentColor, MaxBoardingPets, CreatedAt FROM Tenants;
+DROP TABLE Tenants;
+ALTER TABLE Tenants_new RENAME TO Tenants;
 PRAGMA foreign_keys=ON;

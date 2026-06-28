@@ -30,7 +30,7 @@ export type CapacityEvent = {
   type: 'boarding' | 'house-sit' | 'blocked';
   /**
    * Number of pets the event covers — only meaningful for `boarding`, where capacity is
-   * measured in PETS (max 2/day): a single 2-dog boarding fills both slots. Defaults to 1.
+   * measured in PETS: a single 2-dog boarding fills both slots. Defaults to 1.
    * House-sit (no pet limit) and blocked (binary) ignore it.
    */
   petCount?: number;
@@ -65,7 +65,7 @@ export function buildCapacity(events: CapacityEvent[]): Map<string, DayCapacity>
     for (let d = start; d < end; d = addDays(d, 1)) {
       const capacity = getOrCreate(d);
       if (event.type === 'house-sit') capacity.houseSits += 1;
-      // Boarding capacity is counted in PETS (max 2/day): a 2-dog boarding fills both slots.
+      // Boarding capacity is counted in PETS: a 2-dog boarding fills both slots.
       else if (event.type === 'boarding') capacity.boarding += boardingPets;
       else capacity.blocked += 1;
     }
