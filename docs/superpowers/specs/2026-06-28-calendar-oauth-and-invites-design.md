@@ -53,6 +53,11 @@ in lockstep so fresh installs get the full current schema (per the README migrat
 ### `BookingRequests`
 
 - Add `GCalEventId TEXT` (nullable) — the Google event id, so an event can later be deleted.
+- Add `StartTime TEXT` (nullable, `'HH:MM'` 24h) — the time-of-day for a **timed** booking. When
+  present (only meaningful for `hasDuration` services — walk/check-in), the calendar event is timed
+  rather than all-day. **No booking path sets this yet** (the widget time picker is deferred — see
+  Out of scope); the column + calendar branching exist now so the model is timed-capable, and in
+  practice every event is all-day until a later change starts populating `StartTime`.
 
 ### `EndUsers` (now the provider-managed customer list)
 
@@ -115,10 +120,16 @@ confirmed kept):
 1. Load the tenant's `calendar` connection. If status !== `'connected'`, skip.
 2. Schedule the sync with `c.executionCtx.waitUntil(...)` so the HTTP response is not delayed:
    - If `TokenExpiresAt` is past, `refreshAccessToken` and persist the new access token/expiry.
-   - Build an **all-day** event (the booking model has no time-of-day):
-     - Range services (boarding) / blocked: `start = StartDate`, `end = EndDate` (exclusive,
-       which is exactly Google's all-day `end.date` semantics).
-     - Single-day services (daycare/walk/checkin): one all-day day on `StartDate`.
+   - Build the event. The booking is **timed** iff `StartTime` is set (only `hasDuration`
+     services — walk/check-in — ever set it); otherwise **all-day**. Since no path populates
+     `StartTime` yet, the all-day branch is what runs in practice today, but both are implemented:
+     - **All-day, range** (boarding/housesitting) / blocked: `start.date = StartDate`,
+       `end.date = EndDate` (exclusive — exactly Google's all-day `end.date` semantics).
+     - **All-day, single** (daycare, or any single-day booking with no `StartTime`): one all-day
+       day on `StartDate`.
+     - **Timed** (`StartTime` set): `start.dateTime = StartDate + 'T' + StartTime`,
+       `end.dateTime = start + DurationMinutes` (from the option), both with
+       `timeZone = tenant.Timezone ?? DEFAULT_TIMEZONE`.
    - Summary e.g. `"{ServiceLabel} — {customer email} ({petCount} pet/s)"`; description includes
      service option + estimated cost.
    - `createEvent`, then persist `GCalEventId` on the booking.
@@ -188,7 +199,8 @@ New/changed functions (all tenant-scoped, parameterized):
 
 - `server/__tests__/google-calendar.test.ts` — token encrypt/decrypt round-trip; auth-URL shape
   (scope, access_type, prompt, redirect_uri, state); `exchangeCode` & `refreshAccessToken` against
-  mocked `fetch`; all-day event payload for range vs single-day.
+  mocked `fetch`; event payload for all-day range, all-day single-day, **and timed**
+  (`StartTime` set → `dateTime` + `timeZone`, end = start + duration).
 - `server/__tests__/oauth-callback.test.ts` — valid callback stores encrypted tokens + status
   `connected`; tampered HMAC rejected; replayed/missing nonce rejected; expired `state` rejected.
 - `server/__tests__/invites.test.ts` — gated `identify` rejects un-invited (403), accepts invited;
@@ -203,6 +215,9 @@ New/changed functions (all tenant-scoped, parameterized):
 
 - Provider booking confirm/cancel flow and calendar event updates/deletes on status change (only
   create-on-request is built; `deleteEvent` exists for disconnect/future use).
+- **Widget time picker for timed bookings.** The `StartTime` column + timed-event branching ship
+  now (model is timed-capable), but no booking path collects a time yet — so every event is all-day
+  until a follow-up adds the walk/check-in time picker and its server-side validation.
 - Two-way calendar sync (reading external events back into availability).
 - Notion/Gmail capability graduation (remain stubs).
 - Self-serve tenant signup / billing (Phase 3).
