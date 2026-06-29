@@ -90,7 +90,8 @@ export async function deleteEvent(
 }
 
 export async function revokeToken(token: string): Promise<void> {
-  await fetch(`${REVOKE_ENDPOINT}?token=${encodeURIComponent(token)}`, { method: 'POST' });
+  const res = await fetch(`${REVOKE_ENDPOINT}?token=${encodeURIComponent(token)}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Google revokeToken failed (${res.status})`);
 }
 
 export type CalendarBooking = {
