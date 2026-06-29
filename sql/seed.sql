@@ -63,6 +63,13 @@ INSERT OR REPLACE INTO TenantPetTypes (TenantId, PetType, Enabled) VALUES
   ('tnt_pawsandrelax', 'dog', 1),
   ('tnt_pawsandrelax', 'cat', 1);
 
+-- Demo customers. Invite-only gating means /identify only succeeds for known customers, so the
+-- demo widget (and the existing identify/booking tests) need a seeded, already-active customer.
+INSERT OR REPLACE INTO EndUsers (Id, TenantId, Email, Name, Status) VALUES
+  ('eu_sp_jess', 'tnt_sunnypaws', 'jess@example.com', 'Jess Demo', 'active'),
+  ('eu_ht_jess', 'tnt_happytails', 'jess@example.com', 'Jess Demo', 'active'),
+  ('eu_pr_jess', 'tnt_pawsandrelax', 'jess@example.com', 'Jess Demo', 'active');
+
 -- Existing bookings so availability looks real.
 -- Sunny Paws (max 2 pets): June 20-25 already has 1 pet boarding -> 1 slot left.
 -- Happy Tails (max 4 pets): June 20-25 has 2 pets boarding -> 2 slots left.

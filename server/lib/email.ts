@@ -34,3 +34,28 @@ export async function sendLoginCode(env: Env, to: string, code: string): Promise
     throw new Error(`Resend send failed (${res.status}): ${detail}`);
   }
 }
+
+/** Send a booking invite. Throws if email is not configured or Resend rejects the request. */
+export async function sendInvite(
+  env: Env, to: string, displayName: string, widgetUrl: string,
+): Promise<void> {
+  if (!isEmailConfigured(env)) throw new Error('Email is not configured.');
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: env.RESEND_FROM,
+      to,
+      subject: `You're invited to book with ${displayName}`,
+      text: `${displayName} has invited you to book online. Get started here: ${widgetUrl}`,
+      html: `<p>${displayName} has invited you to book online.</p><p><a href="${widgetUrl}">Book now</a></p>`,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Resend send failed (${res.status}): ${detail}`);
+  }
+}
