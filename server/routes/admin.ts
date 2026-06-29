@@ -274,7 +274,7 @@ export const adminRoutes = new Hono<AppEnv>()
 
   .get('/:slug/admin/providers/calendar/oauth/start', async (c) => {
     const tenant = c.get('tenant');
-    if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_OAUTH_REDIRECT_URI)
+    if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET || !c.env.GOOGLE_OAUTH_REDIRECT_URI)
       return c.json({ error: 'Google Calendar is not configured on this server.' }, 503);
     const nonce = crypto.randomUUID();
     await c.env.PAWBOOK_CACHE.put(`gcal:nonce:${nonce}`, '1', { expirationTtl: 600 });
