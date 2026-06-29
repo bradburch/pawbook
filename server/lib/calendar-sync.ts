@@ -26,17 +26,19 @@ export async function syncBookingToCalendar(env: Env, tenant: Tenant, b: SyncInp
   const conn = await getProviderConnection(env.PAWBOOK_DB, tenant.Id, 'calendar');
   if (!conn || conn.Status !== 'connected' || !conn.AccessToken || !conn.RefreshToken) return;
 
-  let accessToken = await decryptToken(env.TOKEN_SECRET, conn.AccessToken);
+  let accessToken: string;
   if (!conn.TokenExpiresAt || conn.TokenExpiresAt <= new Date().toISOString()) {
     const refreshToken = await decryptToken(env.TOKEN_SECRET, conn.RefreshToken);
     const refreshed = await refreshAccessToken(env, refreshToken);
     accessToken = refreshed.accessToken;
     await setProviderTokens(env.PAWBOOK_DB, tenant.Id, 'calendar', conn.Provider, {
       access: await encryptToken(env.TOKEN_SECRET, refreshed.accessToken),
-      refresh: conn.RefreshToken, // already-encrypted; unchanged
+      refresh: conn.RefreshToken,
       expiresAt: refreshed.expiresAt,
       calendarId: conn.CalendarId ?? 'primary',
     });
+  } else {
+    accessToken = await decryptToken(env.TOKEN_SECRET, conn.AccessToken);
   }
 
   const customer = b.endUserId

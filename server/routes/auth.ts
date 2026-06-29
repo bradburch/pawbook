@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { consumeLoginCode, createLoginCode, getEndUserByEmail, promoteCustomerActive } from '../db/repo';
 import { isEmailConfigured, sendLoginCode } from '../lib/email';
 import { mintToken } from '../lib/token';
+import { EMAIL_RE } from '../lib/validation';
 import type { AppEnv } from '../types';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function generateCode(): string {
   const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;

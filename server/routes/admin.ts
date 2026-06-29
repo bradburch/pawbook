@@ -28,9 +28,11 @@ import { embedSnippets } from '../lib/snippet';
 import { isPetType, isServiceType, PET_TYPES, SERVICE_CATALOG } from '../lib/services';
 import { decryptToken } from '../lib/token-crypto';
 import { invalidateTenantCache } from '../lib/tenant-resolve';
+import { NONCE_KEY } from './oauth';
 import {
   DEFENSIVE_MAX_NIGHTS,
   DEFENSIVE_MAX_PET_COUNT,
+  EMAIL_RE,
   isNullableLimit,
   isRealDate,
   isValidDuration,
@@ -39,7 +41,6 @@ import {
 import type { AppEnv } from '../types';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-const CUSTOMER_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** null/undefined (use default) or a timezone Intl accepts. */
 function isValidTimezone(value: unknown): value is string | null | undefined {
@@ -277,7 +278,7 @@ export const adminRoutes = new Hono<AppEnv>()
     if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET || !c.env.GOOGLE_OAUTH_REDIRECT_URI)
       return c.json({ error: 'Google Calendar is not configured on this server.' }, 503);
     const nonce = crypto.randomUUID();
-    await c.env.PAWBOOK_CACHE.put(`gcal:nonce:${nonce}`, '1', { expirationTtl: 600 });
+    await c.env.PAWBOOK_CACHE.put(NONCE_KEY(nonce), '1', { expirationTtl: 600 });
     const state = await signState(c.env.TOKEN_SECRET, {
       tenantId: tenant.Id, nonce, exp: Date.now() + 600_000,
     });
@@ -314,14 +315,15 @@ export const adminRoutes = new Hono<AppEnv>()
       .json<{ email?: unknown; name?: unknown }>()
       .catch(() => ({}) as { email?: unknown; name?: unknown });
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : null;
-    if (!CUSTOMER_EMAIL_RE.test(email)) return c.json({ error: 'Enter a valid email.' }, 400);
+    const rawName = typeof body.name === 'string' ? body.name.trim() : '';
+    const name = rawName || null;
+    if (!EMAIL_RE.test(email)) return c.json({ error: 'Enter a valid email.' }, 400);
 
     const customer = await insertInvitedCustomer(c.env.PAWBOOK_DB, tenant.Id, email, name);
 
-    // Send the invite. Fail closed when email is configured but the send fails; in dev with no
-    // provider, skip sending (the row still exists so the customer can be told out-of-band).
-    if (isEmailConfigured(c.env)) {
+    // Only send the invite for a freshly-invited customer — skip if the customer is already active
+    // (a re-POST of an existing active customer must not send a confusing "you're invited" email).
+    if (customer.Status === 'invited' && isEmailConfigured(c.env)) {
       const widgetUrl = new URL(`/embed/${tenant.Slug}`, c.req.url).toString();
       try {
         await sendInvite(c.env, email, tenant.DisplayName, widgetUrl);
@@ -329,10 +331,7 @@ export const adminRoutes = new Hono<AppEnv>()
         return c.json({ error: 'Customer saved, but the invite email could not be sent.' }, 502);
       }
     }
-    return c.json(
-      { id: customer.Id, email: customer.Email, name: customer.Name, status: customer.Status },
-      201,
-    );
+    return c.json({ id: customer.Id, email: customer.Email, name: customer.Name, status: customer.Status }, 201);
   })
 
   .delete('/:slug/admin/customers/:id', async (c) => {

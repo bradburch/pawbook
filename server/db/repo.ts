@@ -81,7 +81,6 @@ export async function listPetTypes(db: D1Database, tenantId: string): Promise<Te
   return results;
 }
 
-
 export async function createLoginCode(
   db: D1Database,
   tenantId: string,
@@ -485,14 +484,15 @@ export async function listCustomers(db: D1Database, tenantId: string): Promise<E
 export async function deleteCustomer(
   db: D1Database, tenantId: string, id: string,
 ): Promise<boolean> {
-  // Nullify booking references first to satisfy the FK constraint, preserving booking history.
-  await db
-    .prepare('UPDATE BookingRequests SET EndUserId = NULL WHERE TenantId = ? AND EndUserId = ?')
-    .bind(tenantId, id)
-    .run();
+  // Atomic guard: delete only when this customer has no bookings, so a booking created between
+  // the route's count check and here can never orphan a live booking. The route still 409s on the
+  // common path; this closes the TOCTOU with a safe no-op (0 rows -> false) on the race.
   const result = await db
-    .prepare('DELETE FROM EndUsers WHERE TenantId = ? AND Id = ?')
-    .bind(tenantId, id)
+    .prepare(
+      `DELETE FROM EndUsers WHERE TenantId = ? AND Id = ?
+         AND NOT EXISTS (SELECT 1 FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?)`,
+    )
+    .bind(tenantId, id, tenantId, id)
     .run();
   return (result.meta as { changes?: number }).changes !== 0;
 }
@@ -521,9 +521,9 @@ export async function setProviderStatus(
   tenantId: string,
   capability: string,
   provider: string,
-  status: 'disconnected' | 'connected-stub',
+  status: 'connected-stub',
 ): Promise<void> {
-  const connectedAt = status === 'connected-stub' ? new Date().toISOString() : null;
+  const connectedAt = new Date().toISOString();
   await db
     .prepare(
       `INSERT INTO ProviderConnections (Id, TenantId, Capability, Provider, Status, ConnectedAt)

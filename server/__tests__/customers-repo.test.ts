@@ -23,7 +23,7 @@ describe('customer repo', () => {
     expect(await getEndUserByEmail(env.PAWBOOK_DB, TENANT_A, 'nobody@example.com')).toBeNull();
   });
 
-  it('lists and deletes customers; counts bookings', async () => {
+  it('lists customers and counts bookings', async () => {
     const { env, raw } = createTestEnv();
     const c = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'c@example.com', null);
     expect((await listCustomers(env.PAWBOOK_DB, TENANT_A)).some((u) => u.Id === c.Id)).toBe(true);
@@ -32,8 +32,24 @@ describe('customer repo', () => {
     raw.exec(`INSERT INTO BookingRequests (Id, TenantId, EndUserId, ServiceType, StartDate, PetCount, Status)
               VALUES ('bk1','${TENANT_A}','${c.Id}','daycare','2030-04-01',1,'pending')`);
     expect(await countBookingsForUser(env.PAWBOOK_DB, TENANT_A, c.Id)).toBe(1);
+  });
 
+  it('deleteCustomer refuses when the customer has bookings (TOCTOU guard)', async () => {
+    const { env, raw } = createTestEnv();
+    const c = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'withbooking@example.com', null);
+    raw.exec(`INSERT INTO BookingRequests (Id, TenantId, EndUserId, ServiceType, StartDate, PetCount, Status)
+              VALUES ('bk2','${TENANT_A}','${c.Id}','daycare','2030-04-01',1,'pending')`);
+    // With a booking: must return false and leave both rows intact
+    expect(await deleteCustomer(env.PAWBOOK_DB, TENANT_A, c.Id)).toBe(false);
+    expect((await listCustomers(env.PAWBOOK_DB, TENANT_A)).some((u) => u.Id === c.Id)).toBe(true);
+    expect(await countBookingsForUser(env.PAWBOOK_DB, TENANT_A, c.Id)).toBe(1);
+  });
+
+  it('deleteCustomer succeeds with no bookings; returns false for missing id', async () => {
+    const { env } = createTestEnv();
+    const c = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'nobooking@example.com', null);
     expect(await deleteCustomer(env.PAWBOOK_DB, TENANT_A, c.Id)).toBe(true);
+    expect((await listCustomers(env.PAWBOOK_DB, TENANT_A)).some((u) => u.Id === c.Id)).toBe(false);
     expect(await deleteCustomer(env.PAWBOOK_DB, TENANT_A, 'missing')).toBe(false);
   });
 });

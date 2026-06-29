@@ -6,15 +6,20 @@
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-async function deriveKey(secret: string): Promise<CryptoKey> {
-  const ikm = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: enc.encode('pawbook-gcal-token') },
-    ikm,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt'],
-  );
+const keyCache = new Map<string, Promise<CryptoKey>>();
+function deriveKey(secret: string): Promise<CryptoKey> {
+  let k = keyCache.get(secret);
+  if (!k) {
+    k = (async () => {
+      const ikm = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: enc.encode('pawbook-gcal-token') },
+        ikm, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'],
+      );
+    })();
+    keyCache.set(secret, k);
+  }
+  return k;
 }
 
 export async function encryptToken(secret: string, plaintext: string): Promise<string> {

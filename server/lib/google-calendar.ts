@@ -2,6 +2,8 @@
  * Google OAuth2 + Calendar v3 REST client. All network calls go through fetch (mockable in tests).
  * `buildEventResource` is pure so event shaping is unit-tested without touching the network.
  */
+import { addDays } from '../../src/shared/index.js';
+
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const REVOKE_ENDPOINT = 'https://oauth2.googleapis.com/revoke';
@@ -113,12 +115,6 @@ type EventResource = {
   end: { date: string } | { dateTime: string; timeZone: string };
 };
 
-function addDaysIso(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
 function addMinutesToLocal(date: string, time: string, minutes: number): string {
   // Treat the wall-clock value as UTC purely for arithmetic; the timeZone field carries the real
   // zone, so adding minutes here yields the correct local end time (even across an hour/day roll).
@@ -143,6 +139,6 @@ export function buildEventResource(b: CalendarBooking): EventResource {
       end: { dateTime: endDateTime, timeZone: b.timezone },
     };
   }
-  const endDate = b.endDate ?? addDaysIso(b.startDate, 1);
+  const endDate = b.endDate ?? addDays(b.startDate, 1);
   return { summary, description, start: { date: b.startDate }, end: { date: endDate } };
 }

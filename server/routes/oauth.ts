@@ -5,7 +5,7 @@ import { verifyState } from '../lib/oauth-state';
 import { encryptToken } from '../lib/token-crypto';
 import type { AppEnv } from '../types';
 
-const NONCE_KEY = (nonce: string) => `gcal:nonce:${nonce}`;
+export const NONCE_KEY = (nonce: string) => `gcal:nonce:${nonce}`;
 
 /**
  * Script-free result page. This route is NOT under /embed, so index.ts applies the LOCKED_CSP

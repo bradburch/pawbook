@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import app from '../index';
+import { insertInvitedCustomer, promoteCustomerActive } from '../db/repo';
 import { adminHeaders, createTestEnv, TENANT_A } from './helpers';
 
 const SLUG = 'sunny-paws';
@@ -48,5 +49,30 @@ describe('admin customers', () => {
     const { env } = createTestEnv();
     const res = await app.request(`/api/${SLUG}/admin/customers`, {}, env);
     expect(res.status).toBe(401);
+  });
+
+  it('does NOT send an invite email when re-POSTing an already-active customer', async () => {
+    const { env } = createTestEnv();
+    // Set up email so the route would normally attempt to send.
+    (env as unknown as Record<string, unknown>).RESEND_API_KEY = 'test-key';
+    (env as unknown as Record<string, unknown>).RESEND_FROM = 'Pawbook <noreply@example.com>';
+
+    // Seed an active customer directly.
+    const customer = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'active@example.com', null);
+    await promoteCustomerActive(env.PAWBOOK_DB, TENANT_A, customer.Id);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    try {
+      const headers = { ...(await adminHeaders(TENANT_A)), 'Content-Type': 'application/json' };
+      const res = await app.request(`/api/${SLUG}/admin/customers`, {
+        method: 'POST', headers, body: JSON.stringify({ email: 'active@example.com' }),
+      }, env);
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { status: string };
+      expect(body.status).toBe('active');
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });

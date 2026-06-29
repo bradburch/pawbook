@@ -12,22 +12,11 @@ export function isEmailConfigured(env: Env): boolean {
   return Boolean(env.RESEND_API_KEY && env.RESEND_FROM);
 }
 
-/** Send a login code. Throws if email is not configured or Resend rejects the request. */
-export async function sendLoginCode(env: Env, to: string, code: string): Promise<void> {
-  if (!isEmailConfigured(env)) throw new Error('Email is not configured.');
+async function resendPost(env: Env, body: Record<string, unknown>): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: env.RESEND_FROM,
-      to,
-      subject: `Your booking code: ${code}`,
-      text: `Your verification code is ${code}. It expires in 10 minutes.`,
-      html: `<p>Your verification code is <strong>${code}</strong>.</p><p>It expires in 10 minutes.</p>`,
-    }),
+    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: env.RESEND_FROM, ...body }),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -35,27 +24,26 @@ export async function sendLoginCode(env: Env, to: string, code: string): Promise
   }
 }
 
+/** Send a login code. Throws if email is not configured or Resend rejects the request. */
+export async function sendLoginCode(env: Env, to: string, code: string): Promise<void> {
+  if (!isEmailConfigured(env)) throw new Error('Email is not configured.');
+  await resendPost(env, {
+    to,
+    subject: `Your booking code: ${code}`,
+    text: `Your verification code is ${code}. It expires in 10 minutes.`,
+    html: `<p>Your verification code is <strong>${code}</strong>.</p><p>It expires in 10 minutes.</p>`,
+  });
+}
+
 /** Send a booking invite. Throws if email is not configured or Resend rejects the request. */
 export async function sendInvite(
   env: Env, to: string, displayName: string, widgetUrl: string,
 ): Promise<void> {
   if (!isEmailConfigured(env)) throw new Error('Email is not configured.');
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: env.RESEND_FROM,
-      to,
-      subject: `You're invited to book with ${displayName}`,
-      text: `${displayName} has invited you to book online. Get started here: ${widgetUrl}`,
-      html: `<p>${displayName} has invited you to book online.</p><p><a href="${widgetUrl}">Book now</a></p>`,
-    }),
+  await resendPost(env, {
+    to,
+    subject: `You're invited to book with ${displayName}`,
+    text: `${displayName} has invited you to book online. Get started here: ${widgetUrl}`,
+    html: `<p>${displayName} has invited you to book online.</p><p><a href="${widgetUrl}">Book now</a></p>`,
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`Resend send failed (${res.status}): ${detail}`);
-  }
 }
