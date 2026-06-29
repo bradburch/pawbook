@@ -69,8 +69,9 @@ async function checkRange(
 ): Promise<AvailabilityResult> {
   const requestType = serviceType === 'housesitting' ? 'house-sit' : 'boarding';
   const limits = tenantLimits(tenant);
-  // A boarding request for more pets than a CONFIGURED per-day cap can never fit, even on an empty
-  // calendar (the range walk skips empty days). Skipped entirely when boarding is unlimited.
+  // The engine (rangeHasConflict) already rejects an over-cap boarding request on its own. This
+  // fast path is kept purely for UX + cost: it returns a SPECIFIC "exceeds capacity" reason (vs the
+  // generic "dates not available") and short-circuits before the capacity DB read. Unlimited skips it.
   if (
     requestType === 'boarding' &&
     tenant.MaxBoardingPets !== null &&

@@ -115,6 +115,17 @@ export function rangeHasConflict(
   const requestPets = Math.max(1, requestPetCount);
   let houseSitBoardingOverlapDays = 0;
 
+  // A boarding request for more pets than the cap can NEVER fit — not even on an empty calendar,
+  // where the day-by-day walk below has nothing to inspect. Enforcing it here keeps the engine
+  // correct standalone (the single source of truth), so callers need no separate isolation check.
+  if (
+    requestType === 'boarding' &&
+    limits.maxBoardingPets !== null &&
+    requestPets > limits.maxBoardingPets
+  ) {
+    return true;
+  }
+
   for (let date = startDate; date < endDateExclusive; date = addDays(date, 1)) {
     const capacity = capacityByDate.get(date);
     if (!capacity) continue;

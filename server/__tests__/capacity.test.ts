@@ -47,6 +47,19 @@ describe('rangeHasConflict with CapacityLimits', () => {
     expect(rangeHasConflict('2028-08-02', '2028-08-04', 'boarding', cap, limit3, 2)).toBe(true);
   });
 
+  it('rejects more pets than the cap even on an EMPTY calendar (engine is correct standalone)', () => {
+    const empty = buildCapacity([]);
+    const limit3: CapacityLimits = { maxBoardingPets: 3, maxHouseSitsPerDay: null };
+    // No existing bookings, so the day-by-day walk inspects nothing — the isolation short-circuit
+    // is what catches a 5-pet request against a cap of 3.
+    expect(rangeHasConflict('2028-08-02', '2028-08-04', 'boarding', empty, limit3, 5)).toBe(true);
+    expect(rangeHasConflict('2028-08-02', '2028-08-04', 'boarding', empty, limit3, 3)).toBe(false);
+    // …and unlimited still passes any count on an empty calendar.
+    expect(rangeHasConflict('2028-08-02', '2028-08-04', 'boarding', empty, UNLIMITED, 99)).toBe(
+      false,
+    );
+  });
+
   it('shares a boundary day (soft bookend) under a configured cap', () => {
     const cap = buildCapacity([boarding('2028-08-01', '2028-08-03', 2)]);
     const limit2: CapacityLimits = { maxBoardingPets: 2, maxHouseSitsPerDay: null };

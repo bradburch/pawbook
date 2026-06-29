@@ -55,6 +55,19 @@ type SettingsBody = {
   services?: ServiceBody[];
 };
 
+/**
+ * PATCH semantics for a nullable config field: present in the body ⇒ take it (an explicit `null`
+ * clears the limit to "unlimited"); absent ⇒ keep the tenant's current value. The lone cast covers
+ * the dynamic-key access — call sites stay type-safe via the `T` they pin.
+ */
+function patchNullable<T extends number | string>(
+  body: SettingsBody,
+  key: 'maxBoardingPets' | 'maxHouseSitsPerDay' | 'maxStayNights' | 'timezone',
+  current: T | null,
+): T | null {
+  return key in body ? ((body[key] as T | null | undefined) ?? null) : current;
+}
+
 export const adminRoutes = new Hono<AppEnv>()
   .use('/:slug/admin/*', adminAuth)
 
@@ -107,13 +120,14 @@ export const adminRoutes = new Hono<AppEnv>()
       typeof body.displayName === 'string' ? body.displayName.trim() : tenant.DisplayName;
     const accentColor =
       typeof body.accentColor === 'string' ? body.accentColor : tenant.AccentColor;
-    const maxBoardingPets =
-      'maxBoardingPets' in body ? (body.maxBoardingPets ?? null) : tenant.MaxBoardingPets;
-    const maxHouseSitsPerDay =
-      'maxHouseSitsPerDay' in body ? (body.maxHouseSitsPerDay ?? null) : tenant.MaxHouseSitsPerDay;
-    const maxStayNights =
-      'maxStayNights' in body ? (body.maxStayNights ?? null) : tenant.MaxStayNights;
-    const timezone = 'timezone' in body ? (body.timezone ?? null) : tenant.Timezone;
+    const maxBoardingPets = patchNullable<number>(body, 'maxBoardingPets', tenant.MaxBoardingPets);
+    const maxHouseSitsPerDay = patchNullable<number>(
+      body,
+      'maxHouseSitsPerDay',
+      tenant.MaxHouseSitsPerDay,
+    );
+    const maxStayNights = patchNullable<number>(body, 'maxStayNights', tenant.MaxStayNights);
+    const timezone = patchNullable<string>(body, 'timezone', tenant.Timezone);
     const petTypes = body.petTypes;
     const services = body.services ?? [];
 
