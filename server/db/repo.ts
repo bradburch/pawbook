@@ -3,6 +3,7 @@ import type {
   EndUser,
   PetType,
   ProviderConnection,
+  ProviderConnectionWithTokens,
   Tenant,
   TenantPetTypeRow,
   TenantService,
@@ -380,6 +381,86 @@ export async function deleteBlockedRange(
     .bind(tenantId, id)
     .run();
   return (result.meta as { changes?: number }).changes !== 0;
+}
+
+export async function getProviderConnection(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+): Promise<ProviderConnectionWithTokens | null> {
+  return await db
+    .prepare(
+      `SELECT Id, TenantId, Capability, Provider, Status, ConnectedAt,
+              AccessToken, RefreshToken, TokenExpiresAt, CalendarId
+       FROM ProviderConnections WHERE TenantId = ? AND Capability = ?`,
+    )
+    .bind(tenantId, capability)
+    .first<ProviderConnectionWithTokens>();
+}
+
+export async function setProviderTokens(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+  provider: string,
+  t: { access: string; refresh: string; expiresAt: string; calendarId: string },
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO ProviderConnections
+         (Id, TenantId, Capability, Provider, Status, ConnectedAt, AccessToken, RefreshToken, TokenExpiresAt, CalendarId)
+       VALUES (?, ?, ?, ?, 'connected', ?, ?, ?, ?, ?)
+       ON CONFLICT (TenantId, Capability) DO UPDATE SET
+         Provider = excluded.Provider, Status = 'connected', ConnectedAt = excluded.ConnectedAt,
+         AccessToken = excluded.AccessToken, RefreshToken = excluded.RefreshToken,
+         TokenExpiresAt = excluded.TokenExpiresAt, CalendarId = excluded.CalendarId`,
+    )
+    .bind(
+      crypto.randomUUID(), tenantId, capability, provider, new Date().toISOString(),
+      t.access, t.refresh, t.expiresAt, t.calendarId,
+    )
+    .run();
+}
+
+export async function clearProviderConnection(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE ProviderConnections
+       SET Status = 'disconnected', AccessToken = NULL, RefreshToken = NULL,
+           TokenExpiresAt = NULL, CalendarId = NULL, ConnectedAt = NULL
+       WHERE TenantId = ? AND Capability = ?`,
+    )
+    .bind(tenantId, capability)
+    .run();
+}
+
+export async function setBookingGCalEventId(
+  db: D1Database,
+  tenantId: string,
+  bookingId: string,
+  eventId: string,
+): Promise<void> {
+  await db
+    .prepare('UPDATE BookingRequests SET GCalEventId = ? WHERE TenantId = ? AND Id = ?')
+    .bind(eventId, tenantId, bookingId)
+    .run();
+}
+
+export async function getEndUserById(
+  db: D1Database,
+  tenantId: string,
+  id: string,
+): Promise<EndUser | null> {
+  return await db
+    .prepare(
+      'SELECT Id, TenantId, Email, Name, Status, InvitedAt FROM EndUsers WHERE TenantId = ? AND Id = ?',
+    )
+    .bind(tenantId, id)
+    .first<EndUser>();
 }
 
 export async function setProviderStatus(
