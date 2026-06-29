@@ -19,6 +19,9 @@ export const publicRoutes = new Hono<AppEnv>()
       displayName: tenant.DisplayName,
       accentColor: tenant.AccentColor,
       maxBoardingPets: tenant.MaxBoardingPets,
+      maxHouseSitsPerDay: tenant.MaxHouseSitsPerDay,
+      maxStayNights: tenant.MaxStayNights,
+      timezone: tenant.Timezone,
       petTypes: petTypes.filter((p) => p.Enabled).map((p) => p.PetType),
       services: [...enabled].map((type) => ({
         type,
@@ -62,11 +65,16 @@ export const publicRoutes = new Hono<AppEnv>()
     if (!option) return c.json({ error: 'Unknown service option.' }, 400);
 
     if (SERVICE_CATALOG[type].shape === 'range') {
-      const rangeError = validateBoardingRange(start, end);
+      const rangeError = validateBoardingRange(
+        start,
+        end,
+        tenant.MaxStayNights,
+        tenant.Timezone ?? undefined,
+      );
       if (rangeError) return c.json({ error: rangeError.error }, rangeError.status);
       return c.json(await checkAvailability(c.env, tenant, type, option, start, end, pets));
     }
-    const dateError = validateSingleDate(start);
+    const dateError = validateSingleDate(start, tenant.Timezone ?? undefined);
     if (dateError) return c.json({ error: dateError.error }, dateError.status);
     return c.json(await checkAvailability(c.env, tenant, type, option, start, ''));
   });

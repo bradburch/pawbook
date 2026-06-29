@@ -3,8 +3,11 @@ export const MS_PER_DAY = 86_400_000;
 
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** The business timezone. All Pacific date math/formatting routes through this. */
-export const PACIFIC = 'America/Los_Angeles';
+/** Instance-default business timezone used when a tenant has none set. */
+export const DEFAULT_TIMEZONE = 'America/Los_Angeles';
+/** Internal alias used by the Pacific-specific offset helpers below; new code should
+ *  prefer DEFAULT_TIMEZONE (and accept an explicit timezone where a tenant can set one). */
+export const PACIFIC = DEFAULT_TIMEZONE;
 
 /**
  * Parse a `YYYY-MM-DD` (or ISO `YYYY-MM-DDTHH:MM:SS…`) string to the UTC
@@ -98,14 +101,17 @@ export function addDays(dateStr: string, days: number): string {
 }
 
 /**
- * Today (or `date`) as a `YYYY-MM-DD` string in Pacific time — the business's
- * timezone. All "is this in the past / what day is it" checks across the chat
- * agent, MCP server, and booking service must use this rather than the
- * runtime's local or UTC date, so a booking near midnight resolves to the
- * correct Pacific day.
+ * Today (or `date`) as a `YYYY-MM-DD` string in the given `timezone` (defaults to
+ * DEFAULT_TIMEZONE — the instance business timezone). All "is this in the past / what
+ * day is it" checks across the chat agent, MCP server, and booking service must use this
+ * rather than the runtime's local or UTC date, so a booking near midnight resolves to the
+ * correct business day. Pass a tenant's configured timezone to honor a non-default sitter.
  */
-export function getPacificDateStr(date: Date = new Date()): string {
-  return date.toLocaleDateString('en-CA', { timeZone: PACIFIC });
+export function getPacificDateStr(
+  date: Date = new Date(),
+  timezone: string = DEFAULT_TIMEZONE,
+): string {
+  return date.toLocaleDateString('en-CA', { timeZone: timezone });
 }
 
 /** Milliseconds in one hour. */
@@ -127,6 +133,11 @@ function pacificOffsetMinutes(at: Date): number {
   const mins = parseInt(m[2] ?? '0', 10);
   return -(hours * 60 + Math.sign(hours) * mins);
 }
+
+// NOTE: pacificDayStartUtcMs / hoursUntilStart are the cancellation-window helpers and are NOT
+// yet timezone-parameterized — they hardcode PACIFIC (the instance default). They have no live
+// callers today; thread a tenant `timezone` through them (like getPacificDateStr) when the
+// cancellation-policy feature lands, or a non-default sitter's fee windows will use Pacific.
 
 /** UTC milliseconds of the START of the Pacific calendar day `YYYY-MM-DD` (00:00 Pacific). */
 export function pacificDayStartUtcMs(dateStr: string): number {

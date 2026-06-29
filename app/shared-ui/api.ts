@@ -18,7 +18,10 @@ export type TenantConfig = {
   slug: string;
   displayName: string;
   accentColor: string;
-  maxBoardingPets: number;
+  maxBoardingPets: number | null;
+  maxHouseSitsPerDay: number | null;
+  maxStayNights: number | null;
+  timezone: string | null;
   petTypes: string[];
   services: ServiceConfig[];
 };

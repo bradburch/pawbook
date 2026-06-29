@@ -18,20 +18,55 @@ import { findCapability, providerViews } from '../lib/providers';
 import { embedSnippets } from '../lib/snippet';
 import { isPetType, isServiceType, PET_TYPES, SERVICE_CATALOG } from '../lib/services';
 import { invalidateTenantCache } from '../lib/tenant-resolve';
-import { isRealDate, isValidDuration, isValidRate } from '../lib/validation';
+import {
+  DEFENSIVE_MAX_NIGHTS,
+  DEFENSIVE_MAX_PET_COUNT,
+  isNullableLimit,
+  isRealDate,
+  isValidDuration,
+  isValidRate,
+} from '../lib/validation';
 import type { AppEnv } from '../types';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+/** null/undefined (use default) or a timezone Intl accepts. */
+function isValidTimezone(value: unknown): value is string | null | undefined {
+  if (value === null || value === undefined) return true;
+  if (typeof value !== 'string') return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 type OptionBody = { label?: string; durationMinutes?: number | null; rate?: number };
 type ServiceBody = { type?: string; enabled?: boolean; options?: OptionBody[] };
 type SettingsBody = {
   displayName?: string;
   accentColor?: string;
-  maxBoardingPets?: number;
+  maxBoardingPets?: number | null;
+  maxHouseSitsPerDay?: number | null;
+  maxStayNights?: number | null;
+  timezone?: string | null;
   petTypes?: string[];
   services?: ServiceBody[];
 };
+
+/**
+ * PATCH semantics for a nullable config field: present in the body ⇒ take it (an explicit `null`
+ * clears the limit to "unlimited"); absent ⇒ keep the tenant's current value. The lone cast covers
+ * the dynamic-key access — call sites stay type-safe via the `T` they pin.
+ */
+function patchNullable<T extends number | string>(
+  body: SettingsBody,
+  key: 'maxBoardingPets' | 'maxHouseSitsPerDay' | 'maxStayNights' | 'timezone',
+  current: T | null,
+): T | null {
+  return key in body ? ((body[key] as T | null | undefined) ?? null) : current;
+}
 
 export const adminRoutes = new Hono<AppEnv>()
   .use('/:slug/admin/*', adminAuth)
@@ -50,6 +85,9 @@ export const adminRoutes = new Hono<AppEnv>()
       displayName: tenant.DisplayName,
       accentColor: tenant.AccentColor,
       maxBoardingPets: tenant.MaxBoardingPets,
+      maxHouseSitsPerDay: tenant.MaxHouseSitsPerDay,
+      maxStayNights: tenant.MaxStayNights,
+      timezone: tenant.Timezone,
       petTypes: PET_TYPES.map((pt) => ({
         petType: pt,
         enabled: petTypes.some((p) => p.PetType === pt && p.Enabled),
@@ -82,14 +120,37 @@ export const adminRoutes = new Hono<AppEnv>()
       typeof body.displayName === 'string' ? body.displayName.trim() : tenant.DisplayName;
     const accentColor =
       typeof body.accentColor === 'string' ? body.accentColor : tenant.AccentColor;
-    const maxBoardingPets = body.maxBoardingPets ?? tenant.MaxBoardingPets;
+    const maxBoardingPets = patchNullable<number>(body, 'maxBoardingPets', tenant.MaxBoardingPets);
+    const maxHouseSitsPerDay = patchNullable<number>(
+      body,
+      'maxHouseSitsPerDay',
+      tenant.MaxHouseSitsPerDay,
+    );
+    const maxStayNights = patchNullable<number>(body, 'maxStayNights', tenant.MaxStayNights);
+    const timezone = patchNullable<string>(body, 'timezone', tenant.Timezone);
     const petTypes = body.petTypes;
     const services = body.services ?? [];
 
     if (!displayName) return c.json({ error: 'Display name required.' }, 400);
     if (!COLOR_RE.test(accentColor)) return c.json({ error: 'Accent color must be #rrggbb.' }, 400);
-    if (!Number.isInteger(maxBoardingPets) || maxBoardingPets < 1 || maxBoardingPets > 50)
-      return c.json({ error: 'Boarding capacity must be 1-50 pets.' }, 400);
+    if (!isNullableLimit(maxBoardingPets, DEFENSIVE_MAX_PET_COUNT))
+      return c.json(
+        { error: 'Boarding capacity must be a positive number, or blank for no limit.' },
+        400,
+      );
+    // DEFENSIVE_MAX_PET_COUNT is reused here purely as a generic "sane capacity integer" ceiling —
+    // a house-sit count isn't a pet count, but the same 1..1000 sanity bound is the right guard.
+    if (!isNullableLimit(maxHouseSitsPerDay, DEFENSIVE_MAX_PET_COUNT))
+      return c.json(
+        { error: 'House-sit capacity must be a positive number, or blank for no limit.' },
+        400,
+      );
+    if (!isNullableLimit(maxStayNights, DEFENSIVE_MAX_NIGHTS))
+      return c.json(
+        { error: 'Max stay nights must be a positive number, or blank for no limit.' },
+        400,
+      );
+    if (!isValidTimezone(timezone)) return c.json({ error: 'Unknown timezone.' }, 400);
     if (petTypes !== undefined) {
       if (!Array.isArray(petTypes) || !petTypes.every(isPetType))
         return c.json({ error: 'Unknown pet type.' }, 400);
@@ -120,6 +181,9 @@ export const adminRoutes = new Hono<AppEnv>()
       displayName,
       accentColor,
       maxBoardingPets,
+      maxHouseSitsPerDay,
+      maxStayNights,
+      timezone,
     });
     if (petTypes !== undefined) {
       for (const pt of PET_TYPES)

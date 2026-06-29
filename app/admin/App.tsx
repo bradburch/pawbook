@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
 import './admin.css';
 
 /**
@@ -10,6 +11,29 @@ import './admin.css';
 type Session = { token: string; slug: string; displayName: string };
 
 const TOKEN_KEY = 'pawbook-admin-token';
+
+/** A nullable capacity/limit input: blank ⇒ null (no limit), a number ⇒ that value. */
+function NullableNumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <label>
+      {label} <span className="ad-hint">(blank = no limit)</span>
+      <input
+        type="number"
+        min={1}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      />
+    </label>
+  );
+}
 
 function getStoredToken(): string | null {
   try {
@@ -44,7 +68,10 @@ type ServiceForm = {
 type Settings = {
   displayName: string;
   accentColor: string;
-  maxBoardingPets: number;
+  maxBoardingPets: number | null;
+  maxHouseSitsPerDay: number | null;
+  maxStayNights: number | null;
+  timezone: string | null;
   petTypes: { petType: string; enabled: boolean }[];
   services: ServiceForm[];
   blocked: { id: string; startDate: string; endDate: string | null }[];
@@ -220,6 +247,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           displayName: settings.displayName,
           accentColor: settings.accentColor,
           maxBoardingPets: settings.maxBoardingPets,
+          maxHouseSitsPerDay: settings.maxHouseSitsPerDay,
+          maxStayNights: settings.maxStayNights,
+          timezone: settings.timezone,
           petTypes: settings.petTypes.filter((p) => p.enabled).map((p) => p.petType),
           services: settings.services.map((s) => ({
             type: s.type,
@@ -316,17 +346,31 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
             onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
           />
         </label>
+        <NullableNumberField
+          label="Max boarding pets per day"
+          value={settings.maxBoardingPets}
+          onChange={(maxBoardingPets) => setSettings({ ...settings, maxBoardingPets })}
+        />
+        <NullableNumberField
+          label="Max house-sits per day"
+          value={settings.maxHouseSitsPerDay}
+          onChange={(maxHouseSitsPerDay) => setSettings({ ...settings, maxHouseSitsPerDay })}
+        />
+        <NullableNumberField
+          label="Max stay length (nights)"
+          value={settings.maxStayNights}
+          onChange={(maxStayNights) => setSettings({ ...settings, maxStayNights })}
+        />
         <label>
-          Max boarding pets per day
+          Business timezone <span className="ad-hint">(blank = {DEFAULT_TIMEZONE})</span>
           <input
-            type="number"
-            min={1}
-            max={50}
-            value={settings.maxBoardingPets}
+            type="text"
+            placeholder={DEFAULT_TIMEZONE}
+            value={settings.timezone ?? ''}
             onChange={(e) =>
               setSettings({
                 ...settings,
-                maxBoardingPets: Number(e.target.value),
+                timezone: e.target.value === '' ? null : e.target.value,
               })
             }
           />
