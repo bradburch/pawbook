@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { setCookie } from 'hono/cookie';
 import {
   clearProviderConnection,
   countBookingsForUser,
@@ -281,6 +282,16 @@ export const adminRoutes = new Hono<AppEnv>()
     await c.env.PAWBOOK_CACHE.put(NONCE_KEY(nonce), '1', { expirationTtl: 600 });
     const state = await signState(c.env.TOKEN_SECRET, {
       tenantId: tenant.Id, nonce, exp: Date.now() + 600_000,
+    });
+    // Bind the callback to THIS admin's browser: the nonce travels back as a cookie that an
+    // attacker cannot plant in a victim's browser, defeating OAuth login-CSRF. Secure in prod;
+    // omitted on http://localhost so local dev still works. Path-scoped to the callback only.
+    setCookie(c, 'pawbook_gcal_nonce', nonce, {
+      httpOnly: true,
+      secure: c.env.ENVIRONMENT !== 'development',
+      sameSite: 'Lax', // sent on Google's top-level redirect back to the callback
+      path: '/oauth/google/callback',
+      maxAge: 600,
     });
     return c.json({ url: buildAuthUrl(c.env, state) });
   })

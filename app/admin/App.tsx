@@ -80,6 +80,7 @@ type Settings = {
     capability: string;
     provider: string;
     label: string;
+    authMode: 'oauth' | 'stub';
     status: string;
     connectedAt: string | null;
   }[];
@@ -309,6 +310,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   };
 
   const connectCalendar = async () => {
+    // NOTE: The route and this client call are still calendar-specific because there is exactly one
+    // OAuth provider. When a second is added, generalize adminApi.calendar + the
+    // /providers/calendar/... routes to accept a `capability` param. Deliberate YAGNI boundary.
     setError('');
     try {
       const { url } = await adminApi.calendar.start(slug, token);
@@ -616,7 +620,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           {settings.providers.map((p) => (
             <li key={p.capability}>
               {p.label} — <em>{p.status}</em>{' '}
-              {p.capability === 'calendar' ? (
+              {p.authMode === 'oauth' ? (
                 p.status === 'connected' ? (
                   <button onClick={() => void disconnectCalendar()}>Disconnect</button>
                 ) : (

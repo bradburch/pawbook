@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getCookie } from 'hono/cookie';
 import { getTenantById, setProviderTokens } from '../db/repo';
 import { exchangeCode } from '../lib/google-calendar';
 import { verifyState } from '../lib/oauth-state';
@@ -28,6 +29,10 @@ export const oauthRoutes = new Hono<AppEnv>().get('/oauth/google/callback', asyn
 
   const payload = await verifyState(c.env.TOKEN_SECRET, state, Date.now());
   if (!payload) return resultPage(false);
+
+  // Login-CSRF defense: the cookie set at /start must carry the same nonce as the signed state.
+  const cookieNonce = getCookie(c, 'pawbook_gcal_nonce');
+  if (!cookieNonce || cookieNonce !== payload.nonce) return resultPage(false);
 
   // Single-use nonce: must exist, and is deleted on use so the callback can't be replayed.
   const seen = await c.env.PAWBOOK_CACHE.get(NONCE_KEY(payload.nonce));

@@ -5,6 +5,9 @@ import { constantTimeEqual } from './timing';
  * Authorization header). `state = base64url(payload).base64url(HMAC-SHA256(payload, TOKEN_SECRET))`.
  * The `nonce` is additionally stored single-use in KV by the routes, so replay is blocked even
  * within `exp`.
+ *
+ * The HMAC key is HKDF-derived from TOKEN_SECRET with info label `pawbook-oauth-state`, providing
+ * domain separation from the raw secret used by hono/jwt for session tokens.
  */
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -18,10 +21,23 @@ function b64urlToBytes(s: string): Uint8Array {
   return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
 }
 
+const stateKeyCache = new Map<string, Promise<CryptoKey>>();
+function stateHmacKey(secret: string): Promise<CryptoKey> {
+  let k = stateKeyCache.get(secret);
+  if (!k) {
+    k = (async () => {
+      const ikm = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: enc.encode('pawbook-oauth-state') },
+        ikm, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+      );
+    })();
+    stateKeyCache.set(secret, k);
+  }
+  return k;
+}
 async function hmac(secret: string, data: string): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey(
-    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
-  );
+  const key = await stateHmacKey(secret);
   return new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(data)));
 }
 

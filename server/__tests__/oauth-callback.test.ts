@@ -12,8 +12,14 @@ async function primedState(env: Env, over: Partial<{ tenantId: string; exp: numb
     tenantId: over.tenantId ?? TENANT_A, nonce: NONCE, exp: over.exp ?? Date.now() + 600_000,
   });
 }
-function call(env: Env, state: string, code = 'auth-code') {
-  return app.request(`/oauth/google/callback?code=${code}&state=${encodeURIComponent(state)}`, {}, env);
+function call(env: Env, state: string, code = 'auth-code', cookieNonce: string | null = NONCE) {
+  const headers: Record<string, string> = {};
+  if (cookieNonce !== null) headers.Cookie = `pawbook_gcal_nonce=${cookieNonce}`;
+  return app.request(
+    `/oauth/google/callback?code=${code}&state=${encodeURIComponent(state)}`,
+    { headers },
+    env,
+  );
 }
 
 describe('GET /oauth/google/callback', () => {
@@ -55,5 +61,21 @@ describe('GET /oauth/google/callback', () => {
     const { env } = createTestEnv();
     const res = await call(env, await primedState(env, { exp: Date.now() - 1 }));
     expect(res.status).toBe(400);
+  });
+
+  it('rejects a missing nonce cookie (login-CSRF defense)', async () => {
+    const { env } = createTestEnv();
+    const spy = vi.spyOn(globalThis, 'fetch');
+    const res = await call(env, await primedState(env), 'auth-code', null);
+    expect(res.status).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('rejects a mismatched nonce cookie (login-CSRF defense)', async () => {
+    const { env } = createTestEnv();
+    const spy = vi.spyOn(globalThis, 'fetch');
+    const res = await call(env, await primedState(env), 'auth-code', 'wrong-nonce');
+    expect(res.status).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
   });
 });
