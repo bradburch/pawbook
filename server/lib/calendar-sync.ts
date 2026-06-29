@@ -1,5 +1,10 @@
 import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
-import { getEndUserById, getProviderConnection, setBookingGCalEventId, setProviderTokens } from '../db/repo';
+import {
+  getEndUserById,
+  getProviderConnection,
+  setBookingGCalEventId,
+  setProviderTokens,
+} from '../db/repo';
 import { buildEventResource, createEvent, refreshAccessToken } from './google-calendar';
 import { SERVICE_CATALOG } from './services';
 import type { ServiceType } from './services';

@@ -15,7 +15,10 @@ const dec = new TextDecoder();
 export type StatePayload = { tenantId: string; nonce: string; exp: number };
 
 function b64url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 function b64urlToBytes(s: string): Uint8Array {
   return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
@@ -26,10 +29,20 @@ function stateHmacKey(secret: string): Promise<CryptoKey> {
   let k = stateKeyCache.get(secret);
   if (!k) {
     k = (async () => {
-      const ikm = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, ['deriveKey']);
+      const ikm = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, [
+        'deriveKey',
+      ]);
       return crypto.subtle.deriveKey(
-        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: enc.encode('pawbook-oauth-state') },
-        ikm, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+        {
+          name: 'HKDF',
+          hash: 'SHA-256',
+          salt: new Uint8Array(0),
+          info: enc.encode('pawbook-oauth-state'),
+        },
+        ikm,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign'],
       );
     })();
     stateKeyCache.set(secret, k);
@@ -48,7 +61,9 @@ export async function signState(secret: string, payload: StatePayload): Promise<
 }
 
 export async function verifyState(
-  secret: string, state: string, nowMs: number,
+  secret: string,
+  state: string,
+  nowMs: number,
 ): Promise<StatePayload | null> {
   const dot = state.indexOf('.');
   if (dot <= 0) return null;

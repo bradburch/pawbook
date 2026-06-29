@@ -398,8 +398,15 @@ export async function setProviderTokens(
          TokenExpiresAt = excluded.TokenExpiresAt, CalendarId = excluded.CalendarId`,
     )
     .bind(
-      crypto.randomUUID(), tenantId, capability, provider, new Date().toISOString(),
-      t.access, t.refresh, t.expiresAt, t.calendarId,
+      crypto.randomUUID(),
+      tenantId,
+      capability,
+      provider,
+      new Date().toISOString(),
+      t.access,
+      t.refresh,
+      t.expiresAt,
+      t.calendarId,
     )
     .run();
 }
@@ -448,7 +455,9 @@ export async function getEndUserById(
 const ENDUSER_COLS = 'Id, TenantId, Email, Name, Status, InvitedAt';
 
 export async function getEndUserByEmail(
-  db: D1Database, tenantId: string, email: string,
+  db: D1Database,
+  tenantId: string,
+  email: string,
 ): Promise<EndUser | null> {
   return await db
     .prepare(`SELECT ${ENDUSER_COLS} FROM EndUsers WHERE TenantId = ? AND Email = ?`)
@@ -457,7 +466,10 @@ export async function getEndUserByEmail(
 }
 
 export async function insertInvitedCustomer(
-  db: D1Database, tenantId: string, email: string, name: string | null,
+  db: D1Database,
+  tenantId: string,
+  email: string,
+  name: string | null,
 ): Promise<EndUser> {
   const existing = await getEndUserByEmail(db, tenantId, email);
   if (existing) return existing; // idempotent — never downgrade an active customer to invited
@@ -470,7 +482,14 @@ export async function insertInvitedCustomer(
     )
     .bind(id, tenantId, email, name, invitedAt)
     .run();
-  return { Id: id, TenantId: tenantId, Email: email, Name: name, Status: 'invited', InvitedAt: invitedAt };
+  return {
+    Id: id,
+    TenantId: tenantId,
+    Email: email,
+    Name: name,
+    Status: 'invited',
+    InvitedAt: invitedAt,
+  };
 }
 
 export async function listCustomers(db: D1Database, tenantId: string): Promise<EndUser[]> {
@@ -482,7 +501,9 @@ export async function listCustomers(db: D1Database, tenantId: string): Promise<E
 }
 
 export async function deleteCustomer(
-  db: D1Database, tenantId: string, id: string,
+  db: D1Database,
+  tenantId: string,
+  id: string,
 ): Promise<boolean> {
   // Atomic guard: delete only when this customer has no bookings, so a booking created between
   // the route's count check and here can never orphan a live booking. The route still 409s on the
@@ -498,7 +519,9 @@ export async function deleteCustomer(
 }
 
 export async function countBookingsForUser(
-  db: D1Database, tenantId: string, endUserId: string,
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
 ): Promise<number> {
   const row = await db
     .prepare('SELECT COUNT(*) AS n FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?')
@@ -508,7 +531,9 @@ export async function countBookingsForUser(
 }
 
 export async function promoteCustomerActive(
-  db: D1Database, tenantId: string, endUserId: string,
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
 ): Promise<void> {
   await db
     .prepare("UPDATE EndUsers SET Status = 'active' WHERE TenantId = ? AND Id = ?")

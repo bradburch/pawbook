@@ -19,7 +19,10 @@ function resultPage(ok: boolean): Response {
     : 'Connection failed. Please close this window and try again.';
   const html = `<!doctype html><meta charset="utf-8"><title>${ok ? 'Connected' : 'Error'}</title>
 <body style="font:14px system-ui;padding:2rem">${body}</body>`;
-  return new Response(html, { status: ok ? 200 : 400, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  return new Response(html, {
+    status: ok ? 200 : 400,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
 }
 
 export const oauthRoutes = new Hono<AppEnv>().get('/oauth/google/callback', async (c) => {

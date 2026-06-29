@@ -22,6 +22,7 @@
 ## File Structure
 
 **New files**
+
 - `migrations/0003_calendar_oauth_and_invites.sql` — schema upgrade.
 - `server/lib/token-crypto.ts` — AES-GCM `encryptToken`/`decryptToken` (HKDF key).
 - `server/lib/oauth-state.ts` — sign/verify HMAC `state` payloads.
@@ -31,6 +32,7 @@
 - Tests: `server/__tests__/token-crypto.test.ts`, `oauth-state.test.ts`, `google-calendar.test.ts`, `oauth-callback.test.ts`, `invites.test.ts`, `migration-0003.test.ts`.
 
 **Modified files**
+
 - `sql/schema.sql`, `sql/seed.sql`, `server/types.ts`, `server/db/repo.ts`, `server/lib/providers.ts`, `server/lib/email.ts`, `server/routes/auth.ts`, `server/routes/admin.ts`, `server/routes/bookings.ts`, `server/index.ts`, `env.d.ts`, `.dev.vars`.
 - `app/shared-ui/api.ts`, `app/admin/App.tsx`.
 - Existing tests updated for gating: `server/__tests__/booking-flow.test.ts`, `identify-email.test.ts`, `isolation.test.ts` (via seeded demo customers — see Task 9).
@@ -42,11 +44,13 @@
 ### Task 1: Schema migration, types, env, secrets
 
 **Files:**
+
 - Create: `migrations/0003_calendar_oauth_and_invites.sql`
 - Modify: `sql/schema.sql`, `server/types.ts`, `env.d.ts`, `.dev.vars`
 - Test: `server/__tests__/migration-0003.test.ts`
 
 **Interfaces:**
+
 - Produces: DB columns `BookingRequests.StartTime`, `BookingRequests.GCalEventId`, `EndUsers.Name`, `EndUsers.InvitedAt`, `EndUsers.Status`, `ProviderConnections.{AccessToken,RefreshToken,TokenExpiresAt,CalendarId}` and widened `Status` CHECK including `'connected'`. Types `EndUser`, `BookingRow`, `ProviderConnectionWithTokens`. Env vars `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`.
 
 - [ ] **Step 1: Write the failing migration test**
@@ -61,7 +65,11 @@ import { describe, expect, it } from 'vitest';
 
 const SCHEMA_DIR = join(import.meta.dirname, '..', '..', 'sql');
 const MIGRATION = join(
-  import.meta.dirname, '..', '..', 'migrations', '0003_calendar_oauth_and_invites.sql',
+  import.meta.dirname,
+  '..',
+  '..',
+  'migrations',
+  '0003_calendar_oauth_and_invites.sql',
 );
 
 describe('migration 0003 — calendar tokens + invite columns', () => {
@@ -90,8 +98,11 @@ describe('migration 0003 — calendar tokens + invite columns', () => {
     db.exec(readFileSync(MIGRATION, 'utf8'));
 
     // Grandfathered customer is 'active'.
-    const eu = db.prepare(`SELECT Status, Name, InvitedAt FROM EndUsers WHERE Id='e1'`).get() as
-      { Status: string; Name: null; InvitedAt: null };
+    const eu = db.prepare(`SELECT Status, Name, InvitedAt FROM EndUsers WHERE Id='e1'`).get() as {
+      Status: string;
+      Name: null;
+      InvitedAt: null;
+    };
     expect(eu.Status).toBe('active');
     expect(eu.Name).toBeNull();
 
@@ -101,8 +112,9 @@ describe('migration 0003 — calendar tokens + invite columns', () => {
     // Status CHECK now admits 'connected'; token columns exist.
     db.exec(`UPDATE ProviderConnections SET Status='connected', AccessToken='x', RefreshToken='y',
              TokenExpiresAt='2030-01-01T00:00:00Z', CalendarId='primary' WHERE Id='p1'`);
-    const pc = db.prepare(`SELECT Status, AccessToken FROM ProviderConnections WHERE Id='p1'`).get() as
-      { Status: string; AccessToken: string };
+    const pc = db
+      .prepare(`SELECT Status, AccessToken FROM ProviderConnections WHERE Id='p1'`)
+      .get() as { Status: string; AccessToken: string };
     expect(pc.Status).toBe('connected');
     expect(pc.AccessToken).toBe('x');
 
@@ -114,7 +126,9 @@ describe('migration 0003 — calendar tokens + invite columns', () => {
     db.exec(readFileSync(join(SCHEMA_DIR, 'schema.sql'), 'utf8'));
     db.prepare(`SELECT StartTime, GCalEventId FROM BookingRequests`).all();
     db.prepare(`SELECT Name, InvitedAt, Status FROM EndUsers`).all();
-    db.prepare(`SELECT AccessToken, RefreshToken, TokenExpiresAt, CalendarId FROM ProviderConnections`).all();
+    db.prepare(
+      `SELECT AccessToken, RefreshToken, TokenExpiresAt, CalendarId FROM ProviderConnections`,
+    ).all();
   });
 });
 ```
@@ -170,6 +184,7 @@ PRAGMA foreign_keys=ON;
 - [ ] **Step 4: Update `sql/schema.sql`** — add the columns to the canonical CREATE TABLEs.
 
 In `EndUsers`, after the `Email TEXT NOT NULL,` line add:
+
 ```sql
   Name TEXT,
   InvitedAt TEXT,
@@ -177,12 +192,14 @@ In `EndUsers`, after the `Email TEXT NOT NULL,` line add:
 ```
 
 In `BookingRequests`, after the `PetCount INTEGER NOT NULL DEFAULT 1,` line add:
+
 ```sql
   StartTime TEXT, -- 'HH:MM' wall-clock for timed bookings (walk/check-in); NULL = all-day event
   GCalEventId TEXT, -- Google Calendar event id created for this booking; NULL if none/unsynced
 ```
 
 Replace the `ProviderConnections` CREATE TABLE with:
+
 ```sql
 CREATE TABLE IF NOT EXISTS ProviderConnections (
   Id TEXT PRIMARY KEY,
@@ -203,6 +220,7 @@ CREATE TABLE IF NOT EXISTS ProviderConnections (
 - [ ] **Step 5: Update `server/types.ts`**
 
 Extend `EndUser`:
+
 ```ts
 export type EndUser = {
   Id: string;
@@ -215,12 +233,14 @@ export type EndUser = {
 ```
 
 Add `StartTime` and `GCalEventId` to `BookingRow` (after `PetCount: number;`):
+
 ```ts
-  StartTime: string | null;
-  GCalEventId: string | null;
+StartTime: string | null;
+GCalEventId: string | null;
 ```
 
 Add a tokens-bearing variant after `ProviderConnection`:
+
 ```ts
 /** Server-internal: includes encrypted OAuth token columns. NEVER serialize to a client. */
 export type ProviderConnectionWithTokens = ProviderConnection & {
@@ -232,18 +252,21 @@ export type ProviderConnectionWithTokens = ProviderConnection & {
 ```
 
 - [ ] **Step 6: Update `env.d.ts`** — add inside `interface Env`:
+
 ```ts
-  /** Google OAuth2 client id. `wrangler secret put GOOGLE_CLIENT_ID`. */
-  GOOGLE_CLIENT_ID: string;
-  /** Google OAuth2 client secret. `wrangler secret put GOOGLE_CLIENT_SECRET`. */
-  GOOGLE_CLIENT_SECRET: string;
-  /** Absolute URL of the global OAuth callback, registered in Google Cloud. Used in the consent
-   *  URL and the code exchange (must match exactly). e.g. https://<worker>/oauth/google/callback */
-  GOOGLE_OAUTH_REDIRECT_URI: string;
+/** Google OAuth2 client id. `wrangler secret put GOOGLE_CLIENT_ID`. */
+GOOGLE_CLIENT_ID: string;
+/** Google OAuth2 client secret. `wrangler secret put GOOGLE_CLIENT_SECRET`. */
+GOOGLE_CLIENT_SECRET: string;
+/** Absolute URL of the global OAuth callback, registered in Google Cloud. Used in the consent
+ *  URL and the code exchange (must match exactly). e.g. https://<worker>/oauth/google/callback */
+GOOGLE_OAUTH_REDIRECT_URI: string;
 ```
+
 > These are typed non-optional for ergonomics in the calendar code; routes guard at runtime when unset (Task 6).
 
 - [ ] **Step 7: Update `.dev.vars`** — append (placeholder values for local dev; real creds via `wrangler secret put` in prod):
+
 ```
 GOOGLE_CLIENT_ID=dev-google-client-id
 GOOGLE_CLIENT_SECRET=dev-google-client-secret
@@ -251,6 +274,7 @@ GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8787/oauth/google/callback
 ```
 
 - [ ] **Step 8: Update `server/db/repo.ts` column lists** so existing SELECTs surface the new booking columns. Replace `BOOKING_COLS`:
+
 ```ts
 const BOOKING_COLS =
   'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, CreatedAt';
@@ -273,15 +297,18 @@ git commit -m "feat: 0003 migration — calendar token + invite columns; types +
 ### Task 2: Token encryption (`token-crypto.ts`)
 
 **Files:**
+
 - Create: `server/lib/token-crypto.ts`
 - Test: `server/__tests__/token-crypto.test.ts`
 
 **Interfaces:**
+
 - Produces: `encryptToken(secret: string, plaintext: string): Promise<string>`, `decryptToken(secret: string, blob: string): Promise<string>` (base64 `iv||ciphertext`, AES-GCM-256, HKDF-derived key).
 
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/token-crypto.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import { decryptToken, encryptToken } from '../lib/token-crypto';
@@ -315,6 +342,7 @@ describe('token-crypto', () => {
 - [ ] **Step 3: Implement**
 
 Create `server/lib/token-crypto.ts`:
+
 ```ts
 /**
  * AES-GCM encryption for OAuth tokens at rest in D1. The key is derived from TOKEN_SECRET via
@@ -325,9 +353,16 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 async function deriveKey(secret: string): Promise<CryptoKey> {
-  const ikm = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, ['deriveKey']);
+  const ikm = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, [
+    'deriveKey',
+  ]);
   return crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: enc.encode('pawbook-gcal-token') },
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: new Uint8Array(0),
+      info: enc.encode('pawbook-gcal-token'),
+    },
     ikm,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -360,6 +395,7 @@ export async function decryptToken(secret: string, blob: string): Promise<string
 - [ ] **Step 4: Run to verify it passes** — Run: `npm test -- token-crypto` → PASS.
 
 - [ ] **Step 5: Commit**
+
 ```bash
 git add server/lib/token-crypto.ts server/__tests__/token-crypto.test.ts
 git commit -m "feat: AES-GCM token encryption (HKDF key from TOKEN_SECRET)"
@@ -370,16 +406,19 @@ git commit -m "feat: AES-GCM token encryption (HKDF key from TOKEN_SECRET)"
 ### Task 3: Signed single-use OAuth state (`oauth-state.ts`)
 
 **Files:**
+
 - Create: `server/lib/oauth-state.ts`
 - Test: `server/__tests__/oauth-state.test.ts`
 
 **Interfaces:**
+
 - Consumes: `constantTimeEqual` from `server/lib/timing.ts`.
 - Produces: `type StatePayload = { tenantId: string; nonce: string; exp: number }`; `signState(secret, payload): Promise<string>`; `verifyState(secret, state, nowMs): Promise<StatePayload | null>`.
 
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/oauth-state.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import { signState, verifyState } from '../lib/oauth-state';
@@ -399,7 +438,9 @@ describe('oauth-state', () => {
     const s = await signState(SECRET, payload);
     const [body, sig] = s.split('.');
     const forged = btoa(JSON.stringify({ ...payload, tenantId: 'evil' }))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
     expect(await verifyState(SECRET, `${forged}.${sig}`, NOW)).toBeNull();
     void body;
   });
@@ -425,6 +466,7 @@ describe('oauth-state', () => {
 - [ ] **Step 3: Implement**
 
 Create `server/lib/oauth-state.ts`:
+
 ```ts
 import { constantTimeEqual } from './timing';
 
@@ -440,7 +482,10 @@ const dec = new TextDecoder();
 export type StatePayload = { tenantId: string; nonce: string; exp: number };
 
 function b64url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 function b64urlToBytes(s: string): Uint8Array {
   return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (ch) => ch.charCodeAt(0));
@@ -448,7 +493,11 @@ function b64urlToBytes(s: string): Uint8Array {
 
 async function hmac(secret: string, data: string): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
-    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
   );
   return new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(data)));
 }
@@ -460,7 +509,9 @@ export async function signState(secret: string, payload: StatePayload): Promise<
 }
 
 export async function verifyState(
-  secret: string, state: string, nowMs: number,
+  secret: string,
+  state: string,
+  nowMs: number,
 ): Promise<StatePayload | null> {
   const dot = state.indexOf('.');
   if (dot <= 0) return null;
@@ -488,6 +539,7 @@ export async function verifyState(
 - [ ] **Step 4: Run to verify it passes** — Run: `npm test -- oauth-state` → PASS.
 
 - [ ] **Step 5: Commit**
+
 ```bash
 git add server/lib/oauth-state.ts server/__tests__/oauth-state.test.ts
 git commit -m "feat: signed single-use OAuth state helper"
@@ -498,10 +550,12 @@ git commit -m "feat: signed single-use OAuth state helper"
 ### Task 4: Google Calendar client (`google-calendar.ts`)
 
 **Files:**
+
 - Create: `server/lib/google-calendar.ts`
 - Test: `server/__tests__/google-calendar.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `buildAuthUrl(env: Env, state: string): string`
   - `exchangeCode(env: Env, code: string): Promise<TokenSet>` where `TokenSet = { accessToken: string; refreshToken: string; expiresAt: string }`
@@ -515,10 +569,15 @@ git commit -m "feat: signed single-use OAuth state helper"
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/google-calendar.test.ts`:
+
 ```ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildAuthUrl, buildEventResource, createEvent, exchangeCode, refreshAccessToken,
+  buildAuthUrl,
+  buildEventResource,
+  createEvent,
+  exchangeCode,
+  refreshAccessToken,
 } from '../lib/google-calendar';
 
 const env = {
@@ -544,10 +603,14 @@ describe('google-calendar', () => {
   });
 
   it('exchangeCode posts the code and maps the token response', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }),
-        { status: 200 }),
-    );
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }),
+          { status: 200 },
+        ),
+      );
     const set = await exchangeCode(env, 'auth-code');
     expect(set.accessToken).toBe('at');
     expect(set.refreshToken).toBe('rt');
@@ -565,9 +628,9 @@ describe('google-calendar', () => {
   });
 
   it('createEvent POSTs to the calendar and returns the new id', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ id: 'evt_1' }), { status: 200 }),
-    );
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ id: 'evt_1' }), { status: 200 }));
     const { id } = await createEvent('AT', 'primary', { summary: 'x' });
     expect(id).toBe('evt_1');
     const [url, init] = spy.mock.calls[0];
@@ -583,8 +646,15 @@ describe('google-calendar', () => {
 
   it('buildEventResource: all-day range uses date start/end (exclusive)', () => {
     const r = buildEventResource({
-      serviceLabel: 'Boarding', startDate: '2030-01-10', endDate: '2030-01-13', startTime: null,
-      durationMinutes: null, petCount: 2, estCost: 150, customerEmail: 'a@b.c', timezone: 'America/Los_Angeles',
+      serviceLabel: 'Boarding',
+      startDate: '2030-01-10',
+      endDate: '2030-01-13',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 2,
+      estCost: 150,
+      customerEmail: 'a@b.c',
+      timezone: 'America/Los_Angeles',
     });
     expect(r.start).toEqual({ date: '2030-01-10' });
     expect(r.end).toEqual({ date: '2030-01-13' });
@@ -594,8 +664,15 @@ describe('google-calendar', () => {
 
   it('buildEventResource: all-day single day uses next-day exclusive end', () => {
     const r = buildEventResource({
-      serviceLabel: 'Day care', startDate: '2030-01-10', endDate: null, startTime: null,
-      durationMinutes: null, petCount: 1, estCost: 40, customerEmail: null, timezone: 'America/Los_Angeles',
+      serviceLabel: 'Day care',
+      startDate: '2030-01-10',
+      endDate: null,
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 40,
+      customerEmail: null,
+      timezone: 'America/Los_Angeles',
     });
     expect(r.start).toEqual({ date: '2030-01-10' });
     expect(r.end).toEqual({ date: '2030-01-11' });
@@ -603,8 +680,15 @@ describe('google-calendar', () => {
 
   it('buildEventResource: timed booking uses dateTime + timeZone, end = start + duration', () => {
     const r = buildEventResource({
-      serviceLabel: 'Walks', startDate: '2030-01-10', endDate: null, startTime: '09:30',
-      durationMinutes: 60, petCount: 1, estCost: 35, customerEmail: 'a@b.c', timezone: 'America/Los_Angeles',
+      serviceLabel: 'Walks',
+      startDate: '2030-01-10',
+      endDate: null,
+      startTime: '09:30',
+      durationMinutes: 60,
+      petCount: 1,
+      estCost: 35,
+      customerEmail: 'a@b.c',
+      timezone: 'America/Los_Angeles',
     });
     expect(r.start).toEqual({ dateTime: '2030-01-10T09:30:00', timeZone: 'America/Los_Angeles' });
     expect(r.end).toEqual({ dateTime: '2030-01-10T10:30:00', timeZone: 'America/Los_Angeles' });
@@ -617,6 +701,7 @@ describe('google-calendar', () => {
 - [ ] **Step 3: Implement**
 
 Create `server/lib/google-calendar.ts`:
+
 ```ts
 /**
  * Google OAuth2 + Calendar v3 REST client. All network calls go through fetch (mockable in tests).
@@ -660,12 +745,21 @@ export async function exchangeCode(env: Env, code: string): Promise<TokenSet> {
     }),
   });
   if (!res.ok) throw new Error(`Google token exchange failed (${res.status})`);
-  const j = (await res.json()) as { access_token: string; refresh_token: string; expires_in: number };
-  return { accessToken: j.access_token, refreshToken: j.refresh_token, expiresAt: expiresAtFrom(j.expires_in) };
+  const j = (await res.json()) as {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  };
+  return {
+    accessToken: j.access_token,
+    refreshToken: j.refresh_token,
+    expiresAt: expiresAtFrom(j.expires_in),
+  };
 }
 
 export async function refreshAccessToken(
-  env: Env, refreshToken: string,
+  env: Env,
+  refreshToken: string,
 ): Promise<{ accessToken: string; expiresAt: string }> {
   const res = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
@@ -683,7 +777,9 @@ export async function refreshAccessToken(
 }
 
 export async function createEvent(
-  accessToken: string, calendarId: string, event: object,
+  accessToken: string,
+  calendarId: string,
+  event: object,
 ): Promise<{ id: string }> {
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
@@ -699,7 +795,9 @@ export async function createEvent(
 }
 
 export async function deleteEvent(
-  accessToken: string, calendarId: string, eventId: string,
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
 ): Promise<void> {
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
@@ -770,6 +868,7 @@ export function buildEventResource(b: CalendarBooking): EventResource {
 - [ ] **Step 4: Run to verify it passes** — Run: `npm test -- google-calendar` → PASS.
 
 - [ ] **Step 5: Commit**
+
 ```bash
 git add server/lib/google-calendar.ts server/__tests__/google-calendar.test.ts
 git commit -m "feat: Google Calendar OAuth + event REST client"
@@ -780,10 +879,12 @@ git commit -m "feat: Google Calendar OAuth + event REST client"
 ### Task 5: Repo functions for provider tokens + booking event id
 
 **Files:**
+
 - Modify: `server/db/repo.ts`
 - Test: extend `server/__tests__/tenant-config.test.ts` OR add `server/__tests__/provider-tokens.test.ts` (use the latter for isolation).
 
 **Interfaces:**
+
 - Consumes: `ProviderConnectionWithTokens` (Task 1).
 - Produces:
   - `getProviderConnection(db, tenantId, capability): Promise<ProviderConnectionWithTokens | null>`
@@ -795,10 +896,14 @@ git commit -m "feat: Google Calendar OAuth + event REST client"
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/provider-tokens.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
-  clearProviderConnection, getProviderConnection, setBookingGCalEventId, setProviderTokens,
+  clearProviderConnection,
+  getProviderConnection,
+  setBookingGCalEventId,
+  setProviderTokens,
 } from '../db/repo';
 import { createTestEnv, TENANT_A } from './helpers';
 
@@ -806,7 +911,10 @@ describe('provider token repo', () => {
   it('upserts tokens with connected status, then clears them', async () => {
     const { env } = createTestEnv();
     await setProviderTokens(env.PAWBOOK_DB, TENANT_A, 'calendar', 'google-calendar', {
-      access: 'enc-a', refresh: 'enc-r', expiresAt: '2030-01-01T00:00:00Z', calendarId: 'primary',
+      access: 'enc-a',
+      refresh: 'enc-r',
+      expiresAt: '2030-01-01T00:00:00Z',
+      calendarId: 'primary',
     });
     let conn = await getProviderConnection(env.PAWBOOK_DB, TENANT_A, 'calendar');
     expect(conn?.Status).toBe('connected');
@@ -824,8 +932,9 @@ describe('provider token repo', () => {
     raw.exec(`INSERT INTO BookingRequests (Id, TenantId, ServiceType, StartDate, PetCount, Status)
               VALUES ('b1', '${TENANT_A}', 'daycare', '2030-02-01', 1, 'pending')`);
     await setBookingGCalEventId(env.PAWBOOK_DB, TENANT_A, 'b1', 'evt_xyz');
-    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id='b1'`).get() as
-      { GCalEventId: string };
+    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id='b1'`).get() as {
+      GCalEventId: string;
+    };
     expect(row.GCalEventId).toBe('evt_xyz');
   });
 });
@@ -834,6 +943,7 @@ describe('provider token repo', () => {
 - [ ] **Step 2: Run to verify it fails** — Run: `npm test -- provider-tokens` → FAIL.
 
 - [ ] **Step 3: Implement** — append to `server/db/repo.ts` (and add `ProviderConnectionWithTokens` to the type import at top):
+
 ```ts
 export async function getProviderConnection(
   db: D1Database,
@@ -868,8 +978,15 @@ export async function setProviderTokens(
          TokenExpiresAt = excluded.TokenExpiresAt, CalendarId = excluded.CalendarId`,
     )
     .bind(
-      crypto.randomUUID(), tenantId, capability, provider, new Date().toISOString(),
-      t.access, t.refresh, t.expiresAt, t.calendarId,
+      crypto.randomUUID(),
+      tenantId,
+      capability,
+      provider,
+      new Date().toISOString(),
+      t.access,
+      t.refresh,
+      t.expiresAt,
+      t.calendarId,
     )
     .run();
 }
@@ -915,11 +1032,13 @@ export async function getEndUserById(
     .first<EndUser>();
 }
 ```
+
 > Note: keep `listProviderConnections` unchanged (it must NOT select token columns — it feeds the client).
 
 - [ ] **Step 4: Run to verify it passes** — Run: `npm test -- provider-tokens && npm run typecheck` → PASS.
 
 - [ ] **Step 5: Commit**
+
 ```bash
 git add server/db/repo.ts server/__tests__/provider-tokens.test.ts
 git commit -m "feat: repo functions for provider OAuth tokens + booking event id"
@@ -930,26 +1049,31 @@ git commit -m "feat: repo functions for provider OAuth tokens + booking event id
 ### Task 6: OAuth routes (start / global callback / disconnect)
 
 **Files:**
+
 - Create: `server/routes/oauth.ts`
 - Modify: `server/routes/admin.ts`, `server/index.ts`, `server/lib/providers.ts`
 - Test: `server/__tests__/oauth-callback.test.ts`
 
 **Interfaces:**
+
 - Consumes: `buildAuthUrl`, `exchangeCode` (Task 4); `signState`, `verifyState` (Task 3); `encryptToken` (Task 2); `setProviderTokens`, `clearProviderConnection`, `getProviderConnection`, `getTenantById` (Task 5 / repo).
 - Produces: `GET /oauth/google/callback`; admin `GET /api/:slug/admin/providers/calendar/oauth/start` → `{ url }`; admin `POST /api/:slug/admin/providers/calendar/disconnect`.
 
 - [ ] **Step 1: Widen the provider status type in `server/lib/providers.ts`** — change `ProviderView.status` and `providerViews`'s row type:
+
 ```ts
 export type ProviderView = CapabilityDescriptor & {
   status: 'disconnected' | 'connected-stub' | 'connected';
   connectedAt: string | null;
 };
 ```
+
 (`providerViews` body is unchanged — `row?.Status ?? 'disconnected'` already returns whatever is stored.)
 
 - [ ] **Step 2: Write the failing callback test**
 
 Create `server/__tests__/oauth-callback.test.ts`:
+
 ```ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '../index';
@@ -962,11 +1086,17 @@ const NONCE = 'nonce-1';
 async function primedState(env: Env, over: Partial<{ tenantId: string; exp: number }> = {}) {
   await env.PAWBOOK_CACHE.put(`gcal:nonce:${NONCE}`, '1');
   return signState(TEST_SECRET, {
-    tenantId: over.tenantId ?? TENANT_A, nonce: NONCE, exp: over.exp ?? Date.now() + 600_000,
+    tenantId: over.tenantId ?? TENANT_A,
+    nonce: NONCE,
+    exp: over.exp ?? Date.now() + 600_000,
   });
 }
 function call(env: Env, state: string, code = 'auth-code') {
-  return app.request(`/oauth/google/callback?code=${code}&state=${encodeURIComponent(state)}`, {}, env);
+  return app.request(
+    `/oauth/google/callback?code=${code}&state=${encodeURIComponent(state)}`,
+    {},
+    env,
+  );
 }
 
 describe('GET /oauth/google/callback', () => {
@@ -975,7 +1105,9 @@ describe('GET /oauth/google/callback', () => {
   it('exchanges the code and stores encrypted tokens with connected status', async () => {
     const { env } = createTestEnv();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), { status: 200 }),
+      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), {
+        status: 200,
+      }),
     );
     const res = await call(env, await primedState(env));
     expect(res.status).toBe(200);
@@ -997,7 +1129,9 @@ describe('GET /oauth/google/callback', () => {
   it('rejects a replayed/used nonce', async () => {
     const { env } = createTestEnv();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), { status: 200 }),
+      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), {
+        status: 200,
+      }),
     );
     const state = await primedState(env);
     expect((await call(env, state)).status).toBe(200); // consumes nonce
@@ -1017,6 +1151,7 @@ describe('GET /oauth/google/callback', () => {
 - [ ] **Step 4: Implement the global callback route**
 
 Create `server/routes/oauth.ts`:
+
 ```ts
 import { Hono } from 'hono';
 import { getTenantById, setProviderTokens } from '../db/repo';
@@ -1038,7 +1173,10 @@ function resultPage(ok: boolean): Response {
     : 'Connection failed. Please close this window and try again.';
   const html = `<!doctype html><meta charset="utf-8"><title>${ok ? 'Connected' : 'Error'}</title>
 <body style="font:14px system-ui;padding:2rem">${body}</body>`;
-  return new Response(html, { status: ok ? 200 : 400, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  return new Response(html, {
+    status: ok ? 200 : 400,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
 }
 
 export const oauthRoutes = new Hono<AppEnv>().get('/oauth/google/callback', async (c) => {
@@ -1073,10 +1211,13 @@ export const oauthRoutes = new Hono<AppEnv>().get('/oauth/google/callback', asyn
 ```
 
 - [ ] **Step 5: Mount the callback in `server/index.ts`** — add the import and route BEFORE the page routes:
+
 ```ts
 import { oauthRoutes } from './routes/oauth';
 ```
+
 and after the `app.route('/api', adminRoutes);` line:
+
 ```ts
 app.route('/', oauthRoutes); // global OAuth callback — no slug, no tenant middleware
 ```
@@ -1084,15 +1225,18 @@ app.route('/', oauthRoutes); // global OAuth callback — no slug, no tenant mid
 - [ ] **Step 6: Add admin start + disconnect routes in `server/routes/admin.ts`**
 
 Add imports:
+
 ```ts
 import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { signState } from '../lib/oauth-state';
 import { decryptToken } from '../lib/token-crypto';
 import { clearProviderConnection, getProviderConnection, setProviderTokens } from '../db/repo';
 ```
+
 > `setProviderTokens` may already be needed elsewhere; ensure it is in the existing import block from `../db/repo` without duplicating.
 
 Append these two routes to the `adminRoutes` chain (after the existing `.../connect` route):
+
 ```ts
   .get('/:slug/admin/providers/calendar/oauth/start', async (c) => {
     const tenant = c.get('tenant');
@@ -1124,6 +1268,7 @@ Append these two routes to the `adminRoutes` chain (after the existing `.../conn
 - [ ] **Step 7: Run tests + typecheck + lint** — Run: `npm test -- oauth-callback && npm run typecheck && npm run lint` → PASS.
 
 - [ ] **Step 8: Commit**
+
 ```bash
 git add server/routes/oauth.ts server/routes/admin.ts server/index.ts server/lib/providers.ts server/__tests__/oauth-callback.test.ts
 git commit -m "feat: Google Calendar OAuth start/callback/disconnect routes"
@@ -1134,17 +1279,20 @@ git commit -m "feat: Google Calendar OAuth start/callback/disconnect routes"
 ### Task 7: Create a calendar event on booking
 
 **Files:**
+
 - Create: `server/lib/calendar-sync.ts`
 - Modify: `server/routes/bookings.ts`
 - Test: `server/__tests__/calendar-sync.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getProviderConnection`, `setProviderTokens`, `setBookingGCalEventId`, `getEndUserById` (repo); `createEvent`, `refreshAccessToken`, `buildEventResource`, `CalendarBooking` (Task 4); `encryptToken`/`decryptToken` (Task 2); `SERVICE_CATALOG`, `DEFAULT_TIMEZONE`.
 - Produces: `syncBookingToCalendar(env, tenant, b: SyncInput): Promise<void>` where `SyncInput = { bookingId: string; endUserId: string | null; serviceType: ServiceType; startDate: string; endDate: string | null; startTime: string | null; durationMinutes: number | null; petCount: number; estCost: number | null }`.
 
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/calendar-sync.test.ts`:
+
 ```ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { syncBookingToCalendar } from '../lib/calendar-sync';
@@ -1159,7 +1307,8 @@ async function connectCalendar(env: Env, expiresAt: string) {
   await setProviderTokens(env.PAWBOOK_DB, TENANT_A, 'calendar', 'google-calendar', {
     access: await encryptToken(TEST_SECRET, 'access-1'),
     refresh: await encryptToken(TEST_SECRET, 'refresh-1'),
-    expiresAt, calendarId: 'primary',
+    expiresAt,
+    calendarId: 'primary',
   });
 }
 function seedBooking(raw: { exec: (s: string) => void }, id: string) {
@@ -1174,14 +1323,23 @@ describe('syncBookingToCalendar', () => {
     const { env, raw } = createTestEnv();
     await connectCalendar(env, '2030-01-01T00:00:00Z'); // not expired
     seedBooking(raw, 'b1');
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ id: 'evt_b1' }), { status: 200 }),
-    );
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ id: 'evt_b1' }), { status: 200 }));
     await syncBookingToCalendar(env, tenant, {
-      bookingId: 'b1', endUserId: null, serviceType: 'boarding', startDate: '2030-03-01',
-      endDate: '2030-03-04', startTime: null, durationMinutes: null, petCount: 1, estCost: 150,
+      bookingId: 'b1',
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-03-01',
+      endDate: '2030-03-04',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 150,
     });
-    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id='b1'`).get() as { GCalEventId: string };
+    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id='b1'`).get() as {
+      GCalEventId: string;
+    };
     expect(row.GCalEventId).toBe('evt_b1');
     expect(spy).toHaveBeenCalledOnce();
   });
@@ -1191,8 +1349,15 @@ describe('syncBookingToCalendar', () => {
     seedBooking(raw, 'b2');
     const spy = vi.spyOn(globalThis, 'fetch');
     await syncBookingToCalendar(env, tenant, {
-      bookingId: 'b2', endUserId: null, serviceType: 'boarding', startDate: '2030-03-01',
-      endDate: '2030-03-04', startTime: null, durationMinutes: null, petCount: 1, estCost: 150,
+      bookingId: 'b2',
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-03-01',
+      endDate: '2030-03-04',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 150,
     });
     expect(spy).not.toHaveBeenCalled();
   });
@@ -1201,16 +1366,30 @@ describe('syncBookingToCalendar', () => {
     const { env, raw } = createTestEnv();
     await connectCalendar(env, '2000-01-01T00:00:00Z'); // expired
     seedBooking(raw, 'b3');
-    const spy = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'access-2', expires_in: 3600 }), { status: 200 }))
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: 'access-2', expires_in: 3600 }), {
+          status: 200,
+        }),
+      )
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'evt_b3' }), { status: 200 }));
     await syncBookingToCalendar(env, tenant, {
-      bookingId: 'b3', endUserId: null, serviceType: 'boarding', startDate: '2030-03-01',
-      endDate: '2030-03-04', startTime: null, durationMinutes: null, petCount: 1, estCost: 150,
+      bookingId: 'b3',
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-03-01',
+      endDate: '2030-03-04',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 150,
     });
     expect(spy).toHaveBeenCalledTimes(2);
     const eventCall = spy.mock.calls[1];
-    expect((eventCall[1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer access-2' });
+    expect((eventCall[1] as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer access-2',
+    });
   });
 });
 ```
@@ -1220,9 +1399,15 @@ describe('syncBookingToCalendar', () => {
 - [ ] **Step 3: Implement**
 
 Create `server/lib/calendar-sync.ts`:
+
 ```ts
 import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
-import { getEndUserById, getProviderConnection, setBookingGCalEventId, setProviderTokens } from '../db/repo';
+import {
+  getEndUserById,
+  getProviderConnection,
+  setBookingGCalEventId,
+  setProviderTokens,
+} from '../db/repo';
 import { buildEventResource, createEvent, refreshAccessToken } from './google-calendar';
 import { SERVICE_CATALOG } from './services';
 import type { ServiceType } from './services';
@@ -1288,70 +1473,82 @@ export async function syncBookingToCalendar(env: Env, tenant: Tenant, b: SyncInp
 - [ ] **Step 5: Wire into `server/routes/bookings.ts`**
 
 Add import:
+
 ```ts
 import { syncBookingToCalendar } from '../lib/calendar-sync';
 ```
-In the `POST /:slug/bookings` handler, replace the final `return c.json({ id, estCost, status: 'pending' }, 201);` with:
-```ts
-    // Best-effort calendar sync — never blocks or fails the booking. Use waitUntil in production;
-    // in tests (no ExecutionContext) await it so behavior is deterministic.
-    const sync = syncBookingToCalendar(c.env, tenant, {
-      bookingId: id,
-      endUserId: c.get('endUserId'),
-      serviceType: type,
-      startDate: start,
-      endDate,
-      startTime: null, // no booking path collects a time yet (deferred); all events are all-day
-      durationMinutes: option.DurationMinutes,
-      petCount: pets,
-      estCost,
-    }).catch((err) => {
-      console.error('calendar sync failed', err);
-    });
-    try {
-      c.executionCtx.waitUntil(sync);
-    } catch {
-      await sync;
-    }
 
-    return c.json({ id, estCost, status: 'pending' }, 201);
+In the `POST /:slug/bookings` handler, replace the final `return c.json({ id, estCost, status: 'pending' }, 201);` with:
+
+```ts
+// Best-effort calendar sync — never blocks or fails the booking. Use waitUntil in production;
+// in tests (no ExecutionContext) await it so behavior is deterministic.
+const sync = syncBookingToCalendar(c.env, tenant, {
+  bookingId: id,
+  endUserId: c.get('endUserId'),
+  serviceType: type,
+  startDate: start,
+  endDate,
+  startTime: null, // no booking path collects a time yet (deferred); all events are all-day
+  durationMinutes: option.DurationMinutes,
+  petCount: pets,
+  estCost,
+}).catch((err) => {
+  console.error('calendar sync failed', err);
+});
+try {
+  c.executionCtx.waitUntil(sync);
+} catch {
+  await sync;
+}
+
+return c.json({ id, estCost, status: 'pending' }, 201);
 ```
 
 - [ ] **Step 6: Add a booking-flow assertion**
 
 Append to `server/__tests__/booking-flow.test.ts` a test that with a connected calendar a booking persists `GCalEventId`. Reuse the file's existing `identify` helper (which performs identify→verify→token). Add at the end of the top-level `describe`:
-```ts
-  it('creates a calendar event when the tenant calendar is connected', async () => {
-    const { env, raw } = createTestEnv();
-    await setProviderTokens(env.PAWBOOK_DB, 'tnt_sunnypaws', 'calendar', 'google-calendar', {
-      access: await encryptToken(TEST_SECRET, 'at'),
-      refresh: await encryptToken(TEST_SECRET, 'rt'),
-      expiresAt: '2031-01-01T00:00:00Z',
-      calendarId: 'primary',
-    });
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ id: 'evt_book' }), { status: 200 }),
-    );
 
-    // identify→verify→token. At this point in the plan identify is still open; after Task 10 it is
-    // gated but `jess@example.com` is a seeded active customer (Task 9), so this keeps passing.
-    const token = await identify(env, 'sunny-paws', 'jess@example.com');
-    const res = await app.request('/api/sunny-paws/bookings', {
+```ts
+it('creates a calendar event when the tenant calendar is connected', async () => {
+  const { env, raw } = createTestEnv();
+  await setProviderTokens(env.PAWBOOK_DB, 'tnt_sunnypaws', 'calendar', 'google-calendar', {
+    access: await encryptToken(TEST_SECRET, 'at'),
+    refresh: await encryptToken(TEST_SECRET, 'rt'),
+    expiresAt: '2031-01-01T00:00:00Z',
+    calendarId: 'primary',
+  });
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ id: 'evt_book' }), { status: 200 }),
+  );
+
+  // identify→verify→token. At this point in the plan identify is still open; after Task 10 it is
+  // gated but `jess@example.com` is a seeded active customer (Task 9), so this keeps passing.
+  const token = await identify(env, 'sunny-paws', 'jess@example.com');
+  const res = await app.request(
+    '/api/sunny-paws/bookings',
+    {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ type: 'daycare', startDate: '2030-09-09', petCount: 1 }),
-    }, env);
-    expect(res.status).toBe(201);
-    const { id } = (await res.json()) as { id: string };
-    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id=?`).get(id) as { GCalEventId: string };
-    expect(row.GCalEventId).toBe('evt_book');
-  });
+    },
+    env,
+  );
+  expect(res.status).toBe(201);
+  const { id } = (await res.json()) as { id: string };
+  const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id=?`).get(id) as {
+    GCalEventId: string;
+  };
+  expect(row.GCalEventId).toBe('evt_book');
+});
 ```
+
 > At the top of `booking-flow.test.ts` ensure these imports exist: `import { afterEach, vi } from 'vitest'`, `import { createTestEnv, TEST_SECRET } from './helpers'`, `import { setProviderTokens } from '../db/repo'`, `import { encryptToken } from '../lib/token-crypto'`; and add `afterEach(() => vi.restoreAllMocks())` inside the describe. Note `jess@example.com` must be seeded (Task 9) — run Task 9 before this assertion is expected to pass under gating; before Task 9 it passes via open identify auto-create.
 
 - [ ] **Step 7: Run tests + typecheck + lint** — Run: `npm test && npm run typecheck && npm run lint` → PASS. (Booking-flow gating tests fully pass after Task 9.)
 
 - [ ] **Step 8: Commit**
+
 ```bash
 git add server/lib/calendar-sync.ts server/routes/bookings.ts server/__tests__/calendar-sync.test.ts server/__tests__/booking-flow.test.ts
 git commit -m "feat: create Google Calendar event on booking (best-effort)"
@@ -1362,10 +1559,12 @@ git commit -m "feat: create Google Calendar event on booking (best-effort)"
 ### Task 8: Repo functions for invite-only customers
 
 **Files:**
+
 - Modify: `server/db/repo.ts`
 - Test: `server/__tests__/customers-repo.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `getEndUserByEmail(db, tenantId, email): Promise<EndUser | null>`
   - `insertInvitedCustomer(db, tenantId, email, name: string | null): Promise<EndUser>` (idempotent; never downgrades an existing `active` row)
@@ -1378,23 +1577,38 @@ git commit -m "feat: create Google Calendar event on booking (best-effort)"
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/customers-repo.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
-  countBookingsForUser, deleteCustomer, getEndUserByEmail, insertInvitedCustomer,
-  listCustomers, promoteCustomerActive,
+  countBookingsForUser,
+  deleteCustomer,
+  getEndUserByEmail,
+  insertInvitedCustomer,
+  listCustomers,
+  promoteCustomerActive,
 } from '../db/repo';
 import { createTestEnv, TENANT_A } from './helpers';
 
 describe('customer repo', () => {
   it('inserts an invited customer and is idempotent (no active downgrade)', async () => {
     const { env } = createTestEnv();
-    const a = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'new@example.com', 'New Person');
+    const a = await insertInvitedCustomer(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'new@example.com',
+      'New Person',
+    );
     expect(a.Status).toBe('invited');
     expect(a.Name).toBe('New Person');
 
     await promoteCustomerActive(env.PAWBOOK_DB, TENANT_A, a.Id);
-    const again = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'new@example.com', 'Ignored');
+    const again = await insertInvitedCustomer(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'new@example.com',
+      'Ignored',
+    );
     expect(again.Id).toBe(a.Id);
     expect(again.Status).toBe('active'); // not downgraded
   });
@@ -1423,11 +1637,14 @@ describe('customer repo', () => {
 - [ ] **Step 2: Run to verify it fails** — Run: `npm test -- customers-repo` → FAIL.
 
 - [ ] **Step 3: Implement** — in `server/db/repo.ts`, ADD the following (do NOT remove `upsertEndUser` yet — Task 10 removes it after migrating its callers):
+
 ```ts
 const ENDUSER_COLS = 'Id, TenantId, Email, Name, Status, InvitedAt';
 
 export async function getEndUserByEmail(
-  db: D1Database, tenantId: string, email: string,
+  db: D1Database,
+  tenantId: string,
+  email: string,
 ): Promise<EndUser | null> {
   return await db
     .prepare(`SELECT ${ENDUSER_COLS} FROM EndUsers WHERE TenantId = ? AND Email = ?`)
@@ -1436,7 +1653,10 @@ export async function getEndUserByEmail(
 }
 
 export async function insertInvitedCustomer(
-  db: D1Database, tenantId: string, email: string, name: string | null,
+  db: D1Database,
+  tenantId: string,
+  email: string,
+  name: string | null,
 ): Promise<EndUser> {
   const existing = await getEndUserByEmail(db, tenantId, email);
   if (existing) return existing; // idempotent — never downgrade an active customer to invited
@@ -1449,7 +1669,14 @@ export async function insertInvitedCustomer(
     )
     .bind(id, tenantId, email, name, invitedAt)
     .run();
-  return { Id: id, TenantId: tenantId, Email: email, Name: name, Status: 'invited', InvitedAt: invitedAt };
+  return {
+    Id: id,
+    TenantId: tenantId,
+    Email: email,
+    Name: name,
+    Status: 'invited',
+    InvitedAt: invitedAt,
+  };
 }
 
 export async function listCustomers(db: D1Database, tenantId: string): Promise<EndUser[]> {
@@ -1461,7 +1688,9 @@ export async function listCustomers(db: D1Database, tenantId: string): Promise<E
 }
 
 export async function deleteCustomer(
-  db: D1Database, tenantId: string, id: string,
+  db: D1Database,
+  tenantId: string,
+  id: string,
 ): Promise<boolean> {
   const result = await db
     .prepare('DELETE FROM EndUsers WHERE TenantId = ? AND Id = ?')
@@ -1471,7 +1700,9 @@ export async function deleteCustomer(
 }
 
 export async function countBookingsForUser(
-  db: D1Database, tenantId: string, endUserId: string,
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
 ): Promise<number> {
   const row = await db
     .prepare('SELECT COUNT(*) AS n FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?')
@@ -1481,7 +1712,9 @@ export async function countBookingsForUser(
 }
 
 export async function promoteCustomerActive(
-  db: D1Database, tenantId: string, endUserId: string,
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
 ): Promise<void> {
   await db
     .prepare("UPDATE EndUsers SET Status = 'active' WHERE TenantId = ? AND Id = ?")
@@ -1493,6 +1726,7 @@ export async function promoteCustomerActive(
 - [ ] **Step 4: Run to verify it passes** — Run: `npm test -- customers-repo && npm run typecheck` → PASS (purely additive; `upsertEndUser` and all existing tests untouched).
 
 - [ ] **Step 5: Commit**
+
 ```bash
 git add server/db/repo.ts server/__tests__/customers-repo.test.ts
 git commit -m "feat: repo functions for invite-only customers"
@@ -1503,13 +1737,16 @@ git commit -m "feat: repo functions for invite-only customers"
 ### Task 9: Seed demo customers + invite email
 
 **Files:**
+
 - Modify: `sql/seed.sql`, `server/lib/email.ts`
 - Test: extend `server/__tests__/identify-email.test.ts` is NOT needed here; add `server/__tests__/invite-email.test.ts`.
 
 **Interfaces:**
+
 - Produces: seeded `EndUsers` `jess@example.com` (active) for the three demo tenants; `sendInvite(env, to: string, displayName: string, widgetUrl: string): Promise<void>`.
 
 - [ ] **Step 1: Seed demo customers** — add to `sql/seed.sql` (after the `EndUsers` table would have rows; place near the bookings section). Insert:
+
 ```sql
 -- Demo customers. Invite-only gating means /identify only succeeds for known customers, so the
 -- demo widget (and the existing identify/booking tests) need a seeded, already-active customer.
@@ -1522,6 +1759,7 @@ INSERT OR REPLACE INTO EndUsers (Id, TenantId, Email, Name, Status) VALUES
 - [ ] **Step 2: Write the failing invite-email test**
 
 Create `server/__tests__/invite-email.test.ts`:
+
 ```ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sendInvite } from '../lib/email';
@@ -1532,7 +1770,9 @@ describe('sendInvite', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('posts an invite email via Resend including the widget link', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
     await sendInvite(env, 'guest@example.com', 'Sunny Paws', 'https://w/embed/sunny-paws');
     const init = spy.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(init.body as string);
@@ -1550,10 +1790,14 @@ describe('sendInvite', () => {
 - [ ] **Step 3: Run to verify it fails** — Run: `npm test -- invite-email` → FAIL.
 
 - [ ] **Step 4: Implement `sendInvite`** — append to `server/lib/email.ts`:
+
 ```ts
 /** Send a booking invite. Throws if email is not configured or Resend rejects the request. */
 export async function sendInvite(
-  env: Env, to: string, displayName: string, widgetUrl: string,
+  env: Env,
+  to: string,
+  displayName: string,
+  widgetUrl: string,
 ): Promise<void> {
   if (!isEmailConfigured(env)) throw new Error('Email is not configured.');
   const res = await fetch('https://api.resend.com/emails', {
@@ -1580,6 +1824,7 @@ export async function sendInvite(
 - [ ] **Step 5: Run to verify it passes** — Run: `npm test -- invite-email` → PASS.
 
 - [ ] **Step 6: Commit**
+
 ```bash
 git add sql/seed.sql server/lib/email.ts server/__tests__/invite-email.test.ts
 git commit -m "feat: invite email (Resend) + seed demo customers for gated identify"
@@ -1590,15 +1835,18 @@ git commit -m "feat: invite email (Resend) + seed demo customers for gated ident
 ### Task 10: Gate `/identify` + promote on `/verify`
 
 **Files:**
+
 - Modify: `server/routes/auth.ts`
 - Test: `server/__tests__/invites.test.ts` (gating + promotion); existing identify/booking tests now rely on seeded `jess` from Task 9.
 
 **Interfaces:**
+
 - Consumes: `getEndUserByEmail`, `promoteCustomerActive` (Task 8); `consumeLoginCode`, `createLoginCode` (repo).
 
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/invites.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import app from '../index';
@@ -1606,9 +1854,15 @@ import { insertInvitedCustomer } from '../db/repo';
 import { createTestEnv } from './helpers';
 
 function identify(env: Env, email: string) {
-  return app.request('/api/sunny-paws/identify', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
-  }, env);
+  return app.request(
+    '/api/sunny-paws/identify',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    },
+    env,
+  );
 }
 
 describe('invite-only identify', () => {
@@ -1628,17 +1882,32 @@ describe('invite-only identify', () => {
 
   it('accepts an invited customer and promotes them to active on verify', async () => {
     const { env, raw } = createTestEnv();
-    const cust = await insertInvitedCustomer(env.PAWBOOK_DB, 'tnt_sunnypaws', 'invited@example.com', 'Inv');
+    const cust = await insertInvitedCustomer(
+      env.PAWBOOK_DB,
+      'tnt_sunnypaws',
+      'invited@example.com',
+      'Inv',
+    );
     const idRes = await identify(env, 'invited@example.com');
     expect(idRes.status).toBe(200);
-    const { codeId, prototypeCode } = (await idRes.json()) as { codeId: string; prototypeCode: string };
+    const { codeId, prototypeCode } = (await idRes.json()) as {
+      codeId: string;
+      prototypeCode: string;
+    };
 
-    const vRes = await app.request('/api/sunny-paws/verify', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codeId, code: prototypeCode }),
-    }, env);
+    const vRes = await app.request(
+      '/api/sunny-paws/verify',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codeId, code: prototypeCode }),
+      },
+      env,
+    );
     expect(vRes.status).toBe(200);
-    const row = raw.prepare(`SELECT Status FROM EndUsers WHERE Id=?`).get(cust.Id) as { Status: string };
+    const row = raw.prepare(`SELECT Status FROM EndUsers WHERE Id=?`).get(cust.Id) as {
+      Status: string;
+    };
     expect(row.Status).toBe('active');
   });
 });
@@ -1649,37 +1918,51 @@ describe('invite-only identify', () => {
 - [ ] **Step 3: Implement gating + promotion** in `server/routes/auth.ts`:
 
 Replace the import line:
+
 ```ts
 import { consumeLoginCode, createLoginCode, upsertEndUser } from '../db/repo';
 ```
+
 with:
+
 ```ts
-import { consumeLoginCode, createLoginCode, getEndUserByEmail, promoteCustomerActive } from '../db/repo';
+import {
+  consumeLoginCode,
+  createLoginCode,
+  getEndUserByEmail,
+  promoteCustomerActive,
+} from '../db/repo';
 ```
 
 In `/identify`, replace:
+
 ```ts
-    const user = await upsertEndUser(c.env.PAWBOOK_DB, tenant.Id, email);
+const user = await upsertEndUser(c.env.PAWBOOK_DB, tenant.Id, email);
 ```
+
 with:
+
 ```ts
-    // Invite-only: only customers the provider has added may receive a code. Do NOT auto-create.
-    const user = await getEndUserByEmail(c.env.PAWBOOK_DB, tenant.Id, email);
-    if (!user) return c.json({ error: 'This provider books by invitation only.' }, 403);
+// Invite-only: only customers the provider has added may receive a code. Do NOT auto-create.
+const user = await getEndUserByEmail(c.env.PAWBOOK_DB, tenant.Id, email);
+if (!user) return c.json({ error: 'This provider books by invitation only.' }, 403);
 ```
 
 In `/verify`, after a successful `consumeLoginCode` (i.e., after the `if (!endUserId) ...` guard) and before minting the token, add:
+
 ```ts
-    // First successful sign-in promotes an invited customer to active.
-    await promoteCustomerActive(c.env.PAWBOOK_DB, tenant.Id, endUserId);
+// First successful sign-in promotes an invited customer to active.
+await promoteCustomerActive(c.env.PAWBOOK_DB, tenant.Id, endUserId);
 ```
 
 - [ ] **Step 4: Remove the now-unused `upsertEndUser`** from `server/db/repo.ts` (its only callers — `auth.ts` here and `isolation.test.ts` next — are being migrated this task). Delete the whole `export async function upsertEndUser(...) { ... }` block.
 
 - [ ] **Step 5: Migrate `server/__tests__/isolation.test.ts`** off `upsertEndUser`. Change the import on line 3:
+
 ```ts
 import { insertBookingRequest, insertInvitedCustomer, listBookingsForUser } from '../db/repo';
 ```
+
 Replace every `await upsertEndUser(env.PAWBOOK_DB, TENANT_A, 'jess@example.com')` with `await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'jess@example.com', null)` and likewise for `TENANT_B`. The return shape (`{ Id, TenantId, Email, ... }`) is compatible; `jess` is seeded distinctly per tenant (Task 9) so the "same email under both tenants" test still gets two different `Id`s.
 
 - [ ] **Step 6: Run to verify it passes** — Run: `npm test && npm run typecheck` → all PASS (booking-flow/identify-email/isolation use seeded `jess`; gating works).
@@ -1687,6 +1970,7 @@ Replace every `await upsertEndUser(env.PAWBOOK_DB, TENANT_A, 'jess@example.com')
 > If any other existing test uses a tenant/email pair not seeded in Task 9, add the corresponding `EndUsers` seed row (active) rather than weakening the gate.
 
 - [ ] **Step 7: Commit**
+
 ```bash
 git add server/routes/auth.ts server/db/repo.ts server/__tests__/invites.test.ts server/__tests__/isolation.test.ts
 git commit -m "feat: gate identify to invited customers; promote on first verify"
@@ -1697,16 +1981,19 @@ git commit -m "feat: gate identify to invited customers; promote on first verify
 ### Task 11: Customer management admin routes
 
 **Files:**
+
 - Modify: `server/routes/admin.ts`
 - Test: `server/__tests__/customers-admin.test.ts`
 
 **Interfaces:**
+
 - Consumes: `listCustomers`, `insertInvitedCustomer`, `deleteCustomer`, `countBookingsForUser` (Task 8); `sendInvite`, `isEmailConfigured` (email); `adminAuth` (middleware).
 - Produces: `GET /:slug/admin/customers`, `POST /:slug/admin/customers`, `DELETE /:slug/admin/customers/:id`.
 
 - [ ] **Step 1: Write the failing test**
 
 Create `server/__tests__/customers-admin.test.ts`:
+
 ```ts
 import { describe, expect, it } from 'vitest';
 import app from '../index';
@@ -1719,38 +2006,58 @@ describe('admin customers', () => {
     const { env } = createTestEnv();
     const headers = { ...(await adminHeaders(TENANT_A)), 'Content-Type': 'application/json' };
 
-    const add = await app.request(`/api/${SLUG}/admin/customers`, {
-      method: 'POST', headers, body: JSON.stringify({ email: 'guest@example.com', name: 'Guest' }),
-    }, env);
+    const add = await app.request(
+      `/api/${SLUG}/admin/customers`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ email: 'guest@example.com', name: 'Guest' }),
+      },
+      env,
+    );
     expect(add.status).toBe(201);
     const created = (await add.json()) as { id: string; status: string };
     expect(created.status).toBe('invited');
 
-    const list = await app.request(`/api/${SLUG}/admin/customers`,
-      { headers: await adminHeaders(TENANT_A) }, env);
+    const list = await app.request(
+      `/api/${SLUG}/admin/customers`,
+      { headers: await adminHeaders(TENANT_A) },
+      env,
+    );
     const { customers } = (await list.json()) as { customers: { email: string }[] };
     expect(customers.some((c) => c.email === 'guest@example.com')).toBe(true);
 
-    const del = await app.request(`/api/${SLUG}/admin/customers/${created.id}`,
-      { method: 'DELETE', headers: await adminHeaders(TENANT_A) }, env);
+    const del = await app.request(
+      `/api/${SLUG}/admin/customers/${created.id}`,
+      { method: 'DELETE', headers: await adminHeaders(TENANT_A) },
+      env,
+    );
     expect(del.status).toBe(204);
   });
 
   it('rejects an invalid email with 400', async () => {
     const { env } = createTestEnv();
     const headers = { ...(await adminHeaders(TENANT_A)), 'Content-Type': 'application/json' };
-    const res = await app.request(`/api/${SLUG}/admin/customers`,
-      { method: 'POST', headers, body: JSON.stringify({ email: 'nope' }) }, env);
+    const res = await app.request(
+      `/api/${SLUG}/admin/customers`,
+      { method: 'POST', headers, body: JSON.stringify({ email: 'nope' }) },
+      env,
+    );
     expect(res.status).toBe(400);
   });
 
   it('refuses to delete a customer with bookings (409)', async () => {
     const { env, raw } = createTestEnv();
-    raw.exec(`INSERT INTO EndUsers (Id, TenantId, Email, Status) VALUES ('eu1','${TENANT_A}','has@example.com','active')`);
+    raw.exec(
+      `INSERT INTO EndUsers (Id, TenantId, Email, Status) VALUES ('eu1','${TENANT_A}','has@example.com','active')`,
+    );
     raw.exec(`INSERT INTO BookingRequests (Id, TenantId, EndUserId, ServiceType, StartDate, PetCount, Status)
               VALUES ('bk1','${TENANT_A}','eu1','daycare','2030-05-01',1,'pending')`);
-    const res = await app.request(`/api/${SLUG}/admin/customers/eu1`,
-      { method: 'DELETE', headers: await adminHeaders(TENANT_A) }, env);
+    const res = await app.request(
+      `/api/${SLUG}/admin/customers/eu1`,
+      { method: 'DELETE', headers: await adminHeaders(TENANT_A) },
+      env,
+    );
     expect(res.status).toBe(409);
   });
 
@@ -1767,17 +2074,25 @@ describe('admin customers', () => {
 - [ ] **Step 3: Implement** — in `server/routes/admin.ts`:
 
 Add imports (merge into existing `../db/repo` import block; add the email import):
+
 ```ts
 import {
-  countBookingsForUser, deleteCustomer, insertInvitedCustomer, listCustomers,
+  countBookingsForUser,
+  deleteCustomer,
+  insertInvitedCustomer,
+  listCustomers,
 } from '../db/repo';
 import { isEmailConfigured, sendInvite } from '../lib/email';
 ```
+
 Add an email regex near `COLOR_RE`:
+
 ```ts
 const CUSTOMER_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 ```
+
 Append these routes to the `adminRoutes` chain:
+
 ```ts
   .get('/:slug/admin/customers', async (c) => {
     const tenant = c.get('tenant');
@@ -1830,6 +2145,7 @@ Append these routes to the `adminRoutes` chain:
 - [ ] **Step 4: Run tests + typecheck + lint** — Run: `npm test -- customers-admin && npm run typecheck && npm run lint` → PASS.
 
 - [ ] **Step 5: Commit**
+
 ```bash
 git add server/routes/admin.ts server/__tests__/customers-admin.test.ts
 git commit -m "feat: admin customer management routes (list/add/remove + invite)"
@@ -1840,12 +2156,15 @@ git commit -m "feat: admin customer management routes (list/add/remove + invite)
 ### Task 12: Admin API client additions
 
 **Files:**
+
 - Modify: `app/shared-ui/api.ts`
 
 **Interfaces:**
+
 - Produces: client methods `adminCustomers.list/add/remove` and `adminCalendar.start/disconnect`. (Naming used by Task 13.)
 
 - [ ] **Step 1: Add types + methods** — in `app/shared-ui/api.ts`, add after the `api` object (or extend it). Add a `Customer` type near the others:
+
 ```ts
 export type Customer = {
   id: string;
@@ -1855,12 +2174,16 @@ export type Customer = {
   invitedAt?: string | null;
 };
 ```
+
 Append a new exported client (uses the same `request` helper + bearer header):
+
 ```ts
 export const adminApi = {
   customers: {
     list: (slug: string, token: string) =>
-      request<{ customers: Customer[] }>(`/api/${slug}/admin/customers`, { headers: authHeaders(token) }),
+      request<{ customers: Customer[] }>(`/api/${slug}/admin/customers`, {
+        headers: authHeaders(token),
+      }),
     add: (slug: string, token: string, email: string, name: string) =>
       request<{ id: string; status: string }>(`/api/${slug}/admin/customers`, {
         method: 'POST',
@@ -1890,6 +2213,7 @@ export const adminApi = {
 - [ ] **Step 2: Typecheck + lint** — Run: `npm run typecheck && npm run lint` → PASS.
 
 - [ ] **Step 3: Commit**
+
 ```bash
 git add app/shared-ui/api.ts
 git commit -m "feat: admin API client for customers + calendar OAuth"
@@ -1900,14 +2224,17 @@ git commit -m "feat: admin API client for customers + calendar OAuth"
 ### Task 13: Admin UI — Customers panel + real calendar connect
 
 **Files:**
+
 - Modify: `app/admin/App.tsx`
 
 **Interfaces:**
+
 - Consumes: `adminApi` (Task 12); the existing `adminFetch`, `token`, `slug`, `refresh`, `handle`, `settings.providers` in `App.tsx`.
 
 > No automated UI tests exist in this repo; verify via typecheck/build and the manual steps below.
 
 - [ ] **Step 1: Import the admin API client** — add to the imports at the top of `app/admin/App.tsx`:
+
 ```ts
 import { adminApi, type Customer } from '../shared-ui/api.js';
 ```
@@ -1915,124 +2242,140 @@ import { adminApi, type Customer } from '../shared-ui/api.js';
 - [ ] **Step 2: Replace the calendar provider connect behavior**
 
 In the Integrations `<section>` (the `settings.providers.map(...)` block), special-case `calendar`. Replace the list item body with:
+
 ```tsx
-          {settings.providers.map((p) => (
-            <li key={p.capability}>
-              {p.label} — <em>{p.status}</em>{' '}
-              {p.capability === 'calendar' ? (
-                p.status === 'connected' ? (
-                  <button onClick={() => void disconnectCalendar()}>Disconnect</button>
-                ) : (
-                  <button onClick={() => void connectCalendar()}>Connect Google Calendar</button>
-                )
-              ) : (
-                p.status === 'disconnected' && (
-                  <button onClick={() => void connect(p.capability)}>Connect (stub)</button>
-                )
-              )}
-            </li>
-          ))}
+{
+  settings.providers.map((p) => (
+    <li key={p.capability}>
+      {p.label} — <em>{p.status}</em>{' '}
+      {p.capability === 'calendar' ? (
+        p.status === 'connected' ? (
+          <button onClick={() => void disconnectCalendar()}>Disconnect</button>
+        ) : (
+          <button onClick={() => void connectCalendar()}>Connect Google Calendar</button>
+        )
+      ) : (
+        p.status === 'disconnected' && (
+          <button onClick={() => void connect(p.capability)}>Connect (stub)</button>
+        )
+      )}
+    </li>
+  ));
+}
 ```
+
 Update the helper note text below the list to: `Google Calendar uses real OAuth; other integrations are prototype stubs.`
 
 - [ ] **Step 3: Add the calendar connect/disconnect handlers + popup message listener**
 
 Near the existing `connect` handler, add:
-```tsx
-  const connectCalendar = async () => {
-    setError('');
-    try {
-      const { url } = await adminApi.calendar.start(slug, token);
-      const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
-      // The callback page is script-free (CSP), so detect the popup closing here and re-fetch
-      // settings to pick up the new connected status.
-      const timer = window.setInterval(() => {
-        if (!popup || popup.closed) {
-          window.clearInterval(timer);
-          void refresh();
-        }
-      }, 1000);
-    } catch (e) {
-      handle(e);
-    }
-  };
 
-  const disconnectCalendar = async () => {
-    setError('');
-    try {
-      await adminApi.calendar.disconnect(slug, token);
-      await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+```tsx
+const connectCalendar = async () => {
+  setError('');
+  try {
+    const { url } = await adminApi.calendar.start(slug, token);
+    const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
+    // The callback page is script-free (CSP), so detect the popup closing here and re-fetch
+    // settings to pick up the new connected status.
+    const timer = window.setInterval(() => {
+      if (!popup || popup.closed) {
+        window.clearInterval(timer);
+        void refresh();
+      }
+    }, 1000);
+  } catch (e) {
+    handle(e);
+  }
+};
+
+const disconnectCalendar = async () => {
+  setError('');
+  try {
+    await adminApi.calendar.disconnect(slug, token);
+    await refresh();
+  } catch (e) {
+    handle(e);
+  }
+};
 ```
+
 > `slug`, `token`, `refresh`, `handle`, `setError` already exist in the authenticated dashboard component scope (same scope as `connect`). Place these alongside it.
 
 - [ ] **Step 4: Add the Customers panel**
 
 Add customer state + loader in the dashboard component (near other `useState`):
+
 ```tsx
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [custEmail, setCustEmail] = useState('');
-  const [custName, setCustName] = useState('');
+const [customers, setCustomers] = useState<Customer[]>([]);
+const [custEmail, setCustEmail] = useState('');
+const [custName, setCustName] = useState('');
 
-  const loadCustomers = useCallback(async () => {
-    const { customers } = await adminApi.customers.list(slug, token);
-    setCustomers(customers);
-  }, [slug, token]);
+const loadCustomers = useCallback(async () => {
+  const { customers } = await adminApi.customers.list(slug, token);
+  setCustomers(customers);
+}, [slug, token]);
 
-  useEffect(() => {
-    loadCustomers().catch(handle);
-  }, [loadCustomers, handle]);
+useEffect(() => {
+  loadCustomers().catch(handle);
+}, [loadCustomers, handle]);
 
-  const addCustomer = async () => {
-    setError('');
-    try {
-      await adminApi.customers.add(slug, token, custEmail.trim().toLowerCase(), custName.trim());
-      setCustEmail('');
-      setCustName('');
-      await loadCustomers();
-    } catch (e) {
-      handle(e);
-    }
-  };
+const addCustomer = async () => {
+  setError('');
+  try {
+    await adminApi.customers.add(slug, token, custEmail.trim().toLowerCase(), custName.trim());
+    setCustEmail('');
+    setCustName('');
+    await loadCustomers();
+  } catch (e) {
+    handle(e);
+  }
+};
 
-  const removeCustomer = async (id: string) => {
-    setError('');
-    try {
-      await adminApi.customers.remove(slug, token, id);
-      await loadCustomers();
-    } catch (e) {
-      handle(e);
-    }
-  };
+const removeCustomer = async (id: string) => {
+  setError('');
+  try {
+    await adminApi.customers.remove(slug, token, id);
+    await loadCustomers();
+  } catch (e) {
+    handle(e);
+  }
+};
 ```
+
 Add a `<section>` (place it before the Integrations section):
+
 ```tsx
-      <section>
-        <h2>Customers (invite-only)</h2>
-        <p><small>Only invited customers can request bookings. Adding one emails them an invite.</small></p>
-        <div className="ad-row">
-          <input
-            type="email" placeholder="customer@email.com" value={custEmail}
-            onChange={(e) => setCustEmail(e.target.value)}
-          />
-          <input
-            type="text" placeholder="Name (optional)" value={custName}
-            onChange={(e) => setCustName(e.target.value)}
-          />
-          <button onClick={() => void addCustomer()}>Add customer</button>
-        </div>
-        <ul>
-          {customers.map((cust) => (
-            <li key={cust.id}>
-              {cust.email}{cust.name ? ` (${cust.name})` : ''} — <em>{cust.status}</em>{' '}
-              <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
-            </li>
-          ))}
-        </ul>
-      </section>
+<section>
+  <h2>Customers (invite-only)</h2>
+  <p>
+    <small>Only invited customers can request bookings. Adding one emails them an invite.</small>
+  </p>
+  <div className="ad-row">
+    <input
+      type="email"
+      placeholder="customer@email.com"
+      value={custEmail}
+      onChange={(e) => setCustEmail(e.target.value)}
+    />
+    <input
+      type="text"
+      placeholder="Name (optional)"
+      value={custName}
+      onChange={(e) => setCustName(e.target.value)}
+    />
+    <button onClick={() => void addCustomer()}>Add customer</button>
+  </div>
+  <ul>
+    {customers.map((cust) => (
+      <li key={cust.id}>
+        {cust.email}
+        {cust.name ? ` (${cust.name})` : ''} — <em>{cust.status}</em>{' '}
+        <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
+      </li>
+    ))}
+  </ul>
+</section>
 ```
 
 - [ ] **Step 5: Build + typecheck + lint** — Run: `npm run typecheck && npm run lint && npm run build` → PASS.
@@ -2043,6 +2386,7 @@ Add a `<section>` (place it before the Integrations section):
 npm run seed:local
 npm run dev
 ```
+
 - Open `http://localhost:8787/admin`, sign in (`admin@sunnypaws.example` / `demo1234`).
 - Customers panel lists the seeded `jess@example.com (Jess Demo) — active`.
 - Add `guest@example.com`; it appears as `invited`. Remove it.
@@ -2050,6 +2394,7 @@ npm run dev
 - (Calendar connect requires real Google creds set via `wrangler secret put`; with placeholder dev creds the consent popup opens but Google rejects the client — expected in local dev.)
 
 - [ ] **Step 7: Commit**
+
 ```bash
 git add app/admin/App.tsx
 git commit -m "feat: admin Customers panel + real Google Calendar connect"

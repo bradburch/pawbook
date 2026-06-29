@@ -7,7 +7,9 @@ describe('sendInvite', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('posts an invite email via Resend including the widget link', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }));
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
     await sendInvite(env, 'guest@example.com', 'Sunny Paws', 'https://w/embed/sunny-paws');
     const init = spy.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(init.body as string);

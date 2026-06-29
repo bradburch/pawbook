@@ -16,7 +16,9 @@ describe('oauth-state', () => {
     const s = await signState(SECRET, payload);
     const [body, sig] = s.split('.');
     const forged = btoa(JSON.stringify({ ...payload, tenantId: 'evil' }))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
     expect(await verifyState(SECRET, `${forged}.${sig}`, NOW)).toBeNull();
     void body;
   });

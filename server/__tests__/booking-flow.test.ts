@@ -280,14 +280,20 @@ describe('booking flow', () => {
     // identify→verify→token. At this point in the plan identify is still open; after Task 10 it is
     // gated but `jess@example.com` is a seeded active customer (Task 9), so this keeps passing.
     const token = await identify(env, 'sunny-paws', 'jess@example.com');
-    const res = await app.request('/api/sunny-paws/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ type: 'daycare', startDate: '2030-09-09', petCount: 1 }),
-    }, env);
+    const res = await app.request(
+      '/api/sunny-paws/bookings',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: 'daycare', startDate: '2030-09-09', petCount: 1 }),
+      },
+      env,
+    );
     expect(res.status).toBe(201);
     const { id } = (await res.json()) as { id: string };
-    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id=?`).get(id) as { GCalEventId: string };
+    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id=?`).get(id) as {
+      GCalEventId: string;
+    };
     expect(row.GCalEventId).toBe('evt_book');
   });
 });

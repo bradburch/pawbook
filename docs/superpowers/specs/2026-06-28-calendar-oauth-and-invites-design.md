@@ -10,7 +10,7 @@ Two roadmap features, each graduating an existing stub rather than building gree
 - **Phase 1 — Google Calendar OAuth.** Turn the `calendar`/`google-calendar` capability from a
   status-flip stub (`'connected-stub'`) into a real **OAuth2 authorization-code flow** plus
   **all-day calendar event creation** when a booking is requested.
-- **Phase 2 — Invite-only customers.** Flip the customer model from *open self-identify* to
+- **Phase 2 — Invite-only customers.** Flip the customer model from _open self-identify_ to
   **gated invite-only**: only emails a provider has added can receive a login code, and adding a
   customer sends a courtesy invite email (reusing the existing Resend integration).
 
@@ -84,7 +84,7 @@ Isolated and unit-testable against a mocked `fetch`. Pure-ish functions; no Hono
 
 - `buildAuthUrl(env, state): string` — Google consent URL.
 - `exchangeCode(env, code): Promise<TokenSet>` — authorization code → `{ accessToken, refreshToken,
-  expiresAt }`.
+expiresAt }`.
 - `refreshAccessToken(env, refreshToken): Promise<{ accessToken, expiresAt }>`.
 - `createEvent(accessToken, calendarId, event): Promise<{ id }>` — all-day event.
 - `deleteEvent(accessToken, calendarId, eventId): Promise<void>`.

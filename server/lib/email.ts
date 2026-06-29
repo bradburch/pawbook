@@ -37,7 +37,10 @@ export async function sendLoginCode(env: Env, to: string, code: string): Promise
 
 /** Send a booking invite. Throws if email is not configured or Resend rejects the request. */
 export async function sendInvite(
-  env: Env, to: string, displayName: string, widgetUrl: string,
+  env: Env,
+  to: string,
+  displayName: string,
+  widgetUrl: string,
 ): Promise<void> {
   if (!isEmailConfigured(env)) throw new Error('Email is not configured.');
   await resendPost(env, {

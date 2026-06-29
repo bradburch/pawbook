@@ -14,7 +14,12 @@ export type CapabilityDescriptor = {
 };
 
 export const CAPABILITIES: readonly CapabilityDescriptor[] = [
-  { capability: 'calendar', provider: 'google-calendar', label: 'Google Calendar', authMode: 'oauth' },
+  {
+    capability: 'calendar',
+    provider: 'google-calendar',
+    label: 'Google Calendar',
+    authMode: 'oauth',
+  },
   { capability: 'crm', provider: 'notion', label: 'Notion', authMode: 'stub' },
   { capability: 'email', provider: 'gmail', label: 'Gmail', authMode: 'stub' },
 ];

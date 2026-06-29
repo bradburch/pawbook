@@ -352,9 +352,15 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   useEffect(() => {
     let active = true;
     loadCustomers()
-      .then((list) => { if (active) setCustomers(list); })
-      .catch((e) => { if (active) handle(e); });
-    return () => { active = false; };
+      .then((list) => {
+        if (active) setCustomers(list);
+      })
+      .catch((e) => {
+        if (active) handle(e);
+      });
+    return () => {
+      active = false;
+    };
   }, [loadCustomers, handle]);
 
   const addCustomer = async () => {
@@ -592,14 +598,22 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
       <section>
         <h2>Customers (invite-only)</h2>
-        <p><small>Only invited customers can request bookings. Adding one emails them an invite.</small></p>
+        <p>
+          <small>
+            Only invited customers can request bookings. Adding one emails them an invite.
+          </small>
+        </p>
         <div className="ad-row">
           <input
-            type="email" placeholder="customer@email.com" value={custEmail}
+            type="email"
+            placeholder="customer@email.com"
+            value={custEmail}
             onChange={(e) => setCustEmail(e.target.value)}
           />
           <input
-            type="text" placeholder="Name (optional)" value={custName}
+            type="text"
+            placeholder="Name (optional)"
+            value={custName}
             onChange={(e) => setCustName(e.target.value)}
           />
           <button onClick={() => void addCustomer()}>Add customer</button>
@@ -607,7 +621,8 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         <ul>
           {customers.map((cust) => (
             <li key={cust.id}>
-              {cust.email}{cust.name ? ` (${cust.name})` : ''} — <em>{cust.status}</em>{' '}
+              {cust.email}
+              {cust.name ? ` (${cust.name})` : ''} — <em>{cust.status}</em>{' '}
               <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
             </li>
           ))}

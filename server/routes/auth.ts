@@ -1,5 +1,10 @@
 import { Hono } from 'hono';
-import { consumeLoginCode, createLoginCode, getEndUserByEmail, promoteCustomerActive } from '../db/repo';
+import {
+  consumeLoginCode,
+  createLoginCode,
+  getEndUserByEmail,
+  promoteCustomerActive,
+} from '../db/repo';
 import { isEmailConfigured, sendLoginCode } from '../lib/email';
 import { mintToken } from '../lib/token';
 import { EMAIL_RE } from '../lib/validation';

@@ -5,7 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 const SCHEMA_DIR = join(import.meta.dirname, '..', '..', 'sql');
 const MIGRATION = join(
-  import.meta.dirname, '..', '..', 'migrations', '0003_calendar_oauth_and_invites.sql',
+  import.meta.dirname,
+  '..',
+  '..',
+  'migrations',
+  '0003_calendar_oauth_and_invites.sql',
 );
 
 describe('migration 0003 — calendar tokens + invite columns', () => {
@@ -34,8 +38,11 @@ describe('migration 0003 — calendar tokens + invite columns', () => {
     db.exec(readFileSync(MIGRATION, 'utf8'));
 
     // Grandfathered customer is 'active'.
-    const eu = db.prepare(`SELECT Status, Name, InvitedAt FROM EndUsers WHERE Id='e1'`).get() as
-      { Status: string; Name: null; InvitedAt: null };
+    const eu = db.prepare(`SELECT Status, Name, InvitedAt FROM EndUsers WHERE Id='e1'`).get() as {
+      Status: string;
+      Name: null;
+      InvitedAt: null;
+    };
     expect(eu.Status).toBe('active');
     expect(eu.Name).toBeNull();
 
@@ -45,8 +52,9 @@ describe('migration 0003 — calendar tokens + invite columns', () => {
     // Status CHECK now admits 'connected'; token columns exist.
     db.exec(`UPDATE ProviderConnections SET Status='connected', AccessToken='x', RefreshToken='y',
              TokenExpiresAt='2030-01-01T00:00:00Z', CalendarId='primary' WHERE Id='p1'`);
-    const pc = db.prepare(`SELECT Status, AccessToken FROM ProviderConnections WHERE Id='p1'`).get() as
-      { Status: string; AccessToken: string };
+    const pc = db
+      .prepare(`SELECT Status, AccessToken FROM ProviderConnections WHERE Id='p1'`)
+      .get() as { Status: string; AccessToken: string };
     expect(pc.Status).toBe('connected');
     expect(pc.AccessToken).toBe('x');
 
@@ -58,6 +66,8 @@ describe('migration 0003 — calendar tokens + invite columns', () => {
     db.exec(readFileSync(join(SCHEMA_DIR, 'schema.sql'), 'utf8'));
     db.prepare(`SELECT StartTime, GCalEventId FROM BookingRequests`).all();
     db.prepare(`SELECT Name, InvitedAt, Status FROM EndUsers`).all();
-    db.prepare(`SELECT AccessToken, RefreshToken, TokenExpiresAt, CalendarId FROM ProviderConnections`).all();
+    db.prepare(
+      `SELECT AccessToken, RefreshToken, TokenExpiresAt, CalendarId FROM ProviderConnections`,
+    ).all();
   });
 });

@@ -116,7 +116,9 @@ export const api = {
 export const adminApi = {
   customers: {
     list: (slug: string, token: string) =>
-      request<{ customers: Customer[] }>(`/api/${slug}/admin/customers`, { headers: authHeaders(token) }),
+      request<{ customers: Customer[] }>(`/api/${slug}/admin/customers`, {
+        headers: authHeaders(token),
+      }),
     add: (slug: string, token: string, email: string, name: string) =>
       request<{ id: string; status: string }>(`/api/${slug}/admin/customers`, {
         method: 'POST',

@@ -9,7 +9,9 @@ const NONCE = 'nonce-1';
 async function primedState(env: Env, over: Partial<{ tenantId: string; exp: number }> = {}) {
   await env.PAWBOOK_CACHE.put(`gcal:nonce:${NONCE}`, '1');
   return signState(TEST_SECRET, {
-    tenantId: over.tenantId ?? TENANT_A, nonce: NONCE, exp: over.exp ?? Date.now() + 600_000,
+    tenantId: over.tenantId ?? TENANT_A,
+    nonce: NONCE,
+    exp: over.exp ?? Date.now() + 600_000,
   });
 }
 function call(env: Env, state: string, code = 'auth-code', cookieNonce: string | null = NONCE) {
@@ -28,7 +30,9 @@ describe('GET /oauth/google/callback', () => {
   it('exchanges the code and stores encrypted tokens with connected status', async () => {
     const { env } = createTestEnv();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), { status: 200 }),
+      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), {
+        status: 200,
+      }),
     );
     const res = await call(env, await primedState(env));
     expect(res.status).toBe(200);
@@ -50,7 +54,9 @@ describe('GET /oauth/google/callback', () => {
   it('rejects a replayed/used nonce', async () => {
     const { env } = createTestEnv();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), { status: 200 }),
+      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }), {
+        status: 200,
+      }),
     );
     const state = await primedState(env);
     expect((await call(env, state)).status).toBe(200); // consumes nonce

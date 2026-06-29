@@ -11,7 +11,8 @@ async function connectCalendar(env: Env, expiresAt: string) {
   await setProviderTokens(env.PAWBOOK_DB, TENANT_A, 'calendar', 'google-calendar', {
     access: await encryptToken(TEST_SECRET, 'access-1'),
     refresh: await encryptToken(TEST_SECRET, 'refresh-1'),
-    expiresAt, calendarId: 'primary',
+    expiresAt,
+    calendarId: 'primary',
   });
 }
 function seedBooking(raw: { exec: (s: string) => void }, id: string) {
@@ -26,14 +27,23 @@ describe('syncBookingToCalendar', () => {
     const { env, raw } = createTestEnv();
     await connectCalendar(env, '2030-01-01T00:00:00Z'); // not expired
     seedBooking(raw, 'b1');
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ id: 'evt_b1' }), { status: 200 }),
-    );
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ id: 'evt_b1' }), { status: 200 }));
     await syncBookingToCalendar(env, tenant, {
-      bookingId: 'b1', endUserId: null, serviceType: 'boarding', startDate: '2030-03-01',
-      endDate: '2030-03-04', startTime: null, durationMinutes: null, petCount: 1, estCost: 150,
+      bookingId: 'b1',
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-03-01',
+      endDate: '2030-03-04',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 150,
     });
-    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id='b1'`).get() as { GCalEventId: string };
+    const row = raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id='b1'`).get() as {
+      GCalEventId: string;
+    };
     expect(row.GCalEventId).toBe('evt_b1');
     expect(spy).toHaveBeenCalledOnce();
   });
@@ -43,8 +53,15 @@ describe('syncBookingToCalendar', () => {
     seedBooking(raw, 'b2');
     const spy = vi.spyOn(globalThis, 'fetch');
     await syncBookingToCalendar(env, tenant, {
-      bookingId: 'b2', endUserId: null, serviceType: 'boarding', startDate: '2030-03-01',
-      endDate: '2030-03-04', startTime: null, durationMinutes: null, petCount: 1, estCost: 150,
+      bookingId: 'b2',
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-03-01',
+      endDate: '2030-03-04',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 150,
     });
     expect(spy).not.toHaveBeenCalled();
   });
@@ -53,15 +70,29 @@ describe('syncBookingToCalendar', () => {
     const { env, raw } = createTestEnv();
     await connectCalendar(env, '2000-01-01T00:00:00Z'); // expired
     seedBooking(raw, 'b3');
-    const spy = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response(JSON.stringify({ access_token: 'access-2', expires_in: 3600 }), { status: 200 }))
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: 'access-2', expires_in: 3600 }), {
+          status: 200,
+        }),
+      )
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'evt_b3' }), { status: 200 }));
     await syncBookingToCalendar(env, tenant, {
-      bookingId: 'b3', endUserId: null, serviceType: 'boarding', startDate: '2030-03-01',
-      endDate: '2030-03-04', startTime: null, durationMinutes: null, petCount: 1, estCost: 150,
+      bookingId: 'b3',
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-03-01',
+      endDate: '2030-03-04',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 150,
     });
     expect(spy).toHaveBeenCalledTimes(2);
     const eventCall = spy.mock.calls[1];
-    expect((eventCall[1] as RequestInit).headers).toMatchObject({ Authorization: 'Bearer access-2' });
+    expect((eventCall[1] as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer access-2',
+    });
   });
 });

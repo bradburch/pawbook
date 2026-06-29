@@ -42,12 +42,21 @@ export async function exchangeCode(env: Env, code: string): Promise<TokenSet> {
     }),
   });
   if (!res.ok) throw new Error(`Google token exchange failed (${res.status})`);
-  const j = (await res.json()) as { access_token: string; refresh_token: string; expires_in: number };
-  return { accessToken: j.access_token, refreshToken: j.refresh_token, expiresAt: expiresAtFrom(j.expires_in) };
+  const j = (await res.json()) as {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+  };
+  return {
+    accessToken: j.access_token,
+    refreshToken: j.refresh_token,
+    expiresAt: expiresAtFrom(j.expires_in),
+  };
 }
 
 export async function refreshAccessToken(
-  env: Env, refreshToken: string,
+  env: Env,
+  refreshToken: string,
 ): Promise<{ accessToken: string; expiresAt: string }> {
   const res = await fetch(TOKEN_ENDPOINT, {
     method: 'POST',
@@ -65,7 +74,9 @@ export async function refreshAccessToken(
 }
 
 export async function createEvent(
-  accessToken: string, calendarId: string, event: object,
+  accessToken: string,
+  calendarId: string,
+  event: object,
 ): Promise<{ id: string }> {
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`,
@@ -81,7 +92,9 @@ export async function createEvent(
 }
 
 export async function deleteEvent(
-  accessToken: string, calendarId: string, eventId: string,
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
 ): Promise<void> {
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
@@ -92,7 +105,9 @@ export async function deleteEvent(
 }
 
 export async function revokeToken(token: string): Promise<void> {
-  const res = await fetch(`${REVOKE_ENDPOINT}?token=${encodeURIComponent(token)}`, { method: 'POST' });
+  const res = await fetch(`${REVOKE_ENDPOINT}?token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+  });
   if (!res.ok) throw new Error(`Google revokeToken failed (${res.status})`);
 }
 

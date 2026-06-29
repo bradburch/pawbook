@@ -281,7 +281,9 @@ export const adminRoutes = new Hono<AppEnv>()
     const nonce = crypto.randomUUID();
     await c.env.PAWBOOK_CACHE.put(NONCE_KEY(nonce), '1', { expirationTtl: 600 });
     const state = await signState(c.env.TOKEN_SECRET, {
-      tenantId: tenant.Id, nonce, exp: Date.now() + 600_000,
+      tenantId: tenant.Id,
+      nonce,
+      exp: Date.now() + 600_000,
     });
     // Bind the callback to THIS admin's browser: the nonce travels back as a cookie that an
     // attacker cannot plant in a victim's browser, defeating OAuth login-CSRF. Secure in prod;
@@ -315,7 +317,11 @@ export const adminRoutes = new Hono<AppEnv>()
     const customers = await listCustomers(c.env.PAWBOOK_DB, tenant.Id);
     return c.json({
       customers: customers.map((u) => ({
-        id: u.Id, email: u.Email, name: u.Name, status: u.Status, invitedAt: u.InvitedAt,
+        id: u.Id,
+        email: u.Email,
+        name: u.Name,
+        status: u.Status,
+        invitedAt: u.InvitedAt,
       })),
     });
   })
@@ -342,7 +348,10 @@ export const adminRoutes = new Hono<AppEnv>()
         return c.json({ error: 'Customer saved, but the invite email could not be sent.' }, 502);
       }
     }
-    return c.json({ id: customer.Id, email: customer.Email, name: customer.Name, status: customer.Status }, 201);
+    return c.json(
+      { id: customer.Id, email: customer.Email, name: customer.Name, status: customer.Status },
+      201,
+    );
   })
 
   .delete('/:slug/admin/customers/:id', async (c) => {

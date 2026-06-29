@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildAuthUrl, buildEventResource, createEvent, exchangeCode, refreshAccessToken,
+  buildAuthUrl,
+  buildEventResource,
+  createEvent,
+  exchangeCode,
+  refreshAccessToken,
 } from '../lib/google-calendar';
 
 const env = {
@@ -26,10 +30,14 @@ describe('google-calendar', () => {
   });
 
   it('exchangeCode posts the code and maps the token response', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }),
-        { status: 200 }),
-    );
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }),
+          { status: 200 },
+        ),
+      );
     const set = await exchangeCode(env, 'auth-code');
     expect(set.accessToken).toBe('at');
     expect(set.refreshToken).toBe('rt');
@@ -47,9 +55,9 @@ describe('google-calendar', () => {
   });
 
   it('createEvent POSTs to the calendar and returns the new id', async () => {
-    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ id: 'evt_1' }), { status: 200 }),
-    );
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ id: 'evt_1' }), { status: 200 }));
     const { id } = await createEvent('AT', 'primary', { summary: 'x' });
     expect(id).toBe('evt_1');
     const [url, init] = spy.mock.calls[0];
@@ -65,8 +73,15 @@ describe('google-calendar', () => {
 
   it('buildEventResource: all-day range uses date start/end (exclusive)', () => {
     const r = buildEventResource({
-      serviceLabel: 'Boarding', startDate: '2030-01-10', endDate: '2030-01-13', startTime: null,
-      durationMinutes: null, petCount: 2, estCost: 150, customerEmail: 'a@b.c', timezone: 'America/Los_Angeles',
+      serviceLabel: 'Boarding',
+      startDate: '2030-01-10',
+      endDate: '2030-01-13',
+      startTime: null,
+      durationMinutes: null,
+      petCount: 2,
+      estCost: 150,
+      customerEmail: 'a@b.c',
+      timezone: 'America/Los_Angeles',
     });
     expect(r.start).toEqual({ date: '2030-01-10' });
     expect(r.end).toEqual({ date: '2030-01-13' });
@@ -76,8 +91,15 @@ describe('google-calendar', () => {
 
   it('buildEventResource: all-day single day uses next-day exclusive end', () => {
     const r = buildEventResource({
-      serviceLabel: 'Day care', startDate: '2030-01-10', endDate: null, startTime: null,
-      durationMinutes: null, petCount: 1, estCost: 40, customerEmail: null, timezone: 'America/Los_Angeles',
+      serviceLabel: 'Day care',
+      startDate: '2030-01-10',
+      endDate: null,
+      startTime: null,
+      durationMinutes: null,
+      petCount: 1,
+      estCost: 40,
+      customerEmail: null,
+      timezone: 'America/Los_Angeles',
     });
     expect(r.start).toEqual({ date: '2030-01-10' });
     expect(r.end).toEqual({ date: '2030-01-11' });
@@ -85,8 +107,15 @@ describe('google-calendar', () => {
 
   it('buildEventResource: timed booking uses dateTime + timeZone, end = start + duration', () => {
     const r = buildEventResource({
-      serviceLabel: 'Walks', startDate: '2030-01-10', endDate: null, startTime: '09:30',
-      durationMinutes: 60, petCount: 1, estCost: 35, customerEmail: 'a@b.c', timezone: 'America/Los_Angeles',
+      serviceLabel: 'Walks',
+      startDate: '2030-01-10',
+      endDate: null,
+      startTime: '09:30',
+      durationMinutes: 60,
+      petCount: 1,
+      estCost: 35,
+      customerEmail: 'a@b.c',
+      timezone: 'America/Los_Angeles',
     });
     expect(r.start).toEqual({ dateTime: '2030-01-10T09:30:00', timeZone: 'America/Los_Angeles' });
     expect(r.end).toEqual({ dateTime: '2030-01-10T10:30:00', timeZone: 'America/Los_Angeles' });
