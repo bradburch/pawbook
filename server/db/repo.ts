@@ -81,23 +81,6 @@ export async function listPetTypes(db: D1Database, tenantId: string): Promise<Te
   return results;
 }
 
-export async function upsertEndUser(
-  db: D1Database,
-  tenantId: string,
-  email: string,
-): Promise<EndUser> {
-  const existing = await db
-    .prepare('SELECT Id, TenantId, Email, Name, Status, InvitedAt FROM EndUsers WHERE TenantId = ? AND Email = ?')
-    .bind(tenantId, email)
-    .first<EndUser>();
-  if (existing) return existing;
-  const id = crypto.randomUUID();
-  await db
-    .prepare('INSERT INTO EndUsers (Id, TenantId, Email) VALUES (?, ?, ?)')
-    .bind(id, tenantId, email)
-    .run();
-  return { Id: id, TenantId: tenantId, Email: email, Name: null, Status: 'active', InvitedAt: null };
-}
 
 export async function createLoginCode(
   db: D1Database,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import app from '../index';
-import { insertBookingRequest, listBookingsForUser, upsertEndUser } from '../db/repo';
+import { insertBookingRequest, insertInvitedCustomer, listBookingsForUser } from '../db/repo';
 import { mintToken } from '../lib/token';
 import { createTestEnv, TENANT_A, TENANT_B, TEST_SECRET } from './helpers';
 
@@ -18,8 +18,8 @@ describe('tenant isolation', () => {
 
   it('allows the same email to exist independently under both tenants', async () => {
     const { env } = createTestEnv();
-    const userA = await upsertEndUser(env.PAWBOOK_DB, TENANT_A, 'jess@example.com');
-    const userB = await upsertEndUser(env.PAWBOOK_DB, TENANT_B, 'jess@example.com');
+    const userA = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'jess@example.com', null);
+    const userB = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_B, 'jess@example.com', null);
     expect(userA.Id).not.toBe(userB.Id);
     expect(userA.TenantId).toBe(TENANT_A);
     expect(userB.TenantId).toBe(TENANT_B);
@@ -27,7 +27,7 @@ describe('tenant isolation', () => {
 
   it('READ: a booking created under tenant A never appears in tenant B queries', async () => {
     const { env } = createTestEnv();
-    const userA = await upsertEndUser(env.PAWBOOK_DB, TENANT_A, 'jess@example.com');
+    const userA = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'jess@example.com', null);
     await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
       endUserId: userA.Id,
       serviceType: 'boarding',
@@ -46,7 +46,7 @@ describe('tenant isolation', () => {
 
   it('WRITE: a tenant-A token cannot create a booking under tenant B', async () => {
     const { env } = createTestEnv();
-    const userA = await upsertEndUser(env.PAWBOOK_DB, TENANT_A, 'jess@example.com');
+    const userA = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'jess@example.com', null);
     const tokenForA = await mintToken(userA.Id, TENANT_A, TEST_SECRET);
     const res = await app.request(
       '/api/happy-tails/bookings',
@@ -68,8 +68,8 @@ describe('tenant isolation', () => {
 
   it('LIST: my-bookings under the other tenant is empty for the same email', async () => {
     const { env } = createTestEnv();
-    const userA = await upsertEndUser(env.PAWBOOK_DB, TENANT_A, 'jess@example.com');
-    const userB = await upsertEndUser(env.PAWBOOK_DB, TENANT_B, 'jess@example.com');
+    const userA = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_A, 'jess@example.com', null);
+    const userB = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_B, 'jess@example.com', null);
     await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
       endUserId: userA.Id,
       serviceType: 'walk',
