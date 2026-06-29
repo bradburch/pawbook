@@ -10,16 +10,22 @@ export type CapabilityDescriptor = {
   capability: string;
   provider: string;
   label: string;
+  authMode: 'oauth' | 'stub';
 };
 
 export const CAPABILITIES: readonly CapabilityDescriptor[] = [
-  { capability: 'calendar', provider: 'google-calendar', label: 'Google Calendar' },
-  { capability: 'crm', provider: 'notion', label: 'Notion' },
-  { capability: 'email', provider: 'gmail', label: 'Gmail' },
+  {
+    capability: 'calendar',
+    provider: 'google-calendar',
+    label: 'Google Calendar',
+    authMode: 'oauth',
+  },
+  { capability: 'crm', provider: 'notion', label: 'Notion', authMode: 'stub' },
+  { capability: 'email', provider: 'gmail', label: 'Gmail', authMode: 'stub' },
 ];
 
 export type ProviderView = CapabilityDescriptor & {
-  status: 'disconnected' | 'connected-stub';
+  status: 'disconnected' | 'connected-stub' | 'connected';
   connectedAt: string | null;
 };
 

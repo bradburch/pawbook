@@ -3,6 +3,7 @@ import type {
   EndUser,
   PetType,
   ProviderConnection,
+  ProviderConnectionWithTokens,
   Tenant,
   TenantPetTypeRow,
   TenantService,
@@ -23,7 +24,7 @@ const TENANT_COLS =
   'Id, Slug, DisplayName, AccentColor, MaxBoardingPets, MaxHouseSitsPerDay, MaxStayNights, Timezone';
 
 const BOOKING_COLS =
-  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, OptionKey, PetType, PetCount, EstCost, Status, CreatedAt';
+  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, CreatedAt';
 
 export async function getTenantBySlug(db: D1Database, slug: string): Promise<Tenant | null> {
   return await db
@@ -78,24 +79,6 @@ export async function listPetTypes(db: D1Database, tenantId: string): Promise<Te
     .bind(tenantId)
     .all<TenantPetTypeRow>();
   return results;
-}
-
-export async function upsertEndUser(
-  db: D1Database,
-  tenantId: string,
-  email: string,
-): Promise<EndUser> {
-  const existing = await db
-    .prepare('SELECT Id, TenantId, Email FROM EndUsers WHERE TenantId = ? AND Email = ?')
-    .bind(tenantId, email)
-    .first<EndUser>();
-  if (existing) return existing;
-  const id = crypto.randomUUID();
-  await db
-    .prepare('INSERT INTO EndUsers (Id, TenantId, Email) VALUES (?, ?, ?)')
-    .bind(id, tenantId, email)
-    .run();
-  return { Id: id, TenantId: tenantId, Email: email };
 }
 
 export async function createLoginCode(
@@ -382,14 +365,190 @@ export async function deleteBlockedRange(
   return (result.meta as { changes?: number }).changes !== 0;
 }
 
+export async function getProviderConnection(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+): Promise<ProviderConnectionWithTokens | null> {
+  return await db
+    .prepare(
+      `SELECT Id, TenantId, Capability, Provider, Status, ConnectedAt,
+              AccessToken, RefreshToken, TokenExpiresAt, CalendarId
+       FROM ProviderConnections WHERE TenantId = ? AND Capability = ?`,
+    )
+    .bind(tenantId, capability)
+    .first<ProviderConnectionWithTokens>();
+}
+
+export async function setProviderTokens(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+  provider: string,
+  t: { access: string; refresh: string; expiresAt: string; calendarId: string },
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO ProviderConnections
+         (Id, TenantId, Capability, Provider, Status, ConnectedAt, AccessToken, RefreshToken, TokenExpiresAt, CalendarId)
+       VALUES (?, ?, ?, ?, 'connected', ?, ?, ?, ?, ?)
+       ON CONFLICT (TenantId, Capability) DO UPDATE SET
+         Provider = excluded.Provider, Status = 'connected', ConnectedAt = excluded.ConnectedAt,
+         AccessToken = excluded.AccessToken, RefreshToken = excluded.RefreshToken,
+         TokenExpiresAt = excluded.TokenExpiresAt, CalendarId = excluded.CalendarId`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      tenantId,
+      capability,
+      provider,
+      new Date().toISOString(),
+      t.access,
+      t.refresh,
+      t.expiresAt,
+      t.calendarId,
+    )
+    .run();
+}
+
+export async function clearProviderConnection(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE ProviderConnections
+       SET Status = 'disconnected', AccessToken = NULL, RefreshToken = NULL,
+           TokenExpiresAt = NULL, CalendarId = NULL, ConnectedAt = NULL
+       WHERE TenantId = ? AND Capability = ?`,
+    )
+    .bind(tenantId, capability)
+    .run();
+}
+
+export async function setBookingGCalEventId(
+  db: D1Database,
+  tenantId: string,
+  bookingId: string,
+  eventId: string,
+): Promise<void> {
+  await db
+    .prepare('UPDATE BookingRequests SET GCalEventId = ? WHERE TenantId = ? AND Id = ?')
+    .bind(eventId, tenantId, bookingId)
+    .run();
+}
+
+export async function getEndUserById(
+  db: D1Database,
+  tenantId: string,
+  id: string,
+): Promise<EndUser | null> {
+  return await db
+    .prepare(
+      'SELECT Id, TenantId, Email, Name, Status, InvitedAt FROM EndUsers WHERE TenantId = ? AND Id = ?',
+    )
+    .bind(tenantId, id)
+    .first<EndUser>();
+}
+
+const ENDUSER_COLS = 'Id, TenantId, Email, Name, Status, InvitedAt';
+
+export async function getEndUserByEmail(
+  db: D1Database,
+  tenantId: string,
+  email: string,
+): Promise<EndUser | null> {
+  return await db
+    .prepare(`SELECT ${ENDUSER_COLS} FROM EndUsers WHERE TenantId = ? AND Email = ?`)
+    .bind(tenantId, email)
+    .first<EndUser>();
+}
+
+export async function insertInvitedCustomer(
+  db: D1Database,
+  tenantId: string,
+  email: string,
+  name: string | null,
+): Promise<EndUser> {
+  const existing = await getEndUserByEmail(db, tenantId, email);
+  if (existing) return existing; // idempotent — never downgrade an active customer to invited
+  const id = crypto.randomUUID();
+  const invitedAt = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO EndUsers (Id, TenantId, Email, Name, Status, InvitedAt)
+       VALUES (?, ?, ?, ?, 'invited', ?)`,
+    )
+    .bind(id, tenantId, email, name, invitedAt)
+    .run();
+  return {
+    Id: id,
+    TenantId: tenantId,
+    Email: email,
+    Name: name,
+    Status: 'invited',
+    InvitedAt: invitedAt,
+  };
+}
+
+export async function listCustomers(db: D1Database, tenantId: string): Promise<EndUser[]> {
+  const { results } = await db
+    .prepare(`SELECT ${ENDUSER_COLS} FROM EndUsers WHERE TenantId = ? ORDER BY Email`)
+    .bind(tenantId)
+    .all<EndUser>();
+  return results;
+}
+
+export async function deleteCustomer(
+  db: D1Database,
+  tenantId: string,
+  id: string,
+): Promise<boolean> {
+  // Atomic guard: delete only when this customer has no bookings, so a booking created between
+  // the route's count check and here can never orphan a live booking. The route still 409s on the
+  // common path; this closes the TOCTOU with a safe no-op (0 rows -> false) on the race.
+  const result = await db
+    .prepare(
+      `DELETE FROM EndUsers WHERE TenantId = ? AND Id = ?
+         AND NOT EXISTS (SELECT 1 FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?)`,
+    )
+    .bind(tenantId, id, tenantId, id)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+export async function countBookingsForUser(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+): Promise<number> {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?')
+    .bind(tenantId, endUserId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+export async function promoteCustomerActive(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+): Promise<void> {
+  await db
+    .prepare("UPDATE EndUsers SET Status = 'active' WHERE TenantId = ? AND Id = ?")
+    .bind(tenantId, endUserId)
+    .run();
+}
+
 export async function setProviderStatus(
   db: D1Database,
   tenantId: string,
   capability: string,
   provider: string,
-  status: 'disconnected' | 'connected-stub',
+  status: 'connected-stub',
 ): Promise<void> {
-  const connectedAt = status === 'connected-stub' ? new Date().toISOString() : null;
+  const connectedAt = new Date().toISOString();
   await db
     .prepare(
       `INSERT INTO ProviderConnections (Id, TenantId, Capability, Provider, Status, ConnectedAt)

@@ -10,8 +10,8 @@ Cloudflare Workers (Hono + React) with isolated per-tenant configuration, availa
 capacity rules, and pricing.
 
 > **Status — early release (v0.1).** The booking flow stores requests in D1 (Cloudflare's
-> SQLite). **Not yet implemented:** real Google Calendar sync (Phase 1) and email +
-> invite-only customers (Phase 2). See [Roadmap](#roadmap).
+> SQLite). Google Calendar OAuth (Phase 1) and email + invite-only customers (Phase 2) are
+> now implemented. See [Roadmap](#roadmap).
 
 ## Features
 
@@ -69,6 +69,9 @@ npm run dev                                        # builds the widget + runs wr
 npx wrangler d1 create pawbook-db                  # put database_id into wrangler.jsonc
 npx wrangler kv namespace create PAWBOOK_CACHE # put id into wrangler.jsonc
 npx wrangler secret put TOKEN_SECRET               # a strong random value (openssl rand -base64 32)
+npx wrangler secret put GOOGLE_CLIENT_ID           # OAuth 2.0 client ID from Google Cloud Console
+npx wrangler secret put GOOGLE_CLIENT_SECRET       # OAuth 2.0 client secret from Google Cloud Console
+npx wrangler secret put GOOGLE_OAUTH_REDIRECT_URI  # absolute callback URL, e.g. https://<your-worker>/oauth/google/callback — must EXACTLY match the authorized redirect URI registered in Google Cloud
 npm run deploy
 npm run seed:remote                                # ⚠️ demo tenants/logins — do NOT run against a real prod DB
 ```
@@ -85,6 +88,7 @@ since your last deploy):
 
 ```bash
 npx wrangler d1 execute pawbook-db --remote --file ./migrations/0002_tenant_config_limits.sql
+npx wrangler d1 execute pawbook-db --remote --file ./migrations/0003_calendar_oauth_and_invites.sql
 ```
 
 Use `--local` instead of `--remote` for your dev database. (Fresh installs created from
@@ -124,10 +128,15 @@ public/         embed.js loader + demo host
 
 ## Roadmap
 
+**Implemented**
+
 - **Phase 1 — Google Calendar OAuth.** Per-tenant "Connect Calendar" so bookings create real
   calendar events.
 - **Phase 2 — Email + invite-only customers.** Real email delivery (login codes, invites) and
   a provider-managed customer list.
+
+**Upcoming**
+
 - **Phase 3 — Self-serve tenant signup, custom domains, billing.**
 
 ## Contributing

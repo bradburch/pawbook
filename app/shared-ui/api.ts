@@ -40,6 +40,14 @@ export type Booking = {
   status: string;
 };
 
+export type Customer = {
+  id: string;
+  email: string;
+  name: string | null;
+  status: 'invited' | 'active';
+  invitedAt?: string | null;
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -103,6 +111,37 @@ export const api = {
     request<{ bookings: Booking[] }>(`/api/${slug}/bookings/mine`, {
       headers: authHeaders(token),
     }),
+};
+
+export const adminApi = {
+  customers: {
+    list: (slug: string, token: string) =>
+      request<{ customers: Customer[] }>(`/api/${slug}/admin/customers`, {
+        headers: authHeaders(token),
+      }),
+    add: (slug: string, token: string, email: string, name: string) =>
+      request<{ id: string; status: string }>(`/api/${slug}/admin/customers`, {
+        method: 'POST',
+        headers: { ...jsonHeaders, ...authHeaders(token) },
+        body: JSON.stringify({ email, name }),
+      }),
+    remove: (slug: string, token: string, id: string) =>
+      request<unknown>(`/api/${slug}/admin/customers/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(token),
+      }),
+  },
+  calendar: {
+    start: (slug: string, token: string) =>
+      request<{ url: string }>(`/api/${slug}/admin/providers/calendar/oauth/start`, {
+        headers: authHeaders(token),
+      }),
+    disconnect: (slug: string, token: string) =>
+      request<{ status: string }>(`/api/${slug}/admin/providers/calendar/disconnect`, {
+        method: 'POST',
+        headers: authHeaders(token),
+      }),
+  },
 };
 
 /**

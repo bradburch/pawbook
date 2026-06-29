@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
+import { adminApi, type Customer } from '../shared-ui/api.js';
 import './admin.css';
 
 /**
@@ -79,6 +80,7 @@ type Settings = {
     capability: string;
     provider: string;
     label: string;
+    authMode: 'oauth' | 'stub';
     status: string;
     connectedAt: string | null;
   }[];
@@ -307,6 +309,82 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     }
   };
 
+  const connectCalendar = async () => {
+    // NOTE: The route and this client call are still calendar-specific because there is exactly one
+    // OAuth provider. When a second is added, generalize adminApi.calendar + the
+    // /providers/calendar/... routes to accept a `capability` param. Deliberate YAGNI boundary.
+    setError('');
+    try {
+      const { url } = await adminApi.calendar.start(slug, token);
+      const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
+      // The callback page is script-free (CSP), so detect the popup closing here and re-fetch
+      // settings to pick up the new connected status.
+      const timer = window.setInterval(() => {
+        if (!popup || popup.closed) {
+          window.clearInterval(timer);
+          void refresh();
+        }
+      }, 1000);
+    } catch (e) {
+      handle(e);
+    }
+  };
+
+  const disconnectCalendar = async () => {
+    setError('');
+    try {
+      await adminApi.calendar.disconnect(slug, token);
+      await refresh();
+    } catch (e) {
+      handle(e);
+    }
+  };
+
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [custEmail, setCustEmail] = useState('');
+  const [custName, setCustName] = useState('');
+
+  const loadCustomers = useCallback(
+    () => adminApi.customers.list(slug, token).then(({ customers: list }) => list),
+    [slug, token],
+  );
+
+  useEffect(() => {
+    let active = true;
+    loadCustomers()
+      .then((list) => {
+        if (active) setCustomers(list);
+      })
+      .catch((e) => {
+        if (active) handle(e);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loadCustomers, handle]);
+
+  const addCustomer = async () => {
+    setError('');
+    try {
+      await adminApi.customers.add(slug, token, custEmail.trim().toLowerCase(), custName.trim());
+      setCustEmail('');
+      setCustName('');
+      setCustomers(await loadCustomers());
+    } catch (e) {
+      handle(e);
+    }
+  };
+
+  const removeCustomer = async (id: string) => {
+    setError('');
+    try {
+      await adminApi.customers.remove(slug, token, id);
+      setCustomers(await loadCustomers());
+    } catch (e) {
+      handle(e);
+    }
+  };
+
   // Initial settings load: setState only inside the promise callback (react-hooks rule).
   useEffect(() => {
     let active = true;
@@ -519,19 +597,60 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       </section>
 
       <section>
-        <h2>Integrations (prototype stubs)</h2>
+        <h2>Customers (invite-only)</h2>
+        <p>
+          <small>
+            Only invited customers can request bookings. Adding one emails them an invite.
+          </small>
+        </p>
+        <div className="ad-row">
+          <input
+            type="email"
+            placeholder="customer@email.com"
+            value={custEmail}
+            onChange={(e) => setCustEmail(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Name (optional)"
+            value={custName}
+            onChange={(e) => setCustName(e.target.value)}
+          />
+          <button onClick={() => void addCustomer()}>Add customer</button>
+        </div>
+        <ul>
+          {customers.map((cust) => (
+            <li key={cust.id}>
+              {cust.email}
+              {cust.name ? ` (${cust.name})` : ''} — <em>{cust.status}</em>{' '}
+              <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section>
+        <h2>Integrations</h2>
         <ul>
           {settings.providers.map((p) => (
             <li key={p.capability}>
               {p.label} — <em>{p.status}</em>{' '}
-              {p.status === 'disconnected' && (
-                <button onClick={() => void connect(p.capability)}>Connect (stub)</button>
+              {p.authMode === 'oauth' ? (
+                p.status === 'connected' ? (
+                  <button onClick={() => void disconnectCalendar()}>Disconnect</button>
+                ) : (
+                  <button onClick={() => void connectCalendar()}>Connect Google Calendar</button>
+                )
+              ) : (
+                p.status === 'disconnected' && (
+                  <button onClick={() => void connect(p.capability)}>Connect (stub)</button>
+                )
               )}
             </li>
           ))}
         </ul>
         <p>
-          <small>No real OAuth happens here — connecting only flips persisted state.</small>
+          <small>Google Calendar uses real OAuth; other integrations are prototype stubs.</small>
         </p>
       </section>
 

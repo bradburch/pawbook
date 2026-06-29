@@ -254,7 +254,7 @@ describe('tenant admin', () => {
 
   it('adding a capability is a registry entry, not a schema change (FR18)', () => {
     const extended: CapabilityDescriptor[] = [
-      { capability: 'payments', provider: 'stripe', label: 'Stripe' },
+      { capability: 'payments', provider: 'stripe', label: 'Stripe', authMode: 'stub' },
     ];
     const views = providerViews([], extended);
     expect(views).toEqual([
@@ -262,6 +262,7 @@ describe('tenant admin', () => {
         capability: 'payments',
         provider: 'stripe',
         label: 'Stripe',
+        authMode: 'stub',
         status: 'disconnected',
         connectedAt: null,
       },

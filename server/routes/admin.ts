@@ -1,8 +1,15 @@
 import { Hono } from 'hono';
+import { setCookie } from 'hono/cookie';
 import {
+  clearProviderConnection,
+  countBookingsForUser,
   deleteBlockedRange,
+  deleteCustomer,
+  getProviderConnection,
   insertBookingRequest,
+  insertInvitedCustomer,
   listBlockedRanges,
+  listCustomers,
   listPetTypes,
   listProviderConnections,
   listServiceOptions,
@@ -13,14 +20,20 @@ import {
   setServiceEnabled,
   updateTenantSettings,
 } from '../db/repo';
+import { isEmailConfigured, sendInvite } from '../lib/email';
+import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { adminAuth } from '../lib/middleware';
+import { signState } from '../lib/oauth-state';
 import { findCapability, providerViews } from '../lib/providers';
 import { embedSnippets } from '../lib/snippet';
 import { isPetType, isServiceType, PET_TYPES, SERVICE_CATALOG } from '../lib/services';
+import { decryptToken } from '../lib/token-crypto';
 import { invalidateTenantCache } from '../lib/tenant-resolve';
+import { NONCE_KEY } from './oauth';
 import {
   DEFENSIVE_MAX_NIGHTS,
   DEFENSIVE_MAX_PET_COUNT,
+  EMAIL_RE,
   isNullableLimit,
   isRealDate,
   isValidDuration,
@@ -259,4 +272,94 @@ export const adminRoutes = new Hono<AppEnv>()
       'connected-stub',
     );
     return c.json({ status: 'connected-stub' });
+  })
+
+  .get('/:slug/admin/providers/calendar/oauth/start', async (c) => {
+    const tenant = c.get('tenant');
+    if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET || !c.env.GOOGLE_OAUTH_REDIRECT_URI)
+      return c.json({ error: 'Google Calendar is not configured on this server.' }, 503);
+    const nonce = crypto.randomUUID();
+    await c.env.PAWBOOK_CACHE.put(NONCE_KEY(nonce), '1', { expirationTtl: 600 });
+    const state = await signState(c.env.TOKEN_SECRET, {
+      tenantId: tenant.Id,
+      nonce,
+      exp: Date.now() + 600_000,
+    });
+    // Bind the callback to THIS admin's browser: the nonce travels back as a cookie that an
+    // attacker cannot plant in a victim's browser, defeating OAuth login-CSRF. Secure in prod;
+    // omitted on http://localhost so local dev still works. Path-scoped to the callback only.
+    setCookie(c, 'pawbook_gcal_nonce', nonce, {
+      httpOnly: true,
+      secure: c.env.ENVIRONMENT !== 'development',
+      sameSite: 'Lax', // sent on Google's top-level redirect back to the callback
+      path: '/oauth/google/callback',
+      maxAge: 600,
+    });
+    return c.json({ url: buildAuthUrl(c.env, state) });
+  })
+
+  .post('/:slug/admin/providers/calendar/disconnect', async (c) => {
+    const tenant = c.get('tenant');
+    const conn = await getProviderConnection(c.env.PAWBOOK_DB, tenant.Id, 'calendar');
+    if (conn?.RefreshToken) {
+      try {
+        await revokeToken(await decryptToken(c.env.TOKEN_SECRET, conn.RefreshToken));
+      } catch {
+        /* best-effort revoke; clear locally regardless */
+      }
+    }
+    await clearProviderConnection(c.env.PAWBOOK_DB, tenant.Id, 'calendar');
+    return c.json({ status: 'disconnected' });
+  })
+
+  .get('/:slug/admin/customers', async (c) => {
+    const tenant = c.get('tenant');
+    const customers = await listCustomers(c.env.PAWBOOK_DB, tenant.Id);
+    return c.json({
+      customers: customers.map((u) => ({
+        id: u.Id,
+        email: u.Email,
+        name: u.Name,
+        status: u.Status,
+        invitedAt: u.InvitedAt,
+      })),
+    });
+  })
+
+  .post('/:slug/admin/customers', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req
+      .json<{ email?: unknown; name?: unknown }>()
+      .catch(() => ({}) as { email?: unknown; name?: unknown });
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const rawName = typeof body.name === 'string' ? body.name.trim() : '';
+    const name = rawName || null;
+    if (!EMAIL_RE.test(email)) return c.json({ error: 'Enter a valid email.' }, 400);
+
+    const customer = await insertInvitedCustomer(c.env.PAWBOOK_DB, tenant.Id, email, name);
+
+    // Only send the invite for a freshly-invited customer — skip if the customer is already active
+    // (a re-POST of an existing active customer must not send a confusing "you're invited" email).
+    if (customer.Status === 'invited' && isEmailConfigured(c.env)) {
+      const widgetUrl = new URL(`/embed/${tenant.Slug}`, c.req.url).toString();
+      try {
+        await sendInvite(c.env, email, tenant.DisplayName, widgetUrl);
+      } catch {
+        return c.json({ error: 'Customer saved, but the invite email could not be sent.' }, 502);
+      }
+    }
+    return c.json(
+      { id: customer.Id, email: customer.Email, name: customer.Name, status: customer.Status },
+      201,
+    );
+  })
+
+  .delete('/:slug/admin/customers/:id', async (c) => {
+    const tenant = c.get('tenant');
+    const id = c.req.param('id');
+    if ((await countBookingsForUser(c.env.PAWBOOK_DB, tenant.Id, id)) > 0)
+      return c.json({ error: 'Customer has bookings; cannot remove.' }, 409);
+    const deleted = await deleteCustomer(c.env.PAWBOOK_DB, tenant.Id, id);
+    if (!deleted) return c.json({ error: 'Not found.' }, 404);
+    return c.body(null, 204);
   });

@@ -1,11 +1,16 @@
 import { Hono } from 'hono';
-import { consumeLoginCode, createLoginCode, upsertEndUser } from '../db/repo';
+import {
+  consumeLoginCode,
+  createLoginCode,
+  getEndUserByEmail,
+  promoteCustomerActive,
+} from '../db/repo';
 import { isEmailConfigured, sendLoginCode } from '../lib/email';
 import { mintToken } from '../lib/token';
+import { EMAIL_RE } from '../lib/validation';
 import type { AppEnv } from '../types';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function generateCode(): string {
   const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
@@ -19,7 +24,9 @@ export const authRoutes = new Hono<AppEnv>()
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     if (!EMAIL_RE.test(email)) return c.json({ error: 'Enter a valid email.' }, 400);
 
-    const user = await upsertEndUser(c.env.PAWBOOK_DB, tenant.Id, email);
+    // Invite-only: only customers the provider has added may receive a code. Do NOT auto-create.
+    const user = await getEndUserByEmail(c.env.PAWBOOK_DB, tenant.Id, email);
+    if (!user) return c.json({ error: 'This provider books by invitation only.' }, 403);
     const code = generateCode();
     const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
     const codeId = await createLoginCode(c.env.PAWBOOK_DB, tenant.Id, user.Id, code, expiresAt);
@@ -59,6 +66,9 @@ export const authRoutes = new Hono<AppEnv>()
       new Date().toISOString(),
     );
     if (!endUserId) return c.json({ error: 'That code is wrong or expired — try again.' }, 401);
+
+    // First successful sign-in promotes an invited customer to active.
+    await promoteCustomerActive(c.env.PAWBOOK_DB, tenant.Id, endUserId);
 
     const token = await mintToken(endUserId, tenant.Id, c.env.TOKEN_SECRET);
     return c.json({ token });

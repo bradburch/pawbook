@@ -6,6 +6,9 @@ import { DATE_RE, getPacificDateStr, nightsBetween } from '../../src/shared/inde
  * — so date inputs go through `isRealDate`, and ranges are bounded.
  */
 
+// Pragmatic email shape check (not RFC-complete)
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /** Safety rail (NOT a business cap): bounds the per-request capacity loop so an unlimited stay
  * length can't burn CPU. ~10 years — far beyond any real booking. */
 export const DEFENSIVE_MAX_NIGHTS = 3650;
