@@ -1,10 +1,14 @@
 import { Hono } from 'hono';
 import {
   clearProviderConnection,
+  countBookingsForUser,
   deleteBlockedRange,
+  deleteCustomer,
   getProviderConnection,
   insertBookingRequest,
+  insertInvitedCustomer,
   listBlockedRanges,
+  listCustomers,
   listPetTypes,
   listProviderConnections,
   listServiceOptions,
@@ -15,6 +19,7 @@ import {
   setServiceEnabled,
   updateTenantSettings,
 } from '../db/repo';
+import { isEmailConfigured, sendInvite } from '../lib/email';
 import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { adminAuth } from '../lib/middleware';
 import { signState } from '../lib/oauth-state';
@@ -34,6 +39,7 @@ import {
 import type { AppEnv } from '../types';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+const CUSTOMER_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** null/undefined (use default) or a timezone Intl accepts. */
 function isValidTimezone(value: unknown): value is string | null | undefined {
@@ -290,4 +296,51 @@ export const adminRoutes = new Hono<AppEnv>()
     }
     await clearProviderConnection(c.env.PAWBOOK_DB, tenant.Id, 'calendar');
     return c.json({ status: 'disconnected' });
+  })
+
+  .get('/:slug/admin/customers', async (c) => {
+    const tenant = c.get('tenant');
+    const customers = await listCustomers(c.env.PAWBOOK_DB, tenant.Id);
+    return c.json({
+      customers: customers.map((u) => ({
+        id: u.Id, email: u.Email, name: u.Name, status: u.Status, invitedAt: u.InvitedAt,
+      })),
+    });
+  })
+
+  .post('/:slug/admin/customers', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req
+      .json<{ email?: unknown; name?: unknown }>()
+      .catch(() => ({}) as { email?: unknown; name?: unknown });
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : null;
+    if (!CUSTOMER_EMAIL_RE.test(email)) return c.json({ error: 'Enter a valid email.' }, 400);
+
+    const customer = await insertInvitedCustomer(c.env.PAWBOOK_DB, tenant.Id, email, name);
+
+    // Send the invite. Fail closed when email is configured but the send fails; in dev with no
+    // provider, skip sending (the row still exists so the customer can be told out-of-band).
+    if (isEmailConfigured(c.env)) {
+      const widgetUrl = new URL(`/embed/${tenant.Slug}`, c.req.url).toString();
+      try {
+        await sendInvite(c.env, email, tenant.DisplayName, widgetUrl);
+      } catch {
+        return c.json({ error: 'Customer saved, but the invite email could not be sent.' }, 502);
+      }
+    }
+    return c.json(
+      { id: customer.Id, email: customer.Email, name: customer.Name, status: customer.Status },
+      201,
+    );
+  })
+
+  .delete('/:slug/admin/customers/:id', async (c) => {
+    const tenant = c.get('tenant');
+    const id = c.req.param('id');
+    if ((await countBookingsForUser(c.env.PAWBOOK_DB, tenant.Id, id)) > 0)
+      return c.json({ error: 'Customer has bookings; cannot remove.' }, 409);
+    const deleted = await deleteCustomer(c.env.PAWBOOK_DB, tenant.Id, id);
+    if (!deleted) return c.json({ error: 'Not found.' }, 404);
+    return c.body(null, 204);
   });
