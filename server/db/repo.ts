@@ -463,6 +463,76 @@ export async function getEndUserById(
     .first<EndUser>();
 }
 
+const ENDUSER_COLS = 'Id, TenantId, Email, Name, Status, InvitedAt';
+
+export async function getEndUserByEmail(
+  db: D1Database, tenantId: string, email: string,
+): Promise<EndUser | null> {
+  return await db
+    .prepare(`SELECT ${ENDUSER_COLS} FROM EndUsers WHERE TenantId = ? AND Email = ?`)
+    .bind(tenantId, email)
+    .first<EndUser>();
+}
+
+export async function insertInvitedCustomer(
+  db: D1Database, tenantId: string, email: string, name: string | null,
+): Promise<EndUser> {
+  const existing = await getEndUserByEmail(db, tenantId, email);
+  if (existing) return existing; // idempotent — never downgrade an active customer to invited
+  const id = crypto.randomUUID();
+  const invitedAt = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO EndUsers (Id, TenantId, Email, Name, Status, InvitedAt)
+       VALUES (?, ?, ?, ?, 'invited', ?)`,
+    )
+    .bind(id, tenantId, email, name, invitedAt)
+    .run();
+  return { Id: id, TenantId: tenantId, Email: email, Name: name, Status: 'invited', InvitedAt: invitedAt };
+}
+
+export async function listCustomers(db: D1Database, tenantId: string): Promise<EndUser[]> {
+  const { results } = await db
+    .prepare(`SELECT ${ENDUSER_COLS} FROM EndUsers WHERE TenantId = ? ORDER BY Email`)
+    .bind(tenantId)
+    .all<EndUser>();
+  return results;
+}
+
+export async function deleteCustomer(
+  db: D1Database, tenantId: string, id: string,
+): Promise<boolean> {
+  // Nullify booking references first to satisfy the FK constraint, preserving booking history.
+  await db
+    .prepare('UPDATE BookingRequests SET EndUserId = NULL WHERE TenantId = ? AND EndUserId = ?')
+    .bind(tenantId, id)
+    .run();
+  const result = await db
+    .prepare('DELETE FROM EndUsers WHERE TenantId = ? AND Id = ?')
+    .bind(tenantId, id)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+export async function countBookingsForUser(
+  db: D1Database, tenantId: string, endUserId: string,
+): Promise<number> {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?')
+    .bind(tenantId, endUserId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+export async function promoteCustomerActive(
+  db: D1Database, tenantId: string, endUserId: string,
+): Promise<void> {
+  await db
+    .prepare("UPDATE EndUsers SET Status = 'active' WHERE TenantId = ? AND Id = ?")
+    .bind(tenantId, endUserId)
+    .run();
+}
+
 export async function setProviderStatus(
   db: D1Database,
   tenantId: string,
