@@ -611,6 +611,14 @@ export async function addEndUserPet(
   return row!;
 }
 
+export async function countBookingPetRefs(db: D1Database, petId: string): Promise<number> {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM BookingRequestPets WHERE PetId = ?')
+    .bind(petId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 export async function removeEndUserPet(
   db: D1Database,
   tenantId: string,

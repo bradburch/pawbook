@@ -458,6 +458,17 @@ body {
   padding: 4px 0;
   font-size: 0.95rem;
 }
+.bp-book .bp-pet {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: var(--bp-sans);
+  font-size: 0.95rem;
+  color: var(--bp-ink);
+}
 .bp-pet-type {
   font-family: var(--bp-mono);
   font-size: 0.7rem;

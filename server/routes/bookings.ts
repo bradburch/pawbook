@@ -60,9 +60,10 @@ export const bookingRoutes = new Hono<AppEnv>()
     const type = body.type;
     const start = typeof body.startDate === 'string' ? body.startDate : '';
     const end = typeof body.endDate === 'string' ? body.endDate : '';
-    const petIds = Array.isArray(body.petIds)
+    const rawPetIds = Array.isArray(body.petIds)
       ? body.petIds.filter((x): x is string => typeof x === 'string')
       : [];
+    const petIds = [...new Set(rawPetIds)];
 
     if (!isServiceType(type)) return c.json({ error: 'Unknown service type.' }, 400);
     if (petIds.length === 0) return c.json({ error: 'Choose at least one pet.' }, 400);
@@ -126,19 +127,18 @@ export const bookingRoutes = new Hono<AppEnv>()
     let check;
     try {
       check = await checkAvailability(c.env, tenant, type, option, start, end, pets, id);
+      if (!check.available) {
+        await deleteBookingRequest(c.env.PAWBOOK_DB, tenant.Id, id);
+        return c.json({ error: 'Sorry — those dates just filled up.' }, 409);
+      }
+      await addBookingPets(c.env.PAWBOOK_DB, id, petIds);
     } catch (err) {
-      // The optimistic row is already persisted; if the capacity check fails, don't leave it
-      // orphaned (a pending row counts against capacity and never expires). Best-effort cleanup,
-      // then surface the original error.
+      // The optimistic row is already persisted; if the capacity check or pet insert fails,
+      // don't leave it orphaned (a pending row counts against capacity and never expires).
+      // Best-effort cleanup, then surface the original error.
       await deleteBookingRequest(c.env.PAWBOOK_DB, tenant.Id, id).catch(() => {});
       throw err;
     }
-    if (!check.available) {
-      await deleteBookingRequest(c.env.PAWBOOK_DB, tenant.Id, id);
-      return c.json({ error: 'Sorry — those dates just filled up.' }, 409);
-    }
-
-    await addBookingPets(c.env.PAWBOOK_DB, id, petIds);
 
     // Best-effort calendar sync — never blocks or fails the booking. Use waitUntil in production;
     // in tests (no ExecutionContext) await it so behavior is deterministic.

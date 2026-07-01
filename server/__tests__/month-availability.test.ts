@@ -107,6 +107,24 @@ describe('GET /api/:slug/availability/month', () => {
     expect(d20.used).toBeNull();
   });
 
+  it('connected calendar: Google 500 → fail open, all available', async () => {
+    const { env } = createTestEnv();
+    await seedConnectedCalendar(env);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Server Error', { status: 500 }));
+
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const res = await app.request(
+      '/api/sunny-paws/availability/month?type=boarding&month=2026-10',
+      { headers: { Authorization: `Bearer ${token}` } },
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { today: string; days: MonthDay[] };
+    expect(body.days).toHaveLength(31);
+    expect(body.days.every((d) => d.status === 'available')).toBe(true);
+  });
+
   it('not connected: returns all available without calling fetch', async () => {
     const { env } = createTestEnv();
     // No calendar seeded — connection absent

@@ -3,6 +3,7 @@ import { setCookie } from 'hono/cookie';
 import {
   addEndUserPet,
   clearProviderConnection,
+  countBookingPetRefs,
   countBookingsForUser,
   deleteBlockedRange,
   deleteCustomer,
@@ -412,6 +413,8 @@ export const adminRoutes = new Hono<AppEnv>()
   })
   .delete('/:slug/admin/customers/:id/pets/:petId', async (c) => {
     const tenant = c.get('tenant');
+    const refs = await countBookingPetRefs(c.env.PAWBOOK_DB, c.req.param('petId'));
+    if (refs > 0) return c.json({ error: 'Pet has bookings; cannot remove.' }, 409);
     const removed = await removeEndUserPet(c.env.PAWBOOK_DB, tenant.Id, c.req.param('petId'));
     if (!removed) return c.json({ error: 'Not found.' }, 404);
     return c.body(null, 204);

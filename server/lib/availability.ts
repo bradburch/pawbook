@@ -186,40 +186,45 @@ export async function monthAvailability(
   const capacityEvents: CapacityEvent[] = [];
   const mineDays = new Set<string>();
 
-  if (conn && conn.Status === 'connected' && conn.AccessToken && conn.RefreshToken) {
-    const accessToken = await getCalendarAccessToken(env, tenant, conn);
-    const events = await listCalendarEvents(
-      accessToken,
-      conn.CalendarId ?? 'primary',
-      timeMin,
-      timeMax,
-    );
+  try {
+    if (conn && conn.Status === 'connected' && conn.AccessToken && conn.RefreshToken) {
+      const accessToken = await getCalendarAccessToken(env, tenant, conn);
+      const events = await listCalendarEvents(
+        accessToken,
+        conn.CalendarId ?? 'primary',
+        timeMin,
+        timeMax,
+      );
 
-    for (const event of events) {
-      const { summary, start, end, private: priv } = event;
+      for (const event of events) {
+        const { summary, start, end, private: priv } = event;
 
-      if (priv.pawbook === 'true') {
-        const category = priv.category;
-        const petCount = Number(priv.petCount) || 1;
-        const email = priv.customerEmail;
+        if (priv.pawbook === 'true') {
+          const category = priv.category;
+          const petCount = Number(priv.petCount) || 1;
+          const email = priv.customerEmail;
 
-        if (category === 'boarding') {
-          capacityEvents.push({ start_date: start, end_date: end, type: 'boarding', petCount });
-        } else if (category === 'housesitting') {
-          capacityEvents.push({ start_date: start, end_date: end, type: 'house-sit' });
-        }
-        // walk/daycare/checkin: no capacity event
-
-        if (email === callerEmail) {
-          for (let d = start; d < end; d = addDays(d, 1)) {
-            mineDays.add(d);
+          if (category === 'boarding') {
+            capacityEvents.push({ start_date: start, end_date: end, type: 'boarding', petCount });
+          } else if (category === 'housesitting') {
+            capacityEvents.push({ start_date: start, end_date: end, type: 'house-sit' });
           }
+          // walk/daycare/checkin: no capacity event
+
+          if (email === callerEmail) {
+            for (let d = start; d < end; d = addDays(d, 1)) {
+              mineDays.add(d);
+            }
+          }
+        } else if (summary.trim().toLowerCase() === 'unavailable') {
+          capacityEvents.push({ start_date: start, end_date: end, type: 'blocked' });
         }
-      } else if (summary.trim().toLowerCase() === 'unavailable') {
-        capacityEvents.push({ start_date: start, end_date: end, type: 'blocked' });
+        // else: ignore unrecognized events
       }
-      // else: ignore unrecognized events
     }
+  } catch {
+    // Calendar read failed (e.g. Google 5xx, token refresh error). Fail open: treat as if
+    // no calendar is connected so the widget stays usable. All days will appear available.
   }
 
   const cap = buildCapacity(capacityEvents);

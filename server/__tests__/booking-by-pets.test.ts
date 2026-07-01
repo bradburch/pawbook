@@ -37,6 +37,31 @@ describe('booking by petIds', () => {
     expect(mine.bookings[0].pets.sort()).toEqual(['Bella', 'Mochi']);
   });
 
+  it('dedupes duplicate petIds in a booking', async () => {
+    const { env } = createTestEnv();
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const book = await req(env, '/api/sunny-paws/bookings', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'boarding',
+        optionKey: 'standard',
+        startDate: '2026-09-01',
+        endDate: '2026-09-03',
+        petIds: ['pet_sp_bella', 'pet_sp_bella'],
+      }),
+    });
+    expect(book.status).toBe(201);
+
+    const mine = (await (
+      await req(env, '/api/sunny-paws/bookings/mine', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ).json()) as { bookings: { id: string; petCount: number; pets: string[] }[] };
+    expect(mine.bookings[0].petCount).toBe(1);
+    expect(mine.bookings[0].pets).toEqual(['Bella']);
+  });
+
   it("rejects a pet the caller doesn't own", async () => {
     const { env } = createTestEnv();
     const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
