@@ -1,6 +1,7 @@
 import type {
   BookingRow,
   EndUser,
+  EndUserPet,
   PetType,
   ProviderConnection,
   ProviderConnectionWithTokens,
@@ -558,4 +559,54 @@ export async function setProviderStatus(
     )
     .bind(crypto.randomUUID(), tenantId, capability, provider, status, connectedAt)
     .run();
+}
+
+export async function listEndUserPets(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+): Promise<EndUserPet[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT Id, TenantId, EndUserId, Name, PetType, CreatedAt
+       FROM EndUserPets WHERE TenantId = ? AND EndUserId = ? ORDER BY Name`,
+    )
+    .bind(tenantId, endUserId)
+    .all<EndUserPet>();
+  return results;
+}
+
+export async function addEndUserPet(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+  name: string,
+  petType: PetType,
+): Promise<EndUserPet> {
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO EndUserPets (Id, TenantId, EndUserId, Name, PetType) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(id, tenantId, endUserId, name, petType)
+    .run();
+  const row = await db
+    .prepare(
+      `SELECT Id, TenantId, EndUserId, Name, PetType, CreatedAt FROM EndUserPets WHERE Id = ?`,
+    )
+    .bind(id)
+    .first<EndUserPet>();
+  return row!;
+}
+
+export async function removeEndUserPet(
+  db: D1Database,
+  tenantId: string,
+  petId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM EndUserPets WHERE TenantId = ? AND Id = ?')
+    .bind(tenantId, petId)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
 }

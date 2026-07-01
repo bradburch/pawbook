@@ -52,6 +52,15 @@ export type EndUser = {
   InvitedAt: string | null;
 };
 
+export type EndUserPet = {
+  Id: string;
+  TenantId: string;
+  EndUserId: string;
+  Name: string;
+  PetType: 'dog' | 'cat';
+  CreatedAt: string;
+};
+
 export type BookingRow = {
   Id: string;
   TenantId: string;
