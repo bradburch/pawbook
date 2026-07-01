@@ -610,3 +610,34 @@ export async function removeEndUserPet(
     .run();
   return (result.meta as { changes?: number }).changes !== 0;
 }
+
+export async function addBookingPets(
+  db: D1Database,
+  bookingId: string,
+  petIds: string[],
+): Promise<void> {
+  for (const petId of petIds) {
+    await db
+      .prepare('INSERT INTO BookingRequestPets (BookingRequestId, PetId) VALUES (?, ?)')
+      .bind(bookingId, petId)
+      .run();
+  }
+}
+
+export async function listBookingPetsForUser(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+): Promise<{ BookingRequestId: string; PetId: string; Name: string; PetType: 'dog' | 'cat' }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT brp.BookingRequestId, brp.PetId, p.Name, p.PetType
+       FROM BookingRequestPets brp
+       JOIN EndUserPets p ON p.Id = brp.PetId
+       JOIN BookingRequests br ON br.Id = brp.BookingRequestId
+       WHERE br.TenantId = ? AND br.EndUserId = ?`,
+    )
+    .bind(tenantId, endUserId)
+    .all<{ BookingRequestId: string; PetId: string; Name: string; PetType: 'dog' | 'cat' }>();
+  return results;
+}
