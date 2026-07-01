@@ -11,7 +11,7 @@ import {
   listServiceOptions,
   listServices,
 } from '../db/repo';
-import { checkAvailability, estimateCost } from '../lib/availability';
+import { checkAvailability, estimateCost, monthAvailability } from '../lib/availability';
 import { syncBookingToCalendar } from '../lib/calendar-sync';
 import { SERVICE_CATALOG, isServiceType } from '../lib/services';
 import { endUserAuth } from '../lib/middleware';
@@ -21,8 +21,20 @@ import type { AppEnv } from '../types';
 export const bookingRoutes = new Hono<AppEnv>()
   // Scoped tightly to the booking paths so the merged middleware never guards public routes.
   .use('/:slug/me', endUserAuth)
+  .use('/:slug/availability/month', endUserAuth)
   .use('/:slug/bookings', endUserAuth)
   .use('/:slug/bookings/*', endUserAuth)
+
+  .get('/:slug/availability/month', async (c) => {
+    const tenant = c.get('tenant');
+    const type = c.req.query('type');
+    const month = c.req.query('month') ?? '';
+    if (!isServiceType(type)) return c.json({ error: 'Unknown service type.' }, 400);
+    if (!/^\d{4}-\d{2}$/.test(month)) return c.json({ error: 'Bad month.' }, 400);
+    const user = await getEndUserById(c.env.PAWBOOK_DB, tenant.Id, c.get('endUserId'));
+    const result = await monthAvailability(c.env, tenant, type, month, user?.Email ?? '');
+    return c.json(result);
+  })
 
   .get('/:slug/me', async (c) => {
     const tenant = c.get('tenant');
