@@ -105,7 +105,7 @@ export function Calendar({
       onChange({ start: date });
       return;
     }
-    // range: first tap = check-in; second tap = checkout (must be after start)
+    // range: first tap = start; second tap = end (must be after start)
     if (!value.start || value.end || date < value.start) {
       onChange({ start: date });
     } else {
@@ -131,8 +131,8 @@ export function Calendar({
   const hint =
     shape === 'range'
       ? value.start && !value.end
-        ? 'Now tap check-out date.'
-        : 'Tap check-in date.'
+        ? 'Now tap end date.'
+        : 'Tap start date.'
       : 'Tap any date to select.';
 
   return (
