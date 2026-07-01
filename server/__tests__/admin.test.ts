@@ -265,6 +265,7 @@ describe('tenant admin', () => {
         authMode: 'stub',
         status: 'disconnected',
         connectedAt: null,
+        calendarId: null,
       },
     ]);
   });

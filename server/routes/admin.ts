@@ -18,6 +18,7 @@ import {
   listServices,
   removeEndUserPet,
   replaceServiceOptions,
+  setProviderCalendarId,
   setPetTypeEnabled,
   setProviderStatus,
   setServiceEnabled,
@@ -124,7 +125,17 @@ export const adminRoutes = new Hono<AppEnv>()
           })),
       })),
       blocked: blocked.map((b) => ({ id: b.Id, startDate: b.StartDate, endDate: b.EndDate })),
-      providers: providerViews(connections),
+      providers: providerViews(connections).map(
+        ({ capability, provider, label, authMode, status, connectedAt, calendarId }) => ({
+          capability,
+          provider,
+          label,
+          authMode,
+          status,
+          connectedAt,
+          calendarId,
+        }),
+      ),
     });
   })
 
@@ -313,6 +324,16 @@ export const adminRoutes = new Hono<AppEnv>()
     }
     await clearProviderConnection(c.env.PAWBOOK_DB, tenant.Id, 'calendar');
     return c.json({ status: 'disconnected' });
+  })
+
+  .post('/:slug/admin/providers/calendar/calendar-id', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req
+      .json<{ calendarId?: unknown }>()
+      .catch(() => ({}) as { calendarId?: unknown });
+    const raw = typeof body.calendarId === 'string' ? body.calendarId.trim() : '';
+    await setProviderCalendarId(c.env.PAWBOOK_DB, tenant.Id, 'calendar', raw === '' ? null : raw);
+    return c.body(null, 204);
   })
 
   .get('/:slug/admin/customers', async (c) => {

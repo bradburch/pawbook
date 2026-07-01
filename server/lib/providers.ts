@@ -27,6 +27,7 @@ export const CAPABILITIES: readonly CapabilityDescriptor[] = [
 export type ProviderView = CapabilityDescriptor & {
   status: 'disconnected' | 'connected-stub' | 'connected';
   connectedAt: string | null;
+  calendarId: string | null;
 };
 
 /** Merge the static registry with a tenant's persisted connection rows. */
@@ -40,6 +41,7 @@ export function providerViews(
       ...descriptor,
       status: row?.Status ?? 'disconnected',
       connectedAt: row?.ConnectedAt ?? null,
+      calendarId: row?.CalendarId ?? null,
     };
   });
 }

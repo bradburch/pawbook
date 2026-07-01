@@ -235,11 +235,23 @@ export async function listProviderConnections(
 ): Promise<ProviderConnection[]> {
   const { results } = await db
     .prepare(
-      'SELECT Id, TenantId, Capability, Provider, Status, ConnectedAt FROM ProviderConnections WHERE TenantId = ?',
+      'SELECT Id, TenantId, Capability, Provider, Status, ConnectedAt, CalendarId FROM ProviderConnections WHERE TenantId = ?',
     )
     .bind(tenantId)
     .all<ProviderConnection>();
   return results;
+}
+
+export async function setProviderCalendarId(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+  calendarId: string | null,
+): Promise<void> {
+  await db
+    .prepare('UPDATE ProviderConnections SET CalendarId = ? WHERE TenantId = ? AND Capability = ?')
+    .bind(calendarId, tenantId, capability)
+    .run();
 }
 
 export async function updateTenantSettings(

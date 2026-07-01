@@ -177,6 +177,12 @@ export const adminApi = {
         method: 'POST',
         headers: authHeaders(token),
       }),
+    setCalendarId: (slug: string, token: string, calendarId: string) =>
+      request<unknown>(`/api/${slug}/admin/providers/calendar/calendar-id`, {
+        method: 'POST',
+        headers: { ...jsonHeaders, ...authHeaders(token) },
+        body: JSON.stringify({ calendarId }),
+      }),
   },
 };
 

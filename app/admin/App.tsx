@@ -83,6 +83,7 @@ type Settings = {
     authMode: 'oauth' | 'stub';
     status: string;
     connectedAt: string | null;
+    calendarId?: string | null;
   }[];
 };
 
@@ -309,6 +310,57 @@ function PetAdder({
         }}
       >
         Add pet
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Small inline field for setting the pet-sitting calendar id on a connected Google Calendar.
+ * Keyed on the capability so local state resets if the provider changes.
+ */
+function CalendarIdField({
+  slug,
+  token,
+  initialValue,
+  onSave,
+  onError,
+}: {
+  slug: string;
+  token: string;
+  initialValue: string | null | undefined;
+  onSave: () => void;
+  onError: (e: unknown) => void;
+}) {
+  const [value, setValue] = useState(initialValue ?? '');
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await adminApi.calendar.setCalendarId(slug, token, value);
+      onSave();
+    } catch (e) {
+      onError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pb-inline">
+      <label>
+        Pet-sitting calendar ID <span className="pb-hint">(blank = primary)</span>
+        <input
+          type="text"
+          placeholder="primary"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </label>
+      <button onClick={() => void save()} disabled={busy}>
+        {busy ? 'Saving…' : 'Save'}
       </button>
     </div>
   );
@@ -780,7 +832,17 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
               {p.label} — <em>{p.status}</em>{' '}
               {p.authMode === 'oauth' ? (
                 p.status === 'connected' ? (
-                  <button onClick={() => void disconnectCalendar()}>Disconnect</button>
+                  <>
+                    <button onClick={() => void disconnectCalendar()}>Disconnect</button>
+                    <CalendarIdField
+                      key={p.capability}
+                      slug={slug}
+                      token={token}
+                      initialValue={p.calendarId}
+                      onSave={() => void refresh()}
+                      onError={handle}
+                    />
+                  </>
                 ) : (
                   <button onClick={() => void connectCalendar()}>Connect Google Calendar</button>
                 )

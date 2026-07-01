@@ -85,6 +85,7 @@ export type ProviderConnection = {
   Provider: string;
   Status: 'disconnected' | 'connected-stub' | 'connected';
   ConnectedAt: string | null;
+  CalendarId: string | null;
 };
 
 /** Server-internal: includes encrypted OAuth token columns. NEVER serialize to a client. */
