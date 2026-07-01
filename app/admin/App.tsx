@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
 import { adminApi, type Customer } from '../shared-ui/api.js';
 import './admin.css';
@@ -208,6 +208,76 @@ function Snippets({ session }: { session: Session }) {
   );
 }
 
+/**
+ * A live, same-origin preview of the sitter's own embed widget — the exact `/embed/:slug` page a
+ * customer sees, rendered with the tenant's SAVED branding, rates, and rules. `reloadKey` is bumped
+ * after a save to remount the frame with fresh config. The widget always fetches config
+ * server-side, so this never exposes anything the customer can't already see.
+ *
+ * Sizing: the production loader auto-resizes off the widget's `pawbook:resize` postMessage because
+ * it frames the widget CROSS-origin and can't read its document. This preview is SAME-origin, so it
+ * measures `contentDocument` directly and watches the inner <body> — more reliable than the
+ * widget's single ping, which fires before its date inputs and fonts settle.
+ */
+function WidgetPreview({ slug, reloadKey }: { slug: string; reloadKey: number }) {
+  const [height, setHeight] = useState(520);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  // `reloadKey` remounts the iframe (fresh config after a save). Sizing off the iframe `load` event
+  // is fragile — cache and StrictMode double-mount can drop it — so we briefly poll instead. Each
+  // tick re-observes whenever the iframe's <body> changes (the about:blank → /embed navigation
+  // swaps it); a ResizeObserver then tracks later changes (e.g. switching widget tabs). We measure
+  // the BODY's height, not documentElement.scrollHeight — the latter is floored at the iframe's own
+  // height, so it reads a stale 520 while the widget is still loading.
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    let observer: ResizeObserver | null = null;
+    let observed: HTMLElement | null = null;
+    let ticks = 0;
+    const measure = () => {
+      const body = frame.contentDocument?.body;
+      if (body) setHeight(Math.max(320, body.scrollHeight));
+    };
+    const tick = () => {
+      const body = frame.contentDocument?.body; // same-origin first-party path — always readable.
+      if (body && body !== observed) {
+        observer?.disconnect();
+        observer = new ResizeObserver(measure);
+        observer.observe(body);
+        observed = body;
+      }
+      measure();
+      if (++ticks > 25) window.clearInterval(timer); // ~5s; the ResizeObserver carries on after.
+    };
+    const timer = window.setInterval(tick, 200);
+    tick();
+    return () => {
+      window.clearInterval(timer);
+      observer?.disconnect();
+    };
+  }, [reloadKey]);
+
+  return (
+    <div className="pb-preview">
+      <div className="pb-preview-bar" aria-hidden="true">
+        <span className="pb-dot" />
+        <span className="pb-dot" />
+        <span className="pb-dot" />
+        <span className="pb-preview-url">/embed/{slug}</span>
+      </div>
+      <iframe
+        key={reloadKey}
+        ref={frameRef}
+        className="pb-preview-frame"
+        title="Live preview of your booking widget"
+        src={`/embed/${encodeURIComponent(slug)}`}
+        style={{ height }}
+      />
+    </div>
+  );
+}
+
 function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const { token, slug } = session;
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -215,6 +285,8 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const [blockEnd, setBlockEnd] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  // Bumped after a successful save so the embed preview remounts and pulls the fresh config.
+  const [previewKey, setPreviewKey] = useState(0);
 
   const handle = useCallback(
     (e: unknown) => {
@@ -265,6 +337,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         }),
       });
       setMessage('Saved — the widget reflects this on next load.');
+      setPreviewKey((k) => k + 1);
     } catch (e) {
       handle(e);
     }
@@ -656,6 +729,13 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
       <section id="embed">
         <h2>Embed on your website</h2>
+        <p>
+          <small>
+            A live preview of your widget — exactly what customers see, with your saved branding.
+            Save settings to refresh it.
+          </small>
+        </p>
+        <WidgetPreview slug={slug} reloadKey={previewKey} />
         <Snippets session={session} />
       </section>
     </div>
