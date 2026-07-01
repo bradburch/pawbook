@@ -1,5 +1,6 @@
 import { formatShortDate } from '../../src/shared/index.js';
 import { useCallback, useEffect, useState } from 'react';
+import { Calendar } from './Calendar';
 
 const errorMsg = (e: unknown): string => (e instanceof Error ? e.message : 'Try again.');
 import {
@@ -103,6 +104,7 @@ function BookTab({ config }: { config: TenantConfig }) {
   const service = config.services.find((s) => s.type === type) ?? config.services[0];
   const [optionKey, setOptionKey] = useState(service?.options[0]?.optionKey ?? '');
   const [petType, setPetType] = useState(config.petTypes[0] ?? '');
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [pets, setPets] = useState(1);
@@ -247,30 +249,20 @@ function BookTab({ config }: { config: TenantConfig }) {
         </label>
       )}
 
-      <label>
-        {service.shape === 'range' ? 'Check-in' : 'Date'}
-        <input
-          type="date"
-          value={start}
-          onChange={(e) => {
-            setStart(e.target.value);
-            resetCheck();
-          }}
-        />
-      </label>
-      {service.shape === 'range' && (
-        <label>
-          Checkout
-          <input
-            type="date"
-            value={end}
-            onChange={(e) => {
-              setEnd(e.target.value);
-              resetCheck();
-            }}
-          />
-        </label>
-      )}
+      <Calendar
+        slug={slug}
+        token={getToken(slug) ?? ''}
+        serviceType={type}
+        shape={service.shape === 'range' ? 'range' : 'single'}
+        month={month}
+        onMonthChange={setMonth}
+        value={{ start, end: end || undefined }}
+        onChange={(v) => {
+          setStart(v.start);
+          setEnd(v.end ?? '');
+          resetCheck();
+        }}
+      />
       <label>
         Pets
         <input

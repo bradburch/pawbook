@@ -294,3 +294,128 @@ body {
   color: var(--bp-soft);
   margin: 0 0 12px;
 }
+
+/* ── Availability Calendar ────────────────────────────────────── */
+.bp-cal {
+  margin-bottom: 18px;
+}
+.bp-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+/* Scope under .bp-book to beat .bp-book button (0,1,1) with specificity 0,2,1 */
+.bp-book .bp-cal-nav button {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: var(--bp-navy);
+  cursor: pointer;
+  padding: 4px 10px;
+  font-weight: 400;
+  border-radius: 4px;
+}
+.bp-book .bp-cal-nav button:hover {
+  background: var(--bp-sage-soft);
+  filter: none;
+}
+.bp-cal-title {
+  font-family: var(--bp-round);
+  font-weight: 700;
+  color: var(--bp-navy);
+}
+.bp-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.bp-cal-weekday {
+  text-align: center;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--bp-sage);
+  padding: 6px 0;
+}
+.bp-cal-empty {
+  aspect-ratio: 1;
+}
+/* Scope under .bp-book to beat .bp-book button (0,1,1) with specificity 0,2,0 */
+.bp-book .bp-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--bp-navy);
+  font-size: 0.9rem;
+  font-family: var(--bp-mono);
+  font-weight: 400;
+  padding: 0;
+}
+.bp-book .bp-cal-day small {
+  font-size: 0.55rem;
+  color: var(--bp-soft);
+}
+.bp-book .bp-cal-day:hover:not(:disabled) {
+  background: var(--bp-sage-soft);
+  filter: none;
+}
+.bp-book .bp-cal-day.bp-past {
+  color: #c9c9c0;
+  cursor: default;
+}
+.bp-book .bp-cal-day.bp-unavail {
+  color: var(--bp-unavail);
+  cursor: default;
+  text-decoration: line-through;
+}
+.bp-book .bp-cal-day.bp-partial {
+  box-shadow: inset 0 0 0 1.5px var(--bp-accent);
+}
+.bp-book .bp-cal-day.bp-mine {
+  background: color-mix(in srgb, var(--bp-navy) 12%, transparent);
+}
+.bp-book .bp-cal-day.bp-sel {
+  background: var(--bp-accent);
+  color: #fff;
+}
+.bp-cal-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 0 0;
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--bp-soft);
+}
+.bp-cal-legend li::before {
+  content: '●';
+  margin-right: 4px;
+}
+.bp-lg-available::before {
+  color: var(--bp-rule);
+}
+.bp-lg-partial::before {
+  color: var(--bp-accent);
+}
+.bp-lg-mine::before {
+  color: var(--bp-navy);
+}
+.bp-lg-unavail::before {
+  color: var(--bp-unavail);
+}
+.bp-lg-sel::before {
+  color: var(--bp-accent);
+}
+.bp-cal-hint {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--bp-soft);
+  text-align: center;
+}
