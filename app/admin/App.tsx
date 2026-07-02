@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
 import { adminApi, type Customer } from '../shared-ui/api.js';
+import {
+  IconCalendar,
+  IconCode,
+  IconPaw,
+  IconPlug,
+  IconStore,
+  IconTag,
+  IconUsers,
+} from '../shared-ui/icons';
 import './admin.css';
 
 const TIMEZONES: string[] =
@@ -589,14 +598,27 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   return (
     <div className="pb-wrap">
       <header className="pb-topbar">
-        <h1>{settings.displayName} — admin</h1>
-        <button className="pb-signout" onClick={onSignOut}>
-          Sign out
-        </button>
+        <div className="pb-topbar-row">
+          <h1>{settings.displayName}</h1>
+          <button className="pb-signout" onClick={onSignOut}>
+            Sign out
+          </button>
+        </div>
+        <nav className="pb-nav" aria-label="Sections">
+          <a href="#business">Business</a>
+          <a href="#pets">Pets</a>
+          <a href="#services">Services</a>
+          <a href="#timeoff">Time off</a>
+          <a href="#clients">Clients</a>
+          <a href="#apps">Apps</a>
+          <a href="#embed">Embed</a>
+        </nav>
       </header>
 
-      <section>
-        <h2>Your business</h2>
+      <section id="business" className="pb-card">
+        <h2>
+          <IconStore size={18} /> Your business
+        </h2>
         <label>
           Business name
           <input
@@ -648,8 +670,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         </label>
       </section>
 
-      <section>
-        <h2>Pets you care for</h2>
+      <section id="pets" className="pb-card">
+        <h2>
+          <IconPaw size={18} /> Pets you care for
+        </h2>
         {settings.petTypes.map((p, i) => (
           <label className="pb-inline" key={p.petType}>
             <input
@@ -666,8 +690,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         ))}
       </section>
 
-      <section>
-        <h2>Services &amp; rates</h2>
+      <section id="services" className="pb-card">
+        <h2>
+          <IconTag size={18} /> Services &amp; rates
+        </h2>
         {settings.services.map((s, si) => {
           const setService = (next: ServiceForm) => {
             const services = [...settings.services];
@@ -772,8 +798,11 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       {message && <p className="pb-ok">{message}</p>}
       {error && <p className="pb-error">{error}</p>}
 
-      <section>
-        <h2>Time off</h2>
+      <section id="timeoff" className="pb-card">
+        <h2>
+          <IconCalendar size={18} /> Time off
+        </h2>
+        <p className="pb-applies">Changes here apply immediately.</p>
         <ul>
           {settings.blocked.map((b) => (
             <li key={b.id}>
@@ -789,12 +818,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         </div>
       </section>
 
-      <section>
-        <h2>Your clients</h2>
-        <p>
-          <small>
-            Only clients you invite can book — adding one sends them an invite by email.
-          </small>
+      <section id="clients" className="pb-card">
+        <h2>
+          <IconUsers size={18} /> Your clients
+        </h2>
+        <p className="pb-applies">
+          Only clients you invite can book — adding one sends them an invite by email.
         </p>
         <div className="pb-row">
           <input
@@ -837,8 +866,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         </ul>
       </section>
 
-      <section>
-        <h2>Connected apps</h2>
+      <section id="apps" className="pb-card">
+        <h2>
+          <IconPlug size={18} /> Connected apps
+        </h2>
         <ul>
           {settings.providers.map((p) => (
             <li key={p.capability}>
@@ -872,13 +903,13 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         </p>
       </section>
 
-      <section id="embed">
-        <h2>Add to your website</h2>
-        <p>
-          <small>
-            A live preview of your widget — exactly what customers see, with your saved branding.
-            Save settings to refresh it.
-          </small>
+      <section id="embed" className="pb-card">
+        <h2>
+          <IconCode size={18} /> Add to your website
+        </h2>
+        <p className="pb-applies">
+          A live preview of your widget — exactly what customers see, with your saved branding. Save
+          settings to refresh it.
         </p>
         <WidgetPreview slug={slug} reloadKey={previewKey} />
         <Snippets session={session} />

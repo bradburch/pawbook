@@ -1,19 +1,27 @@
 /*
- * Sitter dashboard — the full "Keeper's Ledger" identity, first-party.
- * Sections are pages of the book: a serif heading tabbed with a marigold underline, ruled
- * dividers, monospace for all data (dates, prices, statuses, embed snippets). Primary actions
- * are solid pine-ink; secondary/destructive actions are quiet ghost buttons.
+ * Sitter dashboard — Pawbook's warm modern identity, first-party.
+ * Cream page, white section cards with icon headers, pine-navy actions.
+ * Marigold appears only as highlight (focus rings, section icons); the serif
+ * and mono-uppercase ledger look is gone. Mono survives only in embed snippets.
  */
 :root {
-  --paper: #ece6d8;
-  --paper-2: #f7f3ea;
-  --ink: #26312e;
-  --soft: #5e675f;
-  --rule: #d6cebc;
-  --accent: #c77d0a;
+  --page: #faf8f3;
+  --card: #ffffff;
+  --ink: #1c3a4a;
+  --body: #26312e;
+  --soft: #5c6b66;
+  --line: #e7e0d2;
+  --sage: #9db8a4;
+  --sage-wash: #eef3ee;
+  --gold: #c77d0a;
   --ok: #1f6b57;
-  --bad: #9e3b4e;
-  --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', Palatino, serif;
+  --ok-wash: #eef6f0;
+  --warn: #8a5a00;
+  --warn-wash: #fdf3e0;
+  --bad: #b3403a;
+  --bad-wash: #faf0ef;
+  --display:
+    ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Quicksand, system-ui, sans-serif;
   --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -25,62 +33,112 @@
 body {
   margin: 0;
   font-family: var(--sans);
-  color: var(--ink);
+  color: var(--body);
   line-height: 1.5;
-  background-color: var(--paper);
-  background-image: radial-gradient(120% 60% at 50% -10%, #f2ecdd 0%, var(--paper) 60%);
+  background: var(--page);
 }
 
 .pb-wrap {
-  max-width: 660px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 28px 20px 64px;
-}
-
-/* ── Section = a page of the book ──────────────────────────────── */
-.pb-wrap section {
-  margin-top: 30px;
-  padding-top: 0;
-  border-top: none;
+  padding: 0 20px 96px;
 }
 
 .pb-wrap h1 {
-  font-family: var(--serif);
+  font-family: var(--display);
   font-weight: 700;
-  font-size: 1.7rem;
-  letter-spacing: -0.015em;
+  font-size: 1.45rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
   margin: 0;
 }
 
+/* ── Sticky topbar with section nav ────────────────────────────── */
+.pb-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 -20px;
+  padding: 14px 20px 0;
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.pb-topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pb-nav {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 6px 0 0;
+}
+
+.pb-nav a {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--soft);
+  text-decoration: none;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.pb-nav a:hover {
+  color: var(--ink);
+  background: var(--sage-wash);
+  border-bottom-color: var(--sage);
+}
+
+/* ── Section cards ─────────────────────────────────────────────── */
+.pb-card {
+  margin-top: 20px;
+  padding: 20px 24px 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px -22px rgba(28, 58, 74, 0.45);
+  scroll-margin-top: 108px;
+}
+
 .pb-wrap h2 {
-  font-family: var(--serif);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--display);
   font-weight: 700;
-  font-size: 1.15rem;
-  margin: 0 0 14px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--rule);
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin: 0 0 16px;
 }
 
-/* The marigold tab under each heading — the ledger's highlighter. */
-.pb-wrap h2::after {
-  content: '';
-  display: block;
-  width: 34px;
-  height: 2px;
-  margin-bottom: -1px;
-  margin-top: 8px;
-  background: var(--accent);
+.pb-wrap h2 svg {
+  color: var(--gold);
+  flex: none;
 }
 
+/* Notes under a heading: what this section does / when changes apply. */
+.pb-applies {
+  margin: -8px 0 14px;
+  font-size: 0.85rem;
+  color: var(--soft);
+}
+
+/* ── Fields ────────────────────────────────────────────────────── */
 .pb-wrap label {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   margin-bottom: 14px;
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--soft);
 }
 
@@ -90,43 +148,46 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  text-transform: none;
-  letter-spacing: normal;
-  font-family: var(--sans);
   font-size: 0.95rem;
-  color: var(--ink);
+  font-weight: 400;
+  color: var(--body);
 }
 
 .pb-wrap input,
 .pb-wrap textarea,
 .pb-wrap select {
-  padding: 9px 10px;
-  background: #fff;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   font-family: var(--sans);
   font-size: 0.95rem;
-  color: var(--ink);
+  color: var(--body);
 }
 
 .pb-wrap input[type='number'] {
-  font-family: var(--mono);
   max-width: 8.5rem;
 }
 
 .pb-wrap input[type='color'] {
-  padding: 2px;
-  width: 48px;
-  height: 34px;
+  padding: 3px;
+  width: 52px;
+  height: 36px;
   cursor: pointer;
+}
+
+.pb-wrap input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--ink);
 }
 
 .pb-wrap input:focus,
 .pb-wrap textarea:focus,
 .pb-wrap select:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 22%, transparent);
 }
 
 .pb-wrap textarea {
@@ -135,24 +196,26 @@ body {
   font-size: 0.8rem;
   line-height: 1.5;
   resize: vertical;
+  background: #fbfaf6;
 }
 
-/* ── Buttons: solid ink = primary, ghost = secondary/destructive ── */
+/* ── Buttons ───────────────────────────────────────────────────── */
 .pb-wrap button {
-  padding: 9px 16px;
-  border-radius: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
   border: 1px solid var(--ink);
   background: var(--ink);
-  color: var(--paper-2);
-  font-family: var(--sans);
+  color: #fff;
+  font-family: var(--display);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  min-height: 40px;
   transition: filter 0.12s ease;
 }
 
 .pb-wrap button:hover {
-  filter: brightness(1.15);
+  filter: brightness(1.18);
 }
 
 .pb-wrap button:disabled {
@@ -160,13 +223,14 @@ body {
   cursor: default;
 }
 
-/* Row-level actions (Remove, Disconnect, Add duration) read as quiet ghosts. */
+/* Row-level actions (Remove, Disconnect, Add duration) are quiet ghosts. */
 .pb-wrap li button,
 .pb-wrap .pb-options button,
 .pb-signout {
   background: none;
-  color: var(--ink);
-  border: 1px solid var(--rule);
+  color: var(--soft);
+  border: 1px solid var(--line);
+  font-family: var(--sans);
   font-weight: 500;
 }
 
@@ -174,33 +238,16 @@ body {
 .pb-wrap .pb-options button:hover,
 .pb-signout:hover {
   filter: none;
-  border-color: var(--ink);
-  background: #fff;
+  color: var(--ink);
+  border-color: var(--sage);
+  background: var(--sage-wash);
 }
 
-.pb-save {
-  margin-top: 16px;
-}
-
-.pb-topbar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--ink);
-  flex-wrap: wrap;
-}
-
-/* ── Data lists — ruled ledger rows, monospace data ────────────── */
+/* ── Data lists ────────────────────────────────────────────────── */
 .pb-wrap ul {
   list-style: none;
   margin: 0 0 12px;
   padding: 0;
-}
-
-.pb-wrap li.pb-customer {
-  display: block;
 }
 
 .pb-wrap li {
@@ -209,28 +256,46 @@ body {
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--rule);
-  font-family: var(--mono);
-  font-size: 0.82rem;
-  color: var(--soft);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.92rem;
+  color: var(--body);
 }
 
 .pb-wrap li:last-child {
   border-bottom: none;
 }
 
-/* Status values ("connected", "invited", "pending") as small-caps chips. */
-.pb-wrap li em {
+.pb-wrap li.pb-customer {
+  display: block;
+}
+
+/* Status chips: soft pills, sentence case. */
+.pb-wrap li em,
+.pb-chip {
   font-style: normal;
-  text-transform: uppercase;
-  font-size: 0.66rem;
-  letter-spacing: 0.09em;
-  color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--rule);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  color: var(--soft);
+  background: var(--sage-wash);
+  border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 2px 9px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.pb-chip-ok {
+  color: var(--ok);
+  background: var(--ok-wash);
+  border-color: color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.pb-chip-warn {
+  color: var(--warn);
+  background: var(--warn-wash);
+  border-color: color-mix(in srgb, var(--warn) 25%, transparent);
 }
 
 /* Add-a-customer / block-a-range input rows. */
@@ -248,11 +313,13 @@ body {
 .pb-service {
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px dashed var(--rule);
+  border-bottom: 1px dashed var(--line);
 }
 
 .pb-service:last-of-type {
   border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .pb-options {
@@ -275,21 +342,51 @@ body {
 
 .pb-hint {
   color: var(--soft);
-  font-family: var(--sans);
+  font-size: 0.82rem;
   font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
 }
 
-/* ── Login — a small card echoing the landing ledger ───────────── */
+/* ── Sticky save bar (appears only when settings are dirty) ────── */
+.pb-savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 -8px 24px -16px rgba(28, 58, 74, 0.7);
+}
+
+.pb-savebar p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.pb-wrap .pb-savebar button {
+  background: #fff;
+  color: var(--ink);
+  border-color: #fff;
+}
+
+.pb-wrap .pb-savebar button:hover {
+  filter: brightness(0.92);
+}
+
+/* ── Login card ────────────────────────────────────────────────── */
 .pb-login {
-  max-width: 380px;
+  max-width: 400px;
   margin-top: 12vh;
   padding: 28px 26px;
-  background: var(--paper-2);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  box-shadow: 0 18px 40px -28px rgba(38, 49, 46, 0.6);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -28px rgba(28, 58, 74, 0.55);
 }
 
 .pb-login h1 {
@@ -301,30 +398,29 @@ body {
   margin-top: 6px;
 }
 
-/* ── Embed preview — the sitter's own widget, framed like a little browser ── */
+/* ── Embed preview: the sitter's widget in a little browser frame ── */
 .pb-preview {
   margin: 4px 0 20px;
-  border: 1px solid var(--rule);
-  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 14px 34px -28px rgba(38, 49, 46, 0.6);
+  background: var(--card);
 }
 
 .pb-preview-bar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
-  background: var(--paper-2);
-  border-bottom: 1px solid var(--rule);
+  padding: 9px 12px;
+  background: var(--page);
+  border-bottom: 1px solid var(--line);
 }
 
 .pb-preview-bar .pb-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--rule);
+  background: var(--line);
 }
 
 .pb-preview-url {
@@ -334,7 +430,6 @@ body {
   color: var(--soft);
 }
 
-/* The widget page paints its own paper surface inside; here we mimic a neutral host page. */
 .pb-preview-frame {
   display: block;
   width: 100%;
@@ -343,19 +438,21 @@ body {
 }
 
 :focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 3px solid color-mix(in srgb, var(--gold) 45%, transparent);
   outline-offset: 2px;
 }
 
 .pb-pets {
   margin: 6px 0 6px 18px;
 }
+
 .pb-pets li {
   border-bottom: none;
   padding: 4px 0;
   gap: 8px;
   justify-content: flex-start;
 }
+
 .pb-add-pet {
   margin-left: 18px;
   margin-top: 4px;
@@ -371,6 +468,6 @@ body {
   .pb-wrap input,
   .pb-wrap textarea,
   .pb-wrap select {
-    font-size: 16px;
+    font-size: 16px; /* prevents iOS zoom-on-focus */
   }
 }
