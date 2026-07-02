@@ -1,122 +1,649 @@
+/*
+ * Embed widget — warm modern pet-care identity, restrained for a guest on any host page.
+ * The tenant's chosen colour drives every ACTION via --bp-accent (set at runtime in App.tsx);
+ * Pawbook owns only the quiet bones: cream surface, pine-navy ink, sage neutrals, one rounded
+ * display face for headings/buttons. The signature moment is the calendar's connected range band.
+ */
 :root {
-  --bp-accent: #4f46e5;
+  --bp-accent: #c77d0a; /* fallback; the tenant overrides this per widget */
+  --bp-page: #faf8f3;
+  --bp-card: #ffffff;
+  --bp-ink: #1c3a4a;
+  --bp-body: #26312e;
+  --bp-soft: #5c6b66;
+  --bp-line: #e7e0d2;
+  --bp-sage: #9db8a4;
+  --bp-sage-wash: #eef3ee;
+  --bp-ok: #1f6b57;
+  --bp-ok-wash: #eef6f0;
+  --bp-bad: #b3403a;
+  --bp-bad-wash: #faf0ef;
+  --bp-display:
+    ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Quicksand, system-ui, sans-serif;
+  --bp-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
 }
 
 body {
   margin: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
-  color: #1f2937;
+  font-family: var(--bp-sans);
+  color: var(--bp-body);
+  line-height: 1.45;
 }
 
 .bp-widget {
   max-width: 420px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 22px;
+  background: var(--bp-page);
+  border: 1px solid var(--bp-line);
+  border-radius: 16px;
+  box-shadow: 0 14px 34px -26px rgba(28, 58, 74, 0.5);
 }
 
-.bp-widget header h1 {
-  font-size: 1.25rem;
-  margin: 0 0 8px;
-  color: var(--bp-accent);
+/* ── Headings & topline ────────────────────────────────────────── */
+.bp-greeting {
+  font-family: var(--bp-display);
+  font-weight: 700;
+  font-size: 1.55rem;
+  letter-spacing: -0.01em;
+  color: var(--bp-ink);
+  margin: 2px 0 14px;
 }
 
-.bp-widget nav {
+.bp-signin-lede {
+  color: var(--bp-soft);
+  margin: 0 0 16px;
+}
+
+.bp-topline {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  justify-content: flex-end;
+  margin-bottom: 2px;
 }
 
-.bp-widget nav button {
+.bp-mine-link {
   background: none;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 6px 12px;
+  border: none;
+  color: var(--bp-soft);
+  font-family: var(--bp-sans);
+  font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
+  padding: 10px;
+  min-height: 44px;
+  border-radius: 10px;
 }
 
-.bp-widget nav button.bp-active {
-  background: var(--bp-accent);
-  border-color: var(--bp-accent);
-  color: white;
+.bp-mine-link:hover {
+  color: var(--bp-ink);
+  background: var(--bp-sage-wash);
 }
 
 .bp-book,
 .bp-identify {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-.bp-book label {
+/* ── Fields ────────────────────────────────────────────────────── */
+.bp-field,
+.bp-book label.bp-field,
+.bp-identify .bp-field {
   display: flex;
   flex-direction: column;
-  font-size: 0.85rem;
-  gap: 4px;
+  gap: 6px;
+  font-family: var(--bp-sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--bp-soft);
+}
+
+.bp-identify p {
+  margin: 0;
 }
 
 .bp-book input,
 .bp-book select,
 .bp-identify input {
-  padding: 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  padding: 11px 12px;
+  background: var(--bp-card);
+  border: 1px solid var(--bp-line);
+  border-radius: 10px;
+  font-family: var(--bp-sans);
   font-size: 1rem;
+  font-weight: 400;
+  color: var(--bp-body);
 }
 
+.bp-book input:focus,
+.bp-book select:focus,
+.bp-identify input:focus {
+  outline: none;
+  border-color: var(--bp-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bp-accent) 22%, transparent);
+}
+
+/* The one-time code reads as six big slots. */
+.bp-identify input.bp-code {
+  text-align: center;
+  letter-spacing: 0.4em;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--bp-ink);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
 .bp-book button,
 .bp-identify button,
-.bp-result button {
+.bp-summary button {
   background: var(--bp-accent);
-  color: white;
+  color: #fff;
   border: none;
-  border-radius: 6px;
-  padding: 10px;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: var(--bp-display);
   font-size: 1rem;
-  cursor: pointer;
-}
-
-.bp-result {
-  border-radius: 6px;
-  padding: 12px;
-}
-
-.bp-result.bp-ok {
-  background: #ecfdf5;
-}
-
-.bp-result.bp-no {
-  background: #fef2f2;
-}
-
-.bp-error {
-  color: #b91c1c;
-}
-
-.bp-confirm {
-  color: #047857;
   font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+  transition: filter 0.12s ease;
 }
 
-.bp-proto-code {
-  background: #fffbeb;
-  border: 1px dashed #d97706;
-  border-radius: 6px;
-  padding: 8px;
+.bp-book button:hover,
+.bp-identify button:hover,
+.bp-summary button:hover {
+  filter: brightness(0.93);
 }
 
-.bp-mine {
-  list-style: none;
-  padding: 0;
+.bp-book button:disabled,
+.bp-identify button:disabled {
+  filter: saturate(0.35) brightness(1.08);
+  cursor: default;
+}
+
+/* ── Service pills ─────────────────────────────────────────────── */
+.bp-service-grid {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
+.bp-book .bp-service-card {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 15px 10px 12px;
+  min-height: 44px;
+  background: var(--bp-card);
+  border: 1.5px solid var(--bp-line);
+  border-radius: 999px;
+  color: var(--bp-soft);
+  font-family: var(--bp-display);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.bp-book .bp-service-card:hover {
+  filter: none;
+  border-color: var(--bp-sage);
+}
+
+.bp-book .bp-service-card.bp-selected {
+  border-color: var(--bp-accent);
+  background: color-mix(in srgb, var(--bp-accent) 9%, var(--bp-card));
+  color: var(--bp-ink);
+}
+
+.bp-service-emoji {
+  display: inline-flex;
+  color: inherit;
+}
+
+.bp-book .bp-service-card.bp-selected .bp-service-emoji {
+  color: var(--bp-accent);
+}
+
+.bp-service-label {
+  color: inherit;
+}
+
+/* ── Calendar ──────────────────────────────────────────────────── */
+.bp-cal {
+  margin-top: 4px;
+}
+
+.bp-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.bp-cal-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+}
+
+.bp-cal-title {
+  font-family: var(--bp-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--bp-ink);
+}
+
+.bp-cal-sub {
+  font-size: 0.78rem;
+  color: var(--bp-soft);
+}
+
+/* Scoped under .bp-book to beat `.bp-book button` on specificity. */
+.bp-book .bp-cal-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: var(--bp-ink);
+  padding: 0;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.bp-book .bp-cal-nav button:hover {
+  background: var(--bp-sage-wash);
+  filter: none;
+}
+
+.bp-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 3px;
+}
+
+.bp-cal-weekday {
+  text-align: center;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bp-sage);
+  padding: 6px 0;
+}
+
+.bp-cal-empty {
+  aspect-ratio: 1;
+}
+
+.bp-book .bp-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--bp-body);
+  font-family: var(--bp-sans);
+  font-size: 0.92rem;
+  font-weight: 500;
+  padding: 0;
+  min-height: 0;
+  transition: background-color 0.1s ease;
+}
+
+.bp-book .bp-cal-day small {
+  font-size: 0.55rem;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.bp-book .bp-cal-day:hover:not(:disabled) {
+  background: var(--bp-sage-wash);
+  filter: none;
+}
+
+.bp-book .bp-cal-day.bp-past {
+  color: #c4c4bb;
+  cursor: default;
+}
+
+.bp-book .bp-cal-day.bp-unavail {
+  color: color-mix(in srgb, var(--bp-bad) 70%, #fff);
+  cursor: default;
+  text-decoration: line-through;
+}
+
+.bp-book .bp-cal-day.bp-partial {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--bp-accent) 55%, transparent);
+}
+
+.bp-book .bp-cal-day.bp-mine {
+  background: color-mix(in srgb, var(--bp-ink) 10%, transparent);
+}
+
+/* The signature: a selected stay reads as one connected band across the days. */
+.bp-book .bp-cal-day.bp-sel {
+  background: var(--bp-accent);
+  color: #fff;
+  box-shadow: none;
+  text-decoration: none;
+}
+
+.bp-book .bp-cal-day.bp-sel-only {
+  border-radius: 50%;
+}
+
+.bp-book .bp-cal-day.bp-sel-start {
+  border-radius: 50% 0 0 50%;
+}
+
+.bp-book .bp-cal-day.bp-sel-end {
+  border-radius: 0 50% 50% 0;
+}
+
+.bp-book .bp-cal-day.bp-sel-mid {
+  border-radius: 0;
+  background: color-mix(in srgb, var(--bp-accent) 22%, var(--bp-card));
+  color: var(--bp-ink);
+}
+
+.bp-book .bp-cal-day.bp-sel:hover:not(:disabled) {
+  background: var(--bp-accent);
+}
+
+.bp-book .bp-cal-day.bp-sel-mid:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bp-accent) 30%, var(--bp-card));
+}
+
+.bp-cal-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 10px 0 0;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--bp-soft);
+}
+
+.bp-cal-legend li::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+.bp-lg-partial::before {
+  border: 1.5px solid color-mix(in srgb, var(--bp-accent) 55%, transparent);
+  width: 6px;
+  height: 6px;
+}
+
+.bp-lg-mine::before {
+  background: color-mix(in srgb, var(--bp-ink) 25%, transparent);
+}
+
+.bp-lg-unavail::before {
+  background: color-mix(in srgb, var(--bp-bad) 55%, #fff);
+}
+
+/* ── Details (pets + duration + summary) ───────────────────────── */
+.bp-details {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.bp-pets {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.bp-pets legend {
+  font-family: var(--bp-sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--bp-soft);
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.bp-pet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bp-pet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 14px 8px 10px;
+  background: var(--bp-card);
+  border: 1.5px solid var(--bp-line);
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--bp-body);
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.bp-pet-chip:hover {
+  border-color: var(--bp-sage);
+}
+
+/* Real checkbox for semantics; visually replaced by the round check badge. */
+.bp-pet-chip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+
+.bp-chip-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--bp-line);
+  color: transparent;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.bp-pet-chip.bp-on {
+  border-color: var(--bp-accent);
+  background: color-mix(in srgb, var(--bp-accent) 9%, var(--bp-card));
+}
+
+.bp-pet-chip.bp-on .bp-chip-check {
+  background: var(--bp-accent);
+  border-color: var(--bp-accent);
+  color: #fff;
+}
+
+.bp-pet-chip:has(input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--bp-accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.bp-pet-type {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  color: var(--bp-soft);
+}
+
+.bp-empty {
+  color: var(--bp-soft);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* ── Booking summary ───────────────────────────────────────────── */
+.bp-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bp-ok-wash);
+  border: 1px solid color-mix(in srgb, var(--bp-ok) 25%, transparent);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.bp-summary-dates {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--bp-soft);
+}
+
+.bp-summary-cost {
+  margin: 0 0 8px;
+  color: var(--bp-body);
+}
+
+.bp-summary-cost strong {
+  font-family: var(--bp-display);
+  font-size: 1.15rem;
+  color: var(--bp-ink);
+}
+
+.bp-result.bp-no {
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: var(--bp-bad-wash);
+  border: 1px solid color-mix(in srgb, var(--bp-bad) 22%, transparent);
+}
+
+.bp-result.bp-no p {
+  margin: 0;
+  color: var(--bp-bad);
+}
+
+.bp-error {
+  margin: 0;
+  color: var(--bp-bad);
+  font-size: 0.9rem;
+}
+
+.bp-confirm {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--bp-ok);
+  font-weight: 600;
+  background: var(--bp-ok-wash);
+  border: 1px solid color-mix(in srgb, var(--bp-ok) 25%, transparent);
+  border-radius: 12px;
+}
+
+/* Dev-mode login code: a small taped-in note. */
+.bp-proto-code {
+  background: var(--bp-sage-wash);
+  border: 1px dashed var(--bp-sage);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.bp-proto-code strong {
+  font-family: var(--bp-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  color: var(--bp-ink);
+}
+
+/* ── "My bookings" list ────────────────────────────────────────── */
+.bp-mine {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .bp-mine li {
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--bp-line);
+  padding: 12px 0;
+  font-size: 0.9rem;
+  color: var(--bp-soft);
+}
+
+.bp-mine-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bp-mine li:last-child {
+  border-bottom: none;
+}
+
+.bp-mine li strong {
+  font-weight: 600;
+  color: var(--bp-ink);
+  text-transform: capitalize;
+}
+
+.bp-mine li em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: capitalize;
+  color: var(--bp-ink);
+  background: var(--bp-sage-wash);
+  border: 1px solid var(--bp-line);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--bp-accent) 45%, transparent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bp-widget *,
+  .bp-widget *::before {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .bp-book input,
+  .bp-book select,
+  .bp-identify input {
+    font-size: 16px; /* prevents iOS zoom-on-focus */
+  }
 }

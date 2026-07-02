@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import app from '../index';
-import { mintAdminToken, mintToken, verifyToken } from '../lib/token';
+import { mintAdminToken, mintToken, TOKEN_TTL_SECONDS, verifyToken } from '../lib/token';
 import { adminToken, createTestEnv, TENANT_A, TEST_SECRET } from './helpers';
 
 describe('widget token', () => {
@@ -12,9 +12,18 @@ describe('widget token', () => {
   });
 
   it('rejects an expired token', async () => {
-    const twoHoursAgo = Math.floor(Date.now() / 1000) - 2 * 60 * 60;
-    const token = await mintToken('user-1', TENANT_A, TEST_SECRET, twoHoursAgo);
+    // Minted one full TTL (plus slack) in the past, so this stays expired if the TTL changes.
+    const beforeTtl = Math.floor(Date.now() / 1000) - (TOKEN_TTL_SECONDS + 60);
+    const token = await mintToken('user-1', TENANT_A, TEST_SECRET, beforeTtl);
     expect(await verifyToken(token, TEST_SECRET)).toBeNull();
+  });
+
+  it('mints tokens that live for the full TTL', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = await mintToken('user-1', TENANT_A, TEST_SECRET, now);
+    const claims = await verifyToken(token, TEST_SECRET);
+    expect(claims!.exp).toBe(now + TOKEN_TTL_SECONDS);
+    expect(TOKEN_TTL_SECONDS).toBe(24 * 60 * 60);
   });
 
   it('rejects a tampered signature', async () => {

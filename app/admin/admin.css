@@ -1,30 +1,145 @@
+/*
+ * Sitter dashboard — Pawbook's warm modern identity, first-party.
+ * Cream page, white section cards with icon headers, pine-navy actions.
+ * Marigold appears only as highlight (focus rings, section icons); the serif
+ * and mono-uppercase ledger look is gone. Mono survives only in embed snippets.
+ */
+:root {
+  --page: #faf8f3;
+  --card: #ffffff;
+  --ink: #1c3a4a;
+  --body: #26312e;
+  --soft: #5c6b66;
+  --line: #e7e0d2;
+  --sage: #9db8a4;
+  --sage-wash: #eef3ee;
+  --gold: #c77d0a;
+  --ok: #1f6b57;
+  --ok-wash: #eef6f0;
+  --warn: #8a5a00;
+  --warn-wash: #fdf3e0;
+  --bad: #b3403a;
+  --bad-wash: #faf0ef;
+  --display:
+    ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Quicksand, system-ui, sans-serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
-  color: #1f2937;
+  font-family: var(--sans);
+  color: var(--body);
+  line-height: 1.5;
+  background: var(--page);
 }
 
 .pb-wrap {
-  max-width: 640px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 0 20px 96px;
 }
 
-.pb-wrap section {
-  border-top: 1px solid #e5e7eb;
+.pb-wrap h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.45rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* ── Sticky topbar with section nav ────────────────────────────── */
+.pb-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 -20px;
+  padding: 14px 20px 0;
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.pb-topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pb-nav {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 6px 0 0;
+}
+
+.pb-nav a {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--soft);
+  text-decoration: none;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.pb-nav a:hover {
+  color: var(--ink);
+  background: var(--sage-wash);
+  border-bottom-color: var(--sage);
+}
+
+/* ── Section cards ─────────────────────────────────────────────── */
+.pb-card {
   margin-top: 20px;
-  padding-top: 12px;
+  padding: 20px 24px 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px -22px rgba(28, 58, 74, 0.45);
+  scroll-margin-top: 108px;
 }
 
+.pb-wrap h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin: 0 0 16px;
+}
+
+.pb-wrap h2 svg {
+  color: var(--gold);
+  flex: none;
+}
+
+/* Notes under a heading: what this section does / when changes apply. */
+.pb-applies {
+  margin: -8px 0 14px;
+  font-size: 0.85rem;
+  color: var(--soft);
+}
+
+/* ── Fields ────────────────────────────────────────────────────── */
 .pb-wrap label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
-  font-size: 0.9rem;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--soft);
 }
 
 .pb-wrap label.pb-inline,
@@ -32,68 +147,341 @@ body {
   flex-direction: row;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--body);
 }
 
 .pb-wrap input,
-.pb-wrap button {
-  padding: 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+.pb-wrap textarea,
+.pb-wrap select {
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-family: var(--sans);
   font-size: 0.95rem;
+  color: var(--body);
 }
 
-.pb-wrap button {
-  background: #111827;
-  color: white;
-  border: none;
+.pb-wrap input[type='number'] {
+  max-width: 8.5rem;
+}
+
+.pb-wrap input[type='color'] {
+  padding: 3px;
+  width: 52px;
+  height: 36px;
   cursor: pointer;
 }
 
-.pb-save {
-  margin-top: 12px;
+.pb-wrap input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--ink);
 }
 
-.pb-error {
-  color: #b91c1c;
+.pb-wrap input:focus,
+.pb-wrap textarea:focus,
+.pb-wrap select:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 22%, transparent);
 }
 
-.pb-ok {
-  color: #047857;
-}
-
-.pb-login {
-  max-width: 360px;
-}
-
-.pb-login button {
+.pb-wrap textarea {
   width: 100%;
-  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+  background: #fbfaf6;
 }
 
-.pb-hint {
-  color: #6b7280;
+/* ── Buttons ───────────────────────────────────────────────────── */
+.pb-wrap button {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 40px;
+  transition: filter 0.12s ease;
 }
 
-.pb-topbar {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+.pb-wrap button:hover {
+  filter: brightness(1.18);
 }
 
+.pb-wrap button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Row-level actions (Remove, Disconnect, Add duration) are quiet ghosts. */
+.pb-wrap li button,
+.pb-wrap .pb-options button,
 .pb-signout {
   background: none;
-  color: #374151;
-  border: 1px solid #d1d5db;
+  color: var(--soft);
+  border: 1px solid var(--line);
+  font-family: var(--sans);
+  font-weight: 500;
+}
+
+.pb-wrap li button:hover,
+.pb-wrap .pb-options button:hover,
+.pb-signout:hover {
+  filter: none;
+  color: var(--ink);
+  border-color: var(--sage);
+  background: var(--sage-wash);
+}
+
+/* ── Data lists ────────────────────────────────────────────────── */
+.pb-wrap ul {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.pb-wrap li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.92rem;
+  color: var(--body);
+}
+
+.pb-wrap li:last-child {
+  border-bottom: none;
+}
+
+.pb-wrap li.pb-customer {
+  display: block;
+}
+
+/* Status chips: soft pills, sentence case. */
+.pb-wrap li em,
+.pb-chip {
+  font-style: normal;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--soft);
+  background: var(--sage-wash);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+/* Pet-type chips arrive lowercase from data; single words are safe to capitalize. */
+.pb-wrap li em {
+  text-transform: capitalize;
+}
+
+.pb-chip-ok {
+  color: var(--ok);
+  background: var(--ok-wash);
+  border-color: color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.pb-chip-warn {
+  color: var(--warn);
+  background: var(--warn-wash);
+  border-color: color-mix(in srgb, var(--warn) 25%, transparent);
+}
+
+/* Add-a-customer / block-a-range input rows. */
+.pb-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.pb-row input {
+  flex: 1 1 12rem;
 }
 
 .pb-service {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.pb-service:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .pb-options {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  margin-left: 26px;
+  margin-top: 8px;
+}
+
+.pb-error {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.pb-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.pb-hint {
+  color: var(--soft);
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
+/* ── Sticky save bar (appears only when settings are dirty) ────── */
+.pb-savebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 -8px 24px -16px rgba(28, 58, 74, 0.7);
+}
+
+.pb-savebar p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.pb-savebar-error {
+  color: #ffb9b2;
+  font-weight: 600;
+}
+
+.pb-savebar-saved {
+  color: #bfe7cd;
+  font-weight: 600;
+}
+
+.pb-wrap .pb-savebar button {
+  background: #fff;
+  color: var(--ink);
+  border-color: #fff;
+}
+
+.pb-wrap .pb-savebar button:hover {
+  filter: brightness(0.92);
+}
+
+/* ── Login card ────────────────────────────────────────────────── */
+.pb-login {
+  max-width: 400px;
+  margin-top: 12vh;
+  padding: 28px 26px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -28px rgba(28, 58, 74, 0.55);
+}
+
+.pb-login h1 {
+  margin-bottom: 18px;
+}
+
+.pb-login button {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* ── Embed preview: the sitter's widget in a little browser frame ── */
+.pb-preview {
+  margin: 4px 0 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.pb-preview-bar {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  margin-left: 24px;
+  padding: 9px 12px;
+  background: var(--page);
+  border-bottom: 1px solid var(--line);
+}
+
+.pb-preview-bar .pb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.pb-preview-url {
+  margin-left: 8px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--soft);
+}
+
+.pb-preview-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: #fbfaf6;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.pb-pets {
+  margin: 6px 0 6px 18px;
+}
+
+.pb-pets li {
+  border-bottom: none;
+  padding: 4px 0;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.pb-add-pet {
+  margin-left: 18px;
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-wrap button {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .pb-wrap input,
+  .pb-wrap textarea,
+  .pb-wrap select {
+    font-size: 16px; /* prevents iOS zoom-on-focus */
+  }
 }

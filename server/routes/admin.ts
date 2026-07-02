@@ -1,20 +1,26 @@
 import { Hono } from 'hono';
 import { setCookie } from 'hono/cookie';
 import {
+  addEndUserPet,
   clearProviderConnection,
+  countBookingPetRefs,
   countBookingsForUser,
+  getEndUserById,
   deleteBlockedRange,
   deleteCustomer,
   getProviderConnection,
   insertBookingRequest,
   insertInvitedCustomer,
+  listAllEndUserPetsByTenant,
   listBlockedRanges,
   listCustomers,
   listPetTypes,
   listProviderConnections,
   listServiceOptions,
   listServices,
+  removeEndUserPet,
   replaceServiceOptions,
+  setProviderCalendarId,
   setPetTypeEnabled,
   setProviderStatus,
   setServiceEnabled,
@@ -121,7 +127,17 @@ export const adminRoutes = new Hono<AppEnv>()
           })),
       })),
       blocked: blocked.map((b) => ({ id: b.Id, startDate: b.StartDate, endDate: b.EndDate })),
-      providers: providerViews(connections),
+      providers: providerViews(connections).map(
+        ({ capability, provider, label, authMode, status, connectedAt, calendarId }) => ({
+          capability,
+          provider,
+          label,
+          authMode,
+          status,
+          connectedAt,
+          calendarId,
+        }),
+      ),
     });
   })
 
@@ -312,18 +328,37 @@ export const adminRoutes = new Hono<AppEnv>()
     return c.json({ status: 'disconnected' });
   })
 
+  .post('/:slug/admin/providers/calendar/calendar-id', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req
+      .json<{ calendarId?: unknown }>()
+      .catch(() => ({}) as { calendarId?: unknown });
+    const raw = typeof body.calendarId === 'string' ? body.calendarId.trim() : '';
+    await setProviderCalendarId(c.env.PAWBOOK_DB, tenant.Id, 'calendar', raw === '' ? null : raw);
+    return c.body(null, 204);
+  })
+
   .get('/:slug/admin/customers', async (c) => {
     const tenant = c.get('tenant');
-    const customers = await listCustomers(c.env.PAWBOOK_DB, tenant.Id);
-    return c.json({
-      customers: customers.map((u) => ({
-        id: u.Id,
-        email: u.Email,
-        name: u.Name,
-        status: u.Status,
-        invitedAt: u.InvitedAt,
-      })),
-    });
+    const [customers, allPets] = await Promise.all([
+      listCustomers(c.env.PAWBOOK_DB, tenant.Id),
+      listAllEndUserPetsByTenant(c.env.PAWBOOK_DB, tenant.Id),
+    ]);
+    const byUser = new Map<string, { id: string; name: string; petType: string }[]>();
+    for (const p of allPets) {
+      const list = byUser.get(p.EndUserId) ?? [];
+      list.push({ id: p.Id, name: p.Name, petType: p.PetType });
+      byUser.set(p.EndUserId, list);
+    }
+    const withPets = customers.map((u) => ({
+      id: u.Id,
+      email: u.Email,
+      name: u.Name,
+      status: u.Status,
+      invitedAt: u.InvitedAt,
+      pets: byUser.get(u.Id) ?? [],
+    }));
+    return c.json({ customers: withPets });
   })
 
   .post('/:slug/admin/customers', async (c) => {
@@ -361,5 +396,34 @@ export const adminRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Customer has bookings; cannot remove.' }, 409);
     const deleted = await deleteCustomer(c.env.PAWBOOK_DB, tenant.Id, id);
     if (!deleted) return c.json({ error: 'Not found.' }, 404);
+    return c.body(null, 204);
+  })
+  .post('/:slug/admin/customers/:id/pets', async (c) => {
+    const tenant = c.get('tenant');
+    const endUserId = c.req.param('id');
+    const body = await c.req
+      .json<{ name?: unknown; petType?: unknown }>()
+      .catch(() => ({}) as { name?: unknown; petType?: unknown });
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const petType = body.petType;
+    if (!name) return c.json({ error: 'Enter a pet name.' }, 400);
+    if (!isPetType(petType)) return c.json({ error: 'Unknown pet type.' }, 400);
+    // The customer id comes from the URL; confirm it belongs to this tenant before writing a pet
+    // under it (production D1 has foreign keys OFF, so nothing else stops a cross-tenant orphan).
+    if (!(await getEndUserById(c.env.PAWBOOK_DB, tenant.Id, endUserId)))
+      return c.json({ error: 'Not found.' }, 404);
+    const accepted = (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id)).find(
+      (pt) => pt.PetType === petType && pt.Enabled,
+    );
+    if (!accepted) return c.json({ error: 'That pet type is not accepted.' }, 400);
+    const pet = await addEndUserPet(c.env.PAWBOOK_DB, tenant.Id, endUserId, name, petType);
+    return c.json({ id: pet.Id, name: pet.Name, petType: pet.PetType }, 201);
+  })
+  .delete('/:slug/admin/customers/:id/pets/:petId', async (c) => {
+    const tenant = c.get('tenant');
+    const refs = await countBookingPetRefs(c.env.PAWBOOK_DB, tenant.Id, c.req.param('petId'));
+    if (refs > 0) return c.json({ error: 'Pet has bookings; cannot remove.' }, 409);
+    const removed = await removeEndUserPet(c.env.PAWBOOK_DB, tenant.Id, c.req.param('petId'));
+    if (!removed) return c.json({ error: 'Not found.' }, 404);
     return c.body(null, 204);
   });

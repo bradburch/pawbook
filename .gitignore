@@ -5,3 +5,6 @@ dist/
 worker-configuration.d.ts
 *.tsbuildinfo
 .superpowers/
+docs/superpowers/plans/
+client_secret*
+CALENDAR_LOGIC.md

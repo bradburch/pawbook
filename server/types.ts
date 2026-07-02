@@ -52,6 +52,15 @@ export type EndUser = {
   InvitedAt: string | null;
 };
 
+export type EndUserPet = {
+  Id: string;
+  TenantId: string;
+  EndUserId: string;
+  Name: string;
+  PetType: 'dog' | 'cat';
+  CreatedAt: string;
+};
+
 export type BookingRow = {
   Id: string;
   TenantId: string;
@@ -76,6 +85,7 @@ export type ProviderConnection = {
   Provider: string;
   Status: 'disconnected' | 'connected-stub' | 'connected';
   ConnectedAt: string | null;
+  CalendarId: string | null;
 };
 
 /** Server-internal: includes encrypted OAuth token columns. NEVER serialize to a client. */

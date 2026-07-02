@@ -26,6 +26,15 @@ export type TenantConfig = {
   services: ServiceConfig[];
 };
 
+export type Pet = { id: string; name: string; petType: 'dog' | 'cat' };
+export type MonthDay = {
+  date: string;
+  status: 'available' | 'partial' | 'unavailable';
+  used: number | null;
+  max: number | null;
+  mine: boolean;
+};
+
 export type Availability =
   | { available: true; estCost: number; nights?: number }
   | { available: false; reason: string };
@@ -38,6 +47,7 @@ export type Booking = {
   petCount: number;
   estCost: number | null;
   status: string;
+  pets: string[];
 };
 
 export type Customer = {
@@ -46,6 +56,7 @@ export type Customer = {
   name: string | null;
   status: 'invited' | 'active';
   invitedAt?: string | null;
+  pets: Pet[];
 };
 
 export class ApiError extends Error {
@@ -95,10 +106,9 @@ export const api = {
     body: {
       type: string;
       optionKey: string;
-      petType?: string;
       startDate: string;
       endDate?: string;
-      petCount: number;
+      petIds: string[];
     },
   ) =>
     request<{ id: string; estCost: number; status: string }>(`/api/${slug}/bookings`, {
@@ -106,6 +116,17 @@ export const api = {
       headers: { ...jsonHeaders, ...authHeaders(token) },
       body: JSON.stringify(body),
     }),
+
+  me: (slug: string, token: string) =>
+    request<{ name: string | null; pets: Pet[] }>(`/api/${slug}/me`, {
+      headers: authHeaders(token),
+    }),
+
+  monthAvailability: (slug: string, token: string, type: string, month: string) =>
+    request<{ today: string; days: MonthDay[] }>(
+      `/api/${slug}/availability/month?type=${encodeURIComponent(type)}&month=${month}`,
+      { headers: authHeaders(token) },
+    ),
 
   myBookings: (slug: string, token: string) =>
     request<{ bookings: Booking[] }>(`/api/${slug}/bookings/mine`, {
@@ -130,6 +151,20 @@ export const adminApi = {
         method: 'DELETE',
         headers: authHeaders(token),
       }),
+    addPet: (slug: string, token: string, endUserId: string, name: string, petType: string) =>
+      request<{ id: string; name: string; petType: string }>(
+        `/api/${slug}/admin/customers/${endUserId}/pets`,
+        {
+          method: 'POST',
+          headers: { ...jsonHeaders, ...authHeaders(token) },
+          body: JSON.stringify({ name, petType }),
+        },
+      ),
+    removePet: (slug: string, token: string, endUserId: string, petId: string) =>
+      request<unknown>(`/api/${slug}/admin/customers/${endUserId}/pets/${petId}`, {
+        method: 'DELETE',
+        headers: authHeaders(token),
+      }),
   },
   calendar: {
     start: (slug: string, token: string) =>
@@ -140,6 +175,12 @@ export const adminApi = {
       request<{ status: string }>(`/api/${slug}/admin/providers/calendar/disconnect`, {
         method: 'POST',
         headers: authHeaders(token),
+      }),
+    setCalendarId: (slug: string, token: string, calendarId: string) =>
+      request<unknown>(`/api/${slug}/admin/providers/calendar/calendar-id`, {
+        method: 'POST',
+        headers: { ...jsonHeaders, ...authHeaders(token) },
+        body: JSON.stringify({ calendarId }),
       }),
   },
 };

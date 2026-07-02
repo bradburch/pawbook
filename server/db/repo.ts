@@ -1,6 +1,7 @@
 import type {
   BookingRow,
   EndUser,
+  EndUserPet,
   PetType,
   ProviderConnection,
   ProviderConnectionWithTokens,
@@ -234,11 +235,23 @@ export async function listProviderConnections(
 ): Promise<ProviderConnection[]> {
   const { results } = await db
     .prepare(
-      'SELECT Id, TenantId, Capability, Provider, Status, ConnectedAt FROM ProviderConnections WHERE TenantId = ?',
+      'SELECT Id, TenantId, Capability, Provider, Status, ConnectedAt, CalendarId FROM ProviderConnections WHERE TenantId = ?',
     )
     .bind(tenantId)
     .all<ProviderConnection>();
   return results;
+}
+
+export async function setProviderCalendarId(
+  db: D1Database,
+  tenantId: string,
+  capability: string,
+  calendarId: string | null,
+): Promise<void> {
+  await db
+    .prepare('UPDATE ProviderConnections SET CalendarId = ? WHERE TenantId = ? AND Capability = ?')
+    .bind(calendarId, tenantId, capability)
+    .run();
 }
 
 export async function updateTenantSettings(
@@ -558,4 +571,133 @@ export async function setProviderStatus(
     )
     .bind(crypto.randomUUID(), tenantId, capability, provider, status, connectedAt)
     .run();
+}
+
+export async function listAllEndUserPetsByTenant(
+  db: D1Database,
+  tenantId: string,
+): Promise<EndUserPet[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT Id, TenantId, EndUserId, Name, PetType, CreatedAt
+       FROM EndUserPets WHERE TenantId = ? ORDER BY EndUserId, Name`,
+    )
+    .bind(tenantId)
+    .all<EndUserPet>();
+  return results;
+}
+
+export async function listEndUserPets(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+): Promise<EndUserPet[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT Id, TenantId, EndUserId, Name, PetType, CreatedAt
+       FROM EndUserPets WHERE TenantId = ? AND EndUserId = ? ORDER BY Name`,
+    )
+    .bind(tenantId, endUserId)
+    .all<EndUserPet>();
+  return results;
+}
+
+export async function addEndUserPet(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+  name: string,
+  petType: PetType,
+): Promise<EndUserPet> {
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO EndUserPets (Id, TenantId, EndUserId, Name, PetType) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(id, tenantId, endUserId, name, petType)
+    .run();
+  const row = await db
+    .prepare(
+      `SELECT Id, TenantId, EndUserId, Name, PetType, CreatedAt FROM EndUserPets WHERE TenantId = ? AND Id = ?`,
+    )
+    .bind(tenantId, id)
+    .first<EndUserPet>();
+  return row!;
+}
+
+/**
+ * Count bookings referencing a pet, scoped to the tenant. BookingRequestPets has no TenantId, so
+ * tenancy flows in via a join to EndUserPets — a foreign pet id counts as 0 (never a cross-tenant
+ * existence oracle) even with production D1's foreign keys OFF.
+ */
+export async function countBookingPetRefs(
+  db: D1Database,
+  tenantId: string,
+  petId: string,
+): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM BookingRequestPets brp
+       JOIN EndUserPets p ON p.Id = brp.PetId
+       WHERE brp.PetId = ? AND p.TenantId = ?`,
+    )
+    .bind(petId, tenantId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+export async function removeEndUserPet(
+  db: D1Database,
+  tenantId: string,
+  petId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM EndUserPets WHERE TenantId = ? AND Id = ?')
+    .bind(tenantId, petId)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+/**
+ * Link pets to a booking, tenant-scoped. Each insert is guarded so it only writes when BOTH the
+ * booking and the pet belong to `tenantId` — a cross-tenant pet id (or a booking from another
+ * tenant) silently inserts nothing, upholding isolation even with production D1's foreign keys OFF.
+ */
+export async function addBookingPets(
+  db: D1Database,
+  tenantId: string,
+  bookingId: string,
+  petIds: string[],
+): Promise<void> {
+  if (petIds.length === 0) return;
+  await db.batch(
+    petIds.map((petId) =>
+      db
+        .prepare(
+          `INSERT INTO BookingRequestPets (BookingRequestId, PetId)
+           SELECT ?, ?
+           WHERE EXISTS (SELECT 1 FROM BookingRequests WHERE Id = ? AND TenantId = ?)
+             AND EXISTS (SELECT 1 FROM EndUserPets WHERE Id = ? AND TenantId = ?)`,
+        )
+        .bind(bookingId, petId, bookingId, tenantId, petId, tenantId),
+    ),
+  );
+}
+
+export async function listBookingPetsForUser(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+): Promise<{ BookingRequestId: string; PetId: string; Name: string; PetType: 'dog' | 'cat' }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT brp.BookingRequestId, brp.PetId, p.Name, p.PetType
+       FROM BookingRequestPets brp
+       JOIN BookingRequests br ON br.Id = brp.BookingRequestId
+       JOIN EndUserPets p ON p.Id = brp.PetId AND p.TenantId = br.TenantId
+       WHERE br.TenantId = ? AND br.EndUserId = ?`,
+    )
+    .bind(tenantId, endUserId)
+    .all<{ BookingRequestId: string; PetId: string; Name: string; PetType: 'dog' | 'cat' }>();
+  return results;
 }
