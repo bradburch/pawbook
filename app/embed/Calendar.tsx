@@ -4,11 +4,12 @@ import {
   monthGrid,
   shiftMonth as shiftMonthFn,
   nextRangeSelection,
-  isDateSelected,
+  rangePosition,
   type RangeValue,
 } from '../../src/shared/index.js';
+import { IconChevronLeft, IconChevronRight } from '../shared-ui/icons';
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = [
   'January',
   'February',
@@ -96,10 +97,12 @@ export function Calendar({
 
   const hint =
     shape === 'range'
-      ? value.start && !value.end
-        ? 'Now tap end date.'
-        : 'Tap start date.'
-      : 'Tap any date to select.';
+      ? value.start && value.end
+        ? 'Tap a day to start over'
+        : value.start
+          ? 'Now tap your last day'
+          : 'Tap your first day'
+      : 'Tap a date to select it';
 
   return (
     <div className="bp-cal">
@@ -109,17 +112,22 @@ export function Calendar({
           aria-label="Previous month"
           onClick={() => onMonthChange(shiftMonthFn(month, -1))}
         >
-          ‹
+          <IconChevronLeft />
         </button>
-        <span className="bp-cal-title">
-          {MONTHS[mon - 1]} {year}
-        </span>
+        <div className="bp-cal-heading">
+          <span className="bp-cal-title">
+            {MONTHS[mon - 1]} {year}
+          </span>
+          <span className="bp-cal-sub" aria-live="polite">
+            {loading ? 'Loading availability…' : hint}
+          </span>
+        </div>
         <button
           type="button"
           aria-label="Next month"
           onClick={() => onMonthChange(shiftMonthFn(month, 1))}
         >
-          ›
+          <IconChevronRight />
         </button>
       </div>
       <div className="bp-cal-grid bp-cal-head">
@@ -139,7 +147,8 @@ export function Calendar({
           else if (d?.status === 'unavailable') cls.push('bp-unavail');
           else if (d?.status === 'partial') cls.push('bp-partial');
           if (d?.mine) cls.push('bp-mine');
-          if (isDateSelected(value, date, shape)) cls.push('bp-sel');
+          const pos = rangePosition(value, date, shape);
+          if (pos !== 'none') cls.push('bp-sel', `bp-sel-${pos === 'middle' ? 'mid' : pos}`);
           return (
             <button
               type="button"
@@ -159,20 +168,28 @@ export function Calendar({
           );
         })}
       </div>
-      <ul className="bp-cal-legend">
-        <li className="bp-lg-available">Available</li>
-        <li className="bp-lg-partial">Partial</li>
-        <li className="bp-lg-mine">My sits</li>
-        <li className="bp-lg-unavail">Unavailable</li>
-        <li className="bp-lg-sel">Selected</li>
-      </ul>
-      {loading ? (
-        <p className="bp-cal-hint">Loading availability…</p>
-      ) : loadError ? (
-        <p className="bp-error">Couldn&apos;t load availability — please reload.</p>
-      ) : (
-        <p className="bp-cal-hint">{hint}</p>
-      )}
+      {(() => {
+        const states = [...days.values()];
+        const legend = [
+          states.some((d) => d.status === 'partial') && (
+            <li key="partial" className="bp-lg-partial">
+              Almost full
+            </li>
+          ),
+          states.some((d) => d.mine) && (
+            <li key="mine" className="bp-lg-mine">
+              Your bookings
+            </li>
+          ),
+          states.some((d) => d.status === 'unavailable') && (
+            <li key="unavail" className="bp-lg-unavail">
+              Unavailable
+            </li>
+          ),
+        ].filter(Boolean);
+        return legend.length > 0 ? <ul className="bp-cal-legend">{legend}</ul> : null;
+      })()}
+      {loadError && <p className="bp-error">Couldn&apos;t load availability — please reload.</p>}
     </div>
   );
 }

@@ -15,7 +15,7 @@ import {
 } from '../shared-ui/api';
 import './widget.css';
 import { SERVICE_ICONS } from './services';
-import { IconPaw } from '../shared-ui/icons';
+import { IconCheck, IconPaw } from '../shared-ui/icons';
 
 /** Widget tenant comes from the iframe path: /embed/:slug — never from the host page. */
 const slug = window.location.pathname.split('/').filter(Boolean)[1] ?? '';
@@ -69,15 +69,18 @@ function Identify({ onDone }: { onDone: () => void }) {
   if (state.step === 'email') {
     return (
       <div className="bp-identify">
-        <p>Enter your email to get started:</p>
-        <input
-          type="email"
-          value={email}
-          placeholder="you@example.com"
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        <label className="bp-field">
+          Your email
+          <input
+            type="email"
+            value={email}
+            placeholder="you@example.com"
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void submitEmail()}
+          />
+        </label>
         <button onClick={submitEmail} disabled={busy}>
-          {busy ? 'Sending…' : 'Send code'}
+          {busy ? 'Sending…' : 'Email me a code'}
         </button>
         {error && <p className="bp-error">{error}</p>}
       </div>
@@ -100,10 +103,15 @@ function Identify({ onDone }: { onDone: () => void }) {
         )}
       </p>
       <input
+        className="bp-code"
         inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={6}
         value={code}
-        placeholder="6-digit code"
+        placeholder="······"
+        aria-label="6-digit code"
         onChange={(e) => setCode(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && void submitCode()}
       />
       <button onClick={submitCode} disabled={busy}>
         {busy ? 'Verifying…' : 'Verify'}
@@ -262,27 +270,36 @@ function BookTab({ config, pets }: { config: TenantConfig; pets: Pet[] | null })
             </label>
           )}
           <fieldset className="bp-pets">
-            <legend>Pets</legend>
+            <legend>Who&apos;s coming?</legend>
             {pets === null ? (
-              <p>Loading pets…</p>
+              <p className="bp-empty">Loading pets…</p>
             ) : pets.length === 0 ? (
               <p className="bp-empty">No pets added yet — ask your sitter to add yours.</p>
             ) : (
-              pets.map((p) => (
-                <label className="bp-pet" key={p.id}>
-                  <input
-                    type="checkbox"
-                    checked={selectedPets.includes(p.id)}
-                    onChange={(e) => {
-                      setSelectedPets((cur) =>
-                        e.target.checked ? [...cur, p.id] : cur.filter((id) => id !== p.id),
-                      );
-                      resetCheck();
-                    }}
-                  />
-                  {p.name} <span className="bp-pet-type">{p.petType}</span>
-                </label>
-              ))
+              <div className="bp-pet-chips">
+                {pets.map((p) => {
+                  const on = selectedPets.includes(p.id);
+                  return (
+                    <label className={`bp-pet-chip${on ? ' bp-on' : ''}`} key={p.id}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => {
+                          setSelectedPets((cur) =>
+                            e.target.checked ? [...cur, p.id] : cur.filter((id) => id !== p.id),
+                          );
+                          resetCheck();
+                        }}
+                      />
+                      <span className="bp-chip-check" aria-hidden="true">
+                        <IconCheck size={13} />
+                      </span>
+                      {p.name}
+                      <span className="bp-pet-type">{p.petType}</span>
+                    </label>
+                  );
+                })}
+              </div>
             )}
           </fieldset>
           <button onClick={check} disabled={selectedPets.length === 0}>
@@ -290,13 +307,16 @@ function BookTab({ config, pets }: { config: TenantConfig; pets: Pet[] | null })
           </button>
           {result &&
             (result.available ? (
-              <div className="bp-result bp-ok">
-                <p>
-                  Available!{' '}
+              <div className="bp-summary">
+                <p className="bp-summary-dates">
+                  {formatShortDate(start)}
+                  {end ? ` – ${formatShortDate(end)}` : ''}
                   {result.nights != null
-                    ? `${result.nights} night${result.nights === 1 ? '' : 's'} · `
+                    ? ` · ${result.nights} night${result.nights === 1 ? '' : 's'}`
                     : ''}
-                  Est. cost <strong>${result.estCost}</strong>
+                </p>
+                <p className="bp-summary-cost">
+                  Estimated cost <strong>${result.estCost}</strong>
                 </p>
                 <button onClick={submit} disabled={submitting}>
                   {submitting ? 'Sending…' : 'Send request'}
@@ -385,12 +405,15 @@ function MineTab() {
     <ul className="bp-mine">
       {bookings.map((b) => (
         <li key={b.id}>
-          <strong>{b.type}</strong> {formatShortDate(b.startDate)}
-          {b.endDate ? ` → ${formatShortDate(b.endDate)}` : ''} ·{' '}
-          {b.pets.length > 0
-            ? b.pets.join(', ')
-            : `${b.petCount} pet${b.petCount === 1 ? '' : 's'}`}
-          {b.estCost != null ? ` · est. $${b.estCost}` : ''} · <em>{b.status}</em>
+          <span className="bp-mine-main">
+            <strong>{b.type}</strong> {formatShortDate(b.startDate)}
+            {b.endDate ? ` – ${formatShortDate(b.endDate)}` : ''} ·{' '}
+            {b.pets.length > 0
+              ? b.pets.join(', ')
+              : `${b.petCount} pet${b.petCount === 1 ? '' : 's'}`}
+            {b.estCost != null ? ` · est. $${b.estCost}` : ''}
+          </span>
+          <em>{b.status}</em>
         </li>
       ))}
     </ul>
@@ -455,10 +478,10 @@ export default function App() {
   if (!authed) {
     return (
       <div className="bp-widget">
-        <header>
-          <h1>{config.displayName}</h1>
-        </header>
-        <p className="bp-signin-lede">Sign in to book with {config.displayName}.</p>
+        <h1 className="bp-greeting">Book with {config.displayName}</h1>
+        <p className="bp-signin-lede">
+          Enter the email your sitter has on file and we&apos;ll send you a sign-in code.
+        </p>
         <Identify onDone={() => setAuthed(true)} />
       </div>
     );
@@ -473,7 +496,10 @@ export default function App() {
         </button>
       </div>
       {showMine ? (
-        <MineTab />
+        <>
+          <h1 className="bp-greeting">Your bookings</h1>
+          <MineTab />
+        </>
       ) : (
         <>
           <h1 className="bp-greeting">How can I help, {firstName}?</h1>
