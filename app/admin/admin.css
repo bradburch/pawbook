@@ -277,13 +277,17 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  text-transform: capitalize;
   color: var(--soft);
   background: var(--sage-wash);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 3px 10px;
   white-space: nowrap;
+}
+
+/* Pet-type chips arrive lowercase from data; single words are safe to capitalize. */
+.pb-wrap li em {
+  text-transform: capitalize;
 }
 
 .pb-chip-ok {

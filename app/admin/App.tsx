@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
+import { DEFAULT_TIMEZONE, formatBlockRange } from '../../src/shared/index.js';
 import { adminApi, type Customer } from '../shared-ui/api.js';
 import {
   IconCalendar,
@@ -819,7 +819,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         <ul>
           {settings.blocked.map((b) => (
             <li key={b.id}>
-              {b.startDate} → {b.endDate} (end exclusive){' '}
+              {formatBlockRange(b.startDate, b.endDate)}
               <button onClick={() => void removeBlock(b.id)}>Remove</button>
             </li>
           ))}
@@ -859,7 +859,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
               <div className="pb-row">
                 <span>
                   {cust.email}
-                  {cust.name ? ` (${cust.name})` : ''} — <em>{cust.status}</em>
+                  {cust.name ? ` (${cust.name})` : ''}{' '}
+                  <span
+                    className={`pb-chip${cust.status === 'active' ? ' pb-chip-ok' : ' pb-chip-warn'}`}
+                  >
+                    {cust.status.charAt(0).toUpperCase() + cust.status.slice(1)}
+                  </span>
                 </span>
                 <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
               </div>
@@ -886,7 +891,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         <ul>
           {settings.providers.map((p) => (
             <li key={p.capability}>
-              {p.label} — <em>{p.status}</em>{' '}
+              {p.label}{' '}
+              <span className={`pb-chip${p.status === 'connected' ? ' pb-chip-ok' : ''}`}>
+                {p.status === 'connected' ? 'Connected' : 'Not connected'}
+              </span>{' '}
               {p.authMode === 'oauth' ? (
                 p.status === 'connected' ? (
                   <>
