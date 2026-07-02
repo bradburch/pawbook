@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type MonthDay } from '../shared-ui/api';
+import { api, ApiError, type MonthDay } from '../shared-ui/api';
 import {
   monthGrid,
   shiftMonth as shiftMonthFn,
@@ -35,6 +35,7 @@ export function Calendar({
   value,
   onChange,
   reloadKey,
+  onAuthExpired,
 }: {
   slug: string;
   token: string;
@@ -45,6 +46,8 @@ export function Calendar({
   value: RangeValue;
   onChange: (v: RangeValue) => void;
   reloadKey?: number;
+  /** Called when the month fetch is rejected as unauthenticated (expired token). */
+  onAuthExpired?: () => void;
 }) {
   // Combine fetch result into one object keyed by deps so loading/error can be derived without
   // calling setState synchronously inside the effect body (react-hooks/set-state-in-effect rule).
@@ -79,13 +82,22 @@ export function Calendar({
           error: false,
         });
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (!active) return;
+        // An expired/invalid token must degrade to re-identify (see server/lib/token.ts) —
+        // otherwise the calendar renders with no availability and silently ignores taps.
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+          onAuthExpired?.();
+          return;
+        }
         setFetchState({ fetchedKey: depsKey, days: new Map(), today: '', error: true });
       });
     return () => {
       active = false;
     };
+    // onAuthExpired is deliberately not a dep: parents pass a fresh closure each render,
+    // and re-running this fetch when it changes would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [depsKey, slug, token, serviceType, month]);
 
   const pick = (date: string, d: MonthDay | undefined) => {

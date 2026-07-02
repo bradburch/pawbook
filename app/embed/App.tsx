@@ -121,7 +121,15 @@ function Identify({ onDone }: { onDone: () => void }) {
   );
 }
 
-function BookTab({ config, pets }: { config: TenantConfig; pets: Pet[] | null }) {
+function BookTab({
+  config,
+  pets,
+  onAuthExpired,
+}: {
+  config: TenantConfig;
+  pets: Pet[] | null;
+  onAuthExpired: () => void;
+}) {
   const [type, setType] = useState(config.services[0]?.type ?? 'boarding');
   const service = config.services.find((s) => s.type === type) ?? config.services[0];
   const [optionKey, setOptionKey] = useState(service?.options[0]?.optionKey ?? '');
@@ -200,8 +208,7 @@ function BookTab({ config, pets }: { config: TenantConfig; pets: Pet[] | null })
       window.parent.postMessage({ type: 'pawbook:booked', requestId: res.id }, '*');
     } catch (e) {
       if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-        setToken(slug, null);
-        setError('Your session expired — reload to sign in again.');
+        onAuthExpired();
         return;
       }
       setError(errorMsg(e));
@@ -247,6 +254,7 @@ function BookTab({ config, pets }: { config: TenantConfig; pets: Pet[] | null })
           setEnd(v.end ?? '');
           resetCheck();
         }}
+        onAuthExpired={onAuthExpired}
       />
 
       {datesReady && (
@@ -460,6 +468,15 @@ export default function App() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load.'));
   }, []);
 
+  // Any 401/403 means the stored token is expired or revoked: clear it and drop back to
+  // sign-in ("token loss must degrade to re-identify" — server/lib/token.ts). Without this
+  // the booking view renders with a dead calendar that silently ignores taps.
+  const onAuthExpired = useCallback(() => {
+    setToken(slug, null);
+    setMe(null);
+    setAuthed(false);
+  }, []);
+
   useEffect(() => {
     if (!authed) return;
     const token = getToken(slug);
@@ -468,11 +485,15 @@ export default function App() {
     api
       .me(slug, token)
       .then((m) => active && setMe(m))
-      .catch(() => active && setMe({ name: null, pets: [] }));
+      .catch((e: unknown) => {
+        if (!active) return;
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) onAuthExpired();
+        else setMe({ name: null, pets: [] });
+      });
     return () => {
       active = false;
     };
-  }, [authed]);
+  }, [authed, onAuthExpired]);
 
   if (error) return <p className="bp-error">{error}</p>;
   if (!config) return <p>Loading…</p>;
@@ -505,7 +526,7 @@ export default function App() {
       ) : (
         <>
           <h1 className="bp-greeting">How can I help, {firstName}?</h1>
-          <BookTab config={config} pets={me?.pets ?? null} />
+          <BookTab config={config} pets={me?.pets ?? null} onAuthExpired={onAuthExpired} />
         </>
       )}
     </div>
