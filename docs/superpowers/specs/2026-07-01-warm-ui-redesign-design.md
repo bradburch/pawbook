@@ -89,6 +89,6 @@ redesign, not a rebuild.
 ## Verification
 
 - Full CI-mirror gate: `npm run typecheck && npm run lint && npm run format &&
-  npm test && npm run build`.
+npm test && npm run build`.
 - Playwright walkthrough of both surfaces (sign-in, booking with range selection,
   pets + result, admin login, dashboard, dirty-save bar) with screenshots reviewed.
