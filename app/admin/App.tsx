@@ -398,12 +398,25 @@ function CalendarIdField({
 function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const { token, slug } = session;
   const [settings, setSettings] = useState<Settings | null>(null);
+  // JSON snapshot of the last server-loaded/saved settings; edits compare against it to
+  // decide whether the sticky save bar shows. Only the settings PUT is deferred — the
+  // other sections apply immediately and refresh both state and snapshot together.
+  const [savedSnapshot, setSavedSnapshot] = useState('');
   const [blockStart, setBlockStart] = useState('');
   const [blockEnd, setBlockEnd] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   // Bumped after a successful save so the embed preview remounts and pulls the fresh config.
   const [previewKey, setPreviewKey] = useState(0);
+
+  const dirty = settings !== null && JSON.stringify(settings) !== savedSnapshot;
+
+  // The saved confirmation is transient; errors stay until resolved.
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
 
   const handle = useCallback(
     (e: unknown) => {
@@ -418,10 +431,15 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     [token, slug],
   );
 
+  const applyLoaded = useCallback((s: Settings) => {
+    setSettings(s);
+    setSavedSnapshot(JSON.stringify(s));
+  }, []);
+
   const refresh = async () => {
     setError('');
     try {
-      setSettings(await loadSettings());
+      applyLoaded(await loadSettings());
     } catch (e) {
       handle(e);
     }
@@ -454,6 +472,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         }),
       });
       setMessage('Saved! Your widget updates on its next load.');
+      setSavedSnapshot(JSON.stringify(settings));
       setPreviewKey((k) => k + 1);
     } catch (e) {
       handle(e);
@@ -584,12 +603,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   useEffect(() => {
     let active = true;
     loadSettings()
-      .then((s) => active && setSettings(s))
+      .then((s) => active && applyLoaded(s))
       .catch((e) => active && handle(e));
     return () => {
       active = false;
     };
-  }, [loadSettings, handle]);
+  }, [loadSettings, handle, applyLoaded]);
 
   if (!settings) return <p className="pb-wrap">Loading…</p>;
 
@@ -792,12 +811,6 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         })}
       </section>
 
-      <button className="pb-save" onClick={save}>
-        Save settings
-      </button>
-      {message && <p className="pb-ok">{message}</p>}
-      {error && <p className="pb-error">{error}</p>}
-
       <section id="timeoff" className="pb-card">
         <h2>
           <IconCalendar size={18} /> Time off
@@ -914,6 +927,19 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         <WidgetPreview slug={slug} reloadKey={previewKey} />
         <Snippets session={session} />
       </section>
+
+      {(dirty || message || error) && (
+        <div className="pb-savebar" role="status">
+          {error ? (
+            <p className="pb-savebar-error">{error}</p>
+          ) : dirty ? (
+            <p>You have unsaved changes.</p>
+          ) : (
+            <p className="pb-savebar-saved">{message}</p>
+          )}
+          {dirty && <button onClick={save}>Save settings</button>}
+        </div>
+      )}
     </div>
   );
 }

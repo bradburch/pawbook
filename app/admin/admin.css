@@ -368,6 +368,16 @@ body {
   font-size: 0.92rem;
 }
 
+.pb-savebar-error {
+  color: #ffb9b2;
+  font-weight: 600;
+}
+
+.pb-savebar-saved {
+  color: #bfe7cd;
+  font-weight: 600;
+}
+
 .pb-wrap .pb-savebar button {
   background: #fff;
   color: var(--ink);
