@@ -91,19 +91,6 @@ export async function createEvent(
   return { id: j.id };
 }
 
-export async function deleteEvent(
-  accessToken: string,
-  calendarId: string,
-  eventId: string,
-): Promise<void> {
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
-    { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } },
-  );
-  // 410 Gone = already deleted; treat as success.
-  if (!res.ok && res.status !== 410) throw new Error(`Google deleteEvent failed (${res.status})`);
-}
-
 export async function revokeToken(token: string): Promise<void> {
   const res = await fetch(`${REVOKE_ENDPOINT}?token=${encodeURIComponent(token)}`, {
     method: 'POST',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError, type MonthDay } from '../shared-ui/api';
+import { api, isAuthExpired, type MonthDay } from '../shared-ui/api';
 import {
   monthGrid,
   shiftMonth as shiftMonthFn,
@@ -86,7 +86,7 @@ export function Calendar({
         if (!active) return;
         // An expired/invalid token must degrade to re-identify (see server/lib/token.ts) —
         // otherwise the calendar renders with no availability and silently ignores taps.
-        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        if (isAuthExpired(e)) {
           onAuthExpired?.();
           return;
         }

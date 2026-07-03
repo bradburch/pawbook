@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_TIMEZONE, formatBlockRange } from '../../src/shared/index.js';
-import { adminApi, type Customer } from '../shared-ui/api.js';
+import { adminApi, isAuthExpired, request, type Customer } from '../shared-ui/api.js';
 import {
   IconCalendar,
   IconCode,
@@ -12,20 +12,7 @@ import {
 } from '../shared-ui/icons';
 import './admin.css';
 
-const TIMEZONES: string[] =
-  typeof Intl.supportedValuesOf === 'function'
-    ? Intl.supportedValuesOf('timeZone')
-    : [
-        'America/Los_Angeles',
-        'America/Denver',
-        'America/Chicago',
-        'America/New_York',
-        'America/Anchorage',
-        'Pacific/Honolulu',
-        'Europe/London',
-        'Europe/Paris',
-        'Australia/Sydney',
-      ];
+const TIMEZONES: string[] = Intl.supportedValuesOf('timeZone');
 
 /**
  * Sitter dashboard. Auth is email + password → an admin session token, held in localStorage
@@ -111,10 +98,8 @@ type Settings = {
   }[];
 };
 
-class AuthError extends Error {}
-
-async function adminFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+function adminFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  return request<T>(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -122,10 +107,6 @@ async function adminFetch<T>(token: string, path: string, init?: RequestInit): P
       ...(init?.headers ?? {}),
     },
   });
-  if (res.status === 401 || res.status === 403) throw new AuthError('Your session expired.');
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(body.error ?? 'Request failed.');
-  return body;
 }
 
 function Login({ onLogin }: { onLogin: (s: Session) => void }) {
@@ -420,11 +401,21 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
   const handle = useCallback(
     (e: unknown) => {
-      if (e instanceof AuthError) onSignOut();
+      if (isAuthExpired(e)) onSignOut();
       else setError(e instanceof Error ? e.message : 'Try again.');
     },
     [onSignOut],
   );
+
+  /** Clear the error, run `fn`, and route any failure (including expired auth) through `handle`. */
+  const run = async (fn: () => Promise<void>) => {
+    setError('');
+    try {
+      await fn();
+    } catch (e) {
+      handle(e);
+    }
+  };
 
   const loadSettings = useCallback(
     () => adminFetch<Settings>(token, `/api/${slug}/admin/settings`),
@@ -436,20 +427,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     setSavedSnapshot(JSON.stringify(s));
   }, []);
 
-  const refresh = async () => {
-    setError('');
-    try {
-      applyLoaded(await loadSettings());
-    } catch (e) {
-      handle(e);
-    }
-  };
+  const refresh = () => run(async () => applyLoaded(await loadSettings()));
 
-  const save = async () => {
-    if (!settings) return;
-    setError('');
-    setMessage('');
-    try {
+  const save = () =>
+    run(async () => {
+      if (!settings) return;
+      setMessage('');
       await adminFetch(token, `/api/${slug}/admin/settings`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -474,14 +457,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       setMessage('Saved! Your widget updates on its next load.');
       setSavedSnapshot(JSON.stringify(settings));
       setPreviewKey((k) => k + 1);
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const addBlock = async () => {
-    setError('');
-    try {
+  const addBlock = () =>
+    run(async () => {
       await adminFetch(token, `/api/${slug}/admin/blocked`, {
         method: 'POST',
         body: JSON.stringify({ startDate: blockStart, endDate: blockEnd }),
@@ -489,41 +468,27 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       setBlockStart('');
       setBlockEnd('');
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const removeBlock = async (id: string) => {
-    setError('');
-    try {
-      await adminFetch(token, `/api/${slug}/admin/blocked/${id}`, {
-        method: 'DELETE',
-      });
+  const removeBlock = (id: string) =>
+    run(async () => {
+      await adminFetch(token, `/api/${slug}/admin/blocked/${id}`, { method: 'DELETE' });
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const connect = async (capability: string) => {
-    setError('');
-    try {
+  const connect = (capability: string) =>
+    run(async () => {
       await adminFetch(token, `/api/${slug}/admin/providers/${capability}/connect`, {
         method: 'POST',
       });
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const connectCalendar = async () => {
+  const connectCalendar = () =>
     // NOTE: The route and this client call are still calendar-specific because there is exactly one
     // OAuth provider. When a second is added, generalize adminApi.calendar + the
     // /providers/calendar/... routes to accept a `capability` param. Deliberate YAGNI boundary.
-    setError('');
-    try {
+    run(async () => {
       const { url } = await adminApi.calendar.start(slug, token);
       const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
       // The callback page is script-free (CSP), so detect the popup closing here and re-fetch
@@ -534,20 +499,13 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           void refresh();
         }
       }, 1000);
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const disconnectCalendar = async () => {
-    setError('');
-    try {
+  const disconnectCalendar = () =>
+    run(async () => {
       await adminApi.calendar.disconnect(slug, token);
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [custEmail, setCustEmail] = useState('');
@@ -572,23 +530,18 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     };
   }, [loadCustomers, handle]);
 
-  const withCustomerRefresh = async (fn: () => Promise<unknown>) => {
-    setError('');
-    try {
+  const withCustomerRefresh = (fn: () => Promise<unknown>) =>
+    run(async () => {
       await fn();
       setCustomers(await loadCustomers());
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const addCustomer = async () => {
-    await withCustomerRefresh(async () => {
+  const addCustomer = () =>
+    withCustomerRefresh(async () => {
       await adminApi.customers.add(slug, token, custEmail.trim().toLowerCase(), custName.trim());
       setCustEmail('');
       setCustName('');
     });
-  };
 
   const removeCustomer = (id: string) =>
     withCustomerRefresh(() => adminApi.customers.remove(slug, token, id));

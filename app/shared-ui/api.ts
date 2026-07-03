@@ -68,7 +68,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** True for a 401/403 ApiError — the token is missing, expired, or wrong-tenant. */
+export function isAuthExpired(e: unknown): boolean {
+  return e instanceof ApiError && (e.status === 401 || e.status === 403);
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new ApiError(res.status, body.error ?? 'Something went wrong — try again.');

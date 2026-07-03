@@ -1,4 +1,3 @@
-import type { RequestType } from '../types/booking.js';
 import { addDays, DATE_RE } from '../util/dates.js';
 
 // Single source of truth for the booking calendar's capacity + conflict rules,
@@ -72,15 +71,6 @@ export function buildCapacity(events: CapacityEvent[]): Map<string, DayCapacity>
   }
 
   return byDate;
-}
-
-/** A day is unavailable when blocked, or a configured boarding/house-sit limit is met. */
-export function isUnavailableDate(capacity: DayCapacity, limits: CapacityLimits): boolean {
-  return (
-    capacity.blocked >= 1 ||
-    (limits.maxHouseSitsPerDay !== null && capacity.houseSits >= limits.maxHouseSitsPerDay) ||
-    (limits.maxBoardingPets !== null && capacity.boarding >= limits.maxBoardingPets)
-  );
 }
 
 /**
@@ -157,62 +147,4 @@ export function rangeHasConflict(
 /** Walks/check-ins only conflict with fully-blocked days. */
 export function walkHasConflict(date: string, capacityByDate: Map<string, DayCapacity>): boolean {
   return (capacityByDate.get(date)?.blocked ?? 0) >= 1;
-}
-
-export interface Opening {
-  startDate: string; // YYYY-MM-DD
-  endDate?: string; // exclusive checkout, for boarding/house-sit only
-}
-
-/**
- * Scan the prebuilt capacity map for available slots of `requestType`, between
- * `from` (inclusive) and `to` (inclusive candidate start dates), returning up to
- * `limit` openings. Reuses rangeHasConflict / walkHasConflict — NO new rules.
- * For boarding/house-sit, `nights` (default 1) defines the span [start, start+nights);
- * for walk/check-in, nights is ignored (single-day).
- */
-export function findOpenings(
-  capacity: Map<string, DayCapacity>,
-  opts: {
-    requestType: RequestType;
-    from: string;
-    to: string;
-    nights?: number;
-    limit?: number;
-    petCount?: number;
-    limits: CapacityLimits;
-  },
-): Opening[] {
-  const limit = opts.limit ?? 3;
-  const isTimed = opts.requestType === 'walk' || opts.requestType === 'check-in';
-  const result: Opening[] = [];
-
-  for (
-    let start = opts.from;
-    start <= opts.to && result.length < limit;
-    start = addDays(start, 1)
-  ) {
-    if (isTimed) {
-      if (!walkHasConflict(start, capacity)) {
-        result.push({ startDate: start });
-      }
-    } else {
-      const nights = Math.max(1, opts.nights ?? 1);
-      const end = addDays(start, nights);
-      if (
-        !rangeHasConflict(
-          start,
-          end,
-          opts.requestType as 'boarding' | 'house-sit',
-          capacity,
-          opts.limits,
-          opts.petCount,
-        )
-      ) {
-        result.push({ startDate: start, endDate: end });
-      }
-    }
-  }
-
-  return result;
 }

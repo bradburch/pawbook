@@ -5,8 +5,8 @@ import { Calendar } from './Calendar';
 const errorMsg = (e: unknown): string => (e instanceof Error ? e.message : 'Try again.');
 import {
   api,
-  ApiError,
   getToken,
+  isAuthExpired,
   setToken,
   type Availability,
   type Booking,
@@ -207,7 +207,7 @@ function BookTab({
       setCalReloadKey((k) => k + 1);
       window.parent.postMessage({ type: 'pawbook:booked', requestId: res.id }, '*');
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+      if (isAuthExpired(e)) {
         onAuthExpired();
         return;
       }
@@ -364,7 +364,7 @@ function MineTab() {
         const res = await api.myBookings(slug, token);
         return { kind: 'ok', bookings: res.bookings };
       } catch (e) {
-        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+        if (isAuthExpired(e)) {
           setToken(slug, null);
           return { kind: 'reauth' };
         }
@@ -430,8 +430,14 @@ function MineTab() {
   );
 }
 
-/** Report content height to the parent loader so the iframe auto-resizes (story 3.1). */
-function useResizeReporter() {
+export default function App() {
+  const [config, setConfig] = useState<TenantConfig | null>(null);
+  const [me, setMe] = useState<{ name: string | null; pets: Pet[] } | null>(null);
+  const [authed, setAuthed] = useState(() => !!getToken(slug));
+  const [error, setError] = useState('');
+  const [showMine, setShowMine] = useState(false);
+
+  // Report content height to the parent loader so the iframe auto-resizes (story 3.1).
   useEffect(() => {
     const report = () =>
       window.parent.postMessage(
@@ -447,15 +453,6 @@ function useResizeReporter() {
     observer.observe(document.body);
     return () => observer.disconnect();
   }, []);
-}
-
-export default function App() {
-  const [config, setConfig] = useState<TenantConfig | null>(null);
-  const [me, setMe] = useState<{ name: string | null; pets: Pet[] } | null>(null);
-  const [authed, setAuthed] = useState(() => !!getToken(slug));
-  const [error, setError] = useState('');
-  const [showMine, setShowMine] = useState(false);
-  useResizeReporter();
 
   useEffect(() => {
     api
@@ -487,7 +484,7 @@ export default function App() {
       .then((m) => active && setMe(m))
       .catch((e: unknown) => {
         if (!active) return;
-        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) onAuthExpired();
+        if (isAuthExpired(e)) onAuthExpired();
         else setMe({ name: null, pets: [] });
       });
     return () => {
