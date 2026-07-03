@@ -6,7 +6,13 @@ import { sign, verify } from 'hono/jwt';
  * embed sandbox can deny storage entirely, so token loss must degrade to re-identify.
  */
 
-export const TOKEN_TTL_SECONDS = 60 * 60;
+/**
+ * 24h: long enough that a customer who leaves the widget open (or returns the next
+ * morning) isn't signed out mid-booking, short enough to bound a leaked token —
+ * there's no server-side revocation, so the TTL is the only expiry. On 401 the
+ * widget degrades to re-identify (email code), so expiry costs one quick sign-in.
+ */
+export const TOKEN_TTL_SECONDS = 24 * 60 * 60;
 
 export type WidgetClaims = {
   /** End user id. */

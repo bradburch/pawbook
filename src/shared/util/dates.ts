@@ -30,50 +30,12 @@ export function parseDateUtc(dateStr: string): number {
 }
 
 /**
- * Parse a `YYYY-MM-DD` (or ISO) string to a Date at LOCAL midnight. Used for
- * client-side ordering/relative display in the Pacific user's browser. Prefer
- * `parseDateUtc` for timezone-neutral arithmetic.
- */
-export function parseLocalDate(dateStr: string): Date {
-  return new Date(...ymd(dateStr));
-}
-
-/**
  * Parse a `YYYY-MM-DD` (or ISO) string to a Date at UTC noon. UTC noon keeps the
  * calendar day stable when formatted in Pacific time regardless of offset.
  */
 export function parseDateToUtcNoon(dateStr: string): Date {
   const [y, m, d] = ymd(dateStr);
   return new Date(Date.UTC(y, m, d, 12, 0, 0));
-}
-
-/** Format a Date as `YYYY-MM-DD` from its local calendar fields. */
-export function dateToStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/**
- * Add whole `months` (may be negative) to a Date, returning a new Date.
- *
- * End-of-month is CLAMPED, not overflowed: Jan 31 + 1 month → Feb 28 (not Mar 3),
- * and Mar 31 − 1 month → Feb 28. The day is preserved when the target month has
- * enough days. Clamping is the conventional calendar semantic and every caller is
- * correct (or strictly better) under it: callers either normalize the result to the
- * 1st of the month (calendar timeMin/timeMax, calculations, read.ts), slice to
- * year-month (tool-execution cutoff), or use a coarse multi-month lookback/lookahead
- * horizon where a ≤3-day month-end boundary shift is immaterial. No caller relied on
- * the prior bare-`setMonth` overflow. Operates in the local-time frame (production
- * Workers run in UTC); see `tests/dates.test.ts` for the Pacific-frame coverage that
- * pins this clamp off-UTC.
- */
-export function addMonths(date: Date, months: number): Date {
-  const d = new Date(date);
-  const targetDay = d.getDate();
-  d.setDate(1); // avoid month-overflow while stepping the month
-  d.setMonth(d.getMonth() + months);
-  const lastDayOfTargetMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-  d.setDate(Math.min(targetDay, lastDayOfTargetMonth));
-  return d;
 }
 
 /**
@@ -163,25 +125,4 @@ export function hoursUntilStart(
     ? new Date(startDatetime).getTime()
     : pacificDayStartUtcMs(startDate);
   return (startMs - nowMs) / MS_PER_HOUR;
-}
-
-/**
- * Parse a SQLite `datetime('now')` timestamp (`"YYYY-MM-DD HH:MM:SS"`, space-separated,
- * UTC, no `T`/`Z`) to epoch milliseconds.
- *
- * D1/SQLite stores these as bare UTC strings. `new Date("2026-06-10 12:34:56")` is
- * implementation-defined and V8 parses it as LOCAL time, so on any non-UTC runtime
- * (local dev / CI on America/Los_Angeles) it is silently shifted by the host's offset.
- * We normalize to ISO-8601 UTC (`T` separator + `Z`) before parsing so the result is
- * the same on every runtime. Already-ISO strings (with `T`, with or without `Z`) are
- * handled too. Returns `NaN` for unparseable input (callers decide the failure policy).
- */
-export function parseSqliteUtc(timestamp: string): number {
-  const trimmed = timestamp.trim();
-  // Already ISO with an explicit zone: parse as-is. A bare `T`-form without a zone is
-  // still ambiguous, so append `Z`. Space-separated SQLite form: swap space→`T`, add `Z`.
-  const hasT = trimmed.includes('T');
-  const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(trimmed);
-  const iso = hasT ? (hasZone ? trimmed : `${trimmed}Z`) : `${trimmed.replace(' ', 'T')}Z`;
-  return new Date(iso).getTime();
 }

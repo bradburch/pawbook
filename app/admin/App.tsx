@@ -1,7 +1,31 @@
-import { useCallback, useEffect, useState } from 'react';
-import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
-import { adminApi, type Customer } from '../shared-ui/api.js';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { DEFAULT_TIMEZONE, formatBlockRange } from '../../src/shared/index.js';
+import { adminApi, isAuthExpired, request, type Customer } from '../shared-ui/api.js';
+import {
+  IconCalendar,
+  IconCode,
+  IconPaw,
+  IconPlug,
+  IconStore,
+  IconTag,
+  IconUsers,
+} from '../shared-ui/icons';
 import './admin.css';
+
+const TIMEZONES: string[] =
+  typeof Intl.supportedValuesOf === 'function'
+    ? Intl.supportedValuesOf('timeZone')
+    : [
+        'America/Los_Angeles',
+        'America/Denver',
+        'America/Chicago',
+        'America/New_York',
+        'America/Anchorage',
+        'Pacific/Honolulu',
+        'Europe/London',
+        'Europe/Paris',
+        'Australia/Sydney',
+      ];
 
 /**
  * Sitter dashboard. Auth is email + password → an admin session token, held in localStorage
@@ -83,13 +107,12 @@ type Settings = {
     authMode: 'oauth' | 'stub';
     status: string;
     connectedAt: string | null;
+    calendarId?: string | null;
   }[];
 };
 
-class AuthError extends Error {}
-
-async function adminFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+function adminFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
+  return request<T>(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -97,10 +120,6 @@ async function adminFetch<T>(token: string, path: string, init?: RequestInit): P
       ...(init?.headers ?? {}),
     },
   });
-  if (res.status === 401 || res.status === 403) throw new AuthError('Your session expired.');
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(body.error ?? 'Request failed.');
-  return body;
 }
 
 function Login({ onLogin }: { onLogin: (s: Session) => void }) {
@@ -144,7 +163,7 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
 
   return (
     <div className="pb-wrap pb-login">
-      <h1>Sitter sign in</h1>
+      <h1>Welcome back</h1>
       <label>
         Email
         <input
@@ -208,41 +227,225 @@ function Snippets({ session }: { session: Session }) {
   );
 }
 
+/**
+ * A live, same-origin preview of the sitter's own embed widget — the exact `/embed/:slug` page a
+ * customer sees, rendered with the tenant's SAVED branding, rates, and rules. `reloadKey` is bumped
+ * after a save to remount the frame with fresh config. The widget always fetches config
+ * server-side, so this never exposes anything the customer can't already see.
+ *
+ * Sizing: the production loader auto-resizes off the widget's `pawbook:resize` postMessage because
+ * it frames the widget CROSS-origin and can't read its document. This preview is SAME-origin, so it
+ * measures `contentDocument` directly and watches the inner <body> — more reliable than the
+ * widget's single ping, which fires before its date inputs and fonts settle.
+ */
+function WidgetPreview({ slug, reloadKey }: { slug: string; reloadKey: number }) {
+  const [height, setHeight] = useState(520);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+
+  // `reloadKey` remounts the iframe (fresh config after a save). Sizing off the iframe `load` event
+  // is fragile — cache and StrictMode double-mount can drop it — so we briefly poll instead. Each
+  // tick re-observes whenever the iframe's <body> changes (the about:blank → /embed navigation
+  // swaps it); a ResizeObserver then tracks later changes (e.g. switching widget tabs). We measure
+  // the BODY's height, not documentElement.scrollHeight — the latter is floored at the iframe's own
+  // height, so it reads a stale 520 while the widget is still loading.
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    let observer: ResizeObserver | null = null;
+    let observed: HTMLElement | null = null;
+    let ticks = 0;
+    const measure = () => {
+      const body = frame.contentDocument?.body;
+      if (body) setHeight(Math.max(320, body.scrollHeight));
+    };
+    const tick = () => {
+      const body = frame.contentDocument?.body; // same-origin first-party path — always readable.
+      if (body && body !== observed) {
+        observer?.disconnect();
+        observer = new ResizeObserver(measure);
+        observer.observe(body);
+        observed = body;
+      }
+      measure();
+      if (++ticks > 25) window.clearInterval(timer); // ~5s; the ResizeObserver carries on after.
+    };
+    const timer = window.setInterval(tick, 200);
+    tick();
+    return () => {
+      window.clearInterval(timer);
+      observer?.disconnect();
+    };
+  }, [reloadKey]);
+
+  return (
+    <div className="pb-preview">
+      <div className="pb-preview-bar" aria-hidden="true">
+        <span className="pb-dot" />
+        <span className="pb-dot" />
+        <span className="pb-dot" />
+        <span className="pb-preview-url">/embed/{slug}</span>
+      </div>
+      <iframe
+        key={reloadKey}
+        ref={frameRef}
+        className="pb-preview-frame"
+        title="Live preview of your booking widget"
+        src={`/embed/${encodeURIComponent(slug)}`}
+        style={{ height }}
+      />
+    </div>
+  );
+}
+
+function PetAdder({
+  customer,
+  enabledPetTypes,
+  onAdd,
+}: {
+  customer: Customer;
+  enabledPetTypes: string[];
+  onAdd: (endUserId: string, name: string, petType: string) => void;
+}) {
+  const [name, setName] = useState('');
+  const [petType, setPetType] = useState(enabledPetTypes[0]);
+  return (
+    <div className="pb-row pb-add-pet">
+      <input placeholder="Pet name" value={name} onChange={(e) => setName(e.target.value)} />
+      <select value={petType} onChange={(e) => setPetType(e.target.value)}>
+        {enabledPetTypes.map((pt) => (
+          <option key={pt} value={pt}>
+            {pt === 'dog' ? 'Dog' : 'Cat'}
+          </option>
+        ))}
+      </select>
+      <button
+        onClick={() => {
+          if (name.trim()) {
+            onAdd(customer.id, name.trim(), petType);
+            setName('');
+          }
+        }}
+      >
+        Add pet
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Small inline field for setting the pet-sitting calendar id on a connected Google Calendar.
+ * Keyed on the capability so local state resets if the provider changes.
+ */
+function CalendarIdField({
+  slug,
+  token,
+  initialValue,
+  onSave,
+  onError,
+}: {
+  slug: string;
+  token: string;
+  initialValue: string | null | undefined;
+  onSave: () => void;
+  onError: (e: unknown) => void;
+}) {
+  const [value, setValue] = useState(initialValue ?? '');
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await adminApi.calendar.setCalendarId(slug, token, value);
+      onSave();
+    } catch (e) {
+      onError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pb-inline">
+      <label>
+        Pet-sitting calendar ID <span className="pb-hint">(blank = primary)</span>
+        <input
+          type="text"
+          placeholder="primary"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <small className="pb-hint">
+          Connect Google Calendar above, then paste the calendar you use for pet-sitting — bookings
+          sync there and your busy days block automatically. Find the ID in Google Calendar →
+          Settings → your calendar → &quot;Integrate calendar&quot; → Calendar ID (like{' '}
+          <code>abc123@group.calendar.google.com</code>). Leave blank to use your main calendar.
+        </small>
+      </label>
+      <button onClick={() => void save()} disabled={busy}>
+        {busy ? 'Saving…' : 'Save'}
+      </button>
+    </div>
+  );
+}
+
 function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const { token, slug } = session;
   const [settings, setSettings] = useState<Settings | null>(null);
+  // JSON snapshot of the last server-loaded/saved settings; edits compare against it to
+  // decide whether the sticky save bar shows. Only the settings PUT is deferred — the
+  // other sections apply immediately and refresh both state and snapshot together.
+  const [savedSnapshot, setSavedSnapshot] = useState('');
   const [blockStart, setBlockStart] = useState('');
   const [blockEnd, setBlockEnd] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  // Bumped after a successful save so the embed preview remounts and pulls the fresh config.
+  const [previewKey, setPreviewKey] = useState(0);
+
+  const dirty = settings !== null && JSON.stringify(settings) !== savedSnapshot;
+
+  // The saved confirmation is transient; errors stay until resolved.
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
 
   const handle = useCallback(
     (e: unknown) => {
-      if (e instanceof AuthError) onSignOut();
+      if (isAuthExpired(e)) onSignOut();
       else setError(e instanceof Error ? e.message : 'Try again.');
     },
     [onSignOut],
   );
+
+  /** Clear the error, run `fn`, and route any failure (including expired auth) through `handle`. */
+  const run = async (fn: () => Promise<void>) => {
+    setError('');
+    try {
+      await fn();
+    } catch (e) {
+      handle(e);
+    }
+  };
 
   const loadSettings = useCallback(
     () => adminFetch<Settings>(token, `/api/${slug}/admin/settings`),
     [token, slug],
   );
 
-  const refresh = async () => {
-    setError('');
-    try {
-      setSettings(await loadSettings());
-    } catch (e) {
-      handle(e);
-    }
-  };
+  const applyLoaded = useCallback((s: Settings) => {
+    setSettings(s);
+    setSavedSnapshot(JSON.stringify(s));
+  }, []);
 
-  const save = async () => {
-    if (!settings) return;
-    setError('');
-    setMessage('');
-    try {
+  const refresh = () => run(async () => applyLoaded(await loadSettings()));
+
+  const save = () =>
+    run(async () => {
+      if (!settings) return;
+      setMessage('');
       await adminFetch(token, `/api/${slug}/admin/settings`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -264,15 +467,13 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           })),
         }),
       });
-      setMessage('Saved — the widget reflects this on next load.');
-    } catch (e) {
-      handle(e);
-    }
-  };
+      setMessage('Saved! Your widget updates on its next load.');
+      setSavedSnapshot(JSON.stringify(settings));
+      setPreviewKey((k) => k + 1);
+    });
 
-  const addBlock = async () => {
-    setError('');
-    try {
+  const addBlock = () =>
+    run(async () => {
       await adminFetch(token, `/api/${slug}/admin/blocked`, {
         method: 'POST',
         body: JSON.stringify({ startDate: blockStart, endDate: blockEnd }),
@@ -280,41 +481,27 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       setBlockStart('');
       setBlockEnd('');
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const removeBlock = async (id: string) => {
-    setError('');
-    try {
-      await adminFetch(token, `/api/${slug}/admin/blocked/${id}`, {
-        method: 'DELETE',
-      });
+  const removeBlock = (id: string) =>
+    run(async () => {
+      await adminFetch(token, `/api/${slug}/admin/blocked/${id}`, { method: 'DELETE' });
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const connect = async (capability: string) => {
-    setError('');
-    try {
+  const connect = (capability: string) =>
+    run(async () => {
       await adminFetch(token, `/api/${slug}/admin/providers/${capability}/connect`, {
         method: 'POST',
       });
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const connectCalendar = async () => {
+  const connectCalendar = () =>
     // NOTE: The route and this client call are still calendar-specific because there is exactly one
     // OAuth provider. When a second is added, generalize adminApi.calendar + the
     // /providers/calendar/... routes to accept a `capability` param. Deliberate YAGNI boundary.
-    setError('');
-    try {
+    run(async () => {
       const { url } = await adminApi.calendar.start(slug, token);
       const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
       // The callback page is script-free (CSP), so detect the popup closing here and re-fetch
@@ -325,20 +512,13 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           void refresh();
         }
       }, 1000);
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const disconnectCalendar = async () => {
-    setError('');
-    try {
+  const disconnectCalendar = () =>
+    run(async () => {
       await adminApi.calendar.disconnect(slug, token);
       await refresh();
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [custEmail, setCustEmail] = useState('');
@@ -363,61 +543,76 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     };
   }, [loadCustomers, handle]);
 
-  const addCustomer = async () => {
-    setError('');
-    try {
+  const withCustomerRefresh = (fn: () => Promise<unknown>) =>
+    run(async () => {
+      await fn();
+      setCustomers(await loadCustomers());
+    });
+
+  const addCustomer = () =>
+    withCustomerRefresh(async () => {
       await adminApi.customers.add(slug, token, custEmail.trim().toLowerCase(), custName.trim());
       setCustEmail('');
       setCustName('');
-      setCustomers(await loadCustomers());
-    } catch (e) {
-      handle(e);
-    }
-  };
+    });
 
-  const removeCustomer = async (id: string) => {
-    setError('');
-    try {
-      await adminApi.customers.remove(slug, token, id);
-      setCustomers(await loadCustomers());
-    } catch (e) {
-      handle(e);
-    }
-  };
+  const removeCustomer = (id: string) =>
+    withCustomerRefresh(() => adminApi.customers.remove(slug, token, id));
+
+  const addPet = (endUserId: string, name: string, petType: string) =>
+    withCustomerRefresh(() => adminApi.customers.addPet(slug, token, endUserId, name, petType));
+
+  const removePet = (endUserId: string, petId: string) =>
+    withCustomerRefresh(() => adminApi.customers.removePet(slug, token, endUserId, petId));
 
   // Initial settings load: setState only inside the promise callback (react-hooks rule).
   useEffect(() => {
     let active = true;
     loadSettings()
-      .then((s) => active && setSettings(s))
+      .then((s) => active && applyLoaded(s))
       .catch((e) => active && handle(e));
     return () => {
       active = false;
     };
-  }, [loadSettings, handle]);
+  }, [loadSettings, handle, applyLoaded]);
 
   if (!settings) return <p className="pb-wrap">Loading…</p>;
+
+  const enabledPetTypes = settings.petTypes.filter((p) => p.enabled).map((p) => p.petType);
 
   return (
     <div className="pb-wrap">
       <header className="pb-topbar">
-        <h1>{settings.displayName} — admin</h1>
-        <button className="pb-signout" onClick={onSignOut}>
-          Sign out
-        </button>
+        <div className="pb-topbar-row">
+          <h1>{settings.displayName}</h1>
+          <button className="pb-signout" onClick={onSignOut}>
+            Sign out
+          </button>
+        </div>
+        <nav className="pb-nav" aria-label="Sections">
+          <a href="#business">Business</a>
+          <a href="#pets">Pets</a>
+          <a href="#services">Services</a>
+          <a href="#timeoff">Time off</a>
+          <a href="#clients">Clients</a>
+          <a href="#apps">Apps</a>
+          <a href="#embed">Embed</a>
+        </nav>
       </header>
 
-      <section>
-        <h2>Branding &amp; capacity</h2>
+      <section id="business" className="pb-card">
+        <h2>
+          <IconStore size={18} /> Your business
+        </h2>
         <label>
-          Display name
+          Business name
           <input
             value={settings.displayName}
             onChange={(e) => setSettings({ ...settings, displayName: e.target.value })}
           />
         </label>
         <label>
-          Accent color
+          Brand color
           <input
             type="color"
             value={settings.accentColor}
@@ -425,25 +620,23 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           />
         </label>
         <NullableNumberField
-          label="Max boarding pets per day"
+          label="Boarding spots per day"
           value={settings.maxBoardingPets}
           onChange={(maxBoardingPets) => setSettings({ ...settings, maxBoardingPets })}
         />
         <NullableNumberField
-          label="Max house-sits per day"
+          label="House-sits per day"
           value={settings.maxHouseSitsPerDay}
           onChange={(maxHouseSitsPerDay) => setSettings({ ...settings, maxHouseSitsPerDay })}
         />
         <NullableNumberField
-          label="Max stay length (nights)"
+          label="Longest stay (nights)"
           value={settings.maxStayNights}
           onChange={(maxStayNights) => setSettings({ ...settings, maxStayNights })}
         />
         <label>
-          Business timezone <span className="pb-hint">(blank = {DEFAULT_TIMEZONE})</span>
-          <input
-            type="text"
-            placeholder={DEFAULT_TIMEZONE}
+          Your time zone
+          <select
             value={settings.timezone ?? ''}
             onChange={(e) =>
               setSettings({
@@ -451,12 +644,21 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
                 timezone: e.target.value === '' ? null : e.target.value,
               })
             }
-          />
+          >
+            <option value="">Use {DEFAULT_TIMEZONE} (default)</option>
+            {TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
         </label>
       </section>
 
-      <section>
-        <h2>Pets you care for</h2>
+      <section id="pets" className="pb-card">
+        <h2>
+          <IconPaw size={18} /> Pets you care for
+        </h2>
         {settings.petTypes.map((p, i) => (
           <label className="pb-inline" key={p.petType}>
             <input
@@ -473,8 +675,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         ))}
       </section>
 
-      <section>
-        <h2>Services &amp; rates</h2>
+      <section id="services" className="pb-card">
+        <h2>
+          <IconTag size={18} /> Services &amp; rates
+        </h2>
         {settings.services.map((s, si) => {
           const setService = (next: ServiceForm) => {
             const services = [...settings.services];
@@ -573,18 +777,15 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         })}
       </section>
 
-      <button className="pb-save" onClick={save}>
-        Save settings
-      </button>
-      {message && <p className="pb-ok">{message}</p>}
-      {error && <p className="pb-error">{error}</p>}
-
-      <section>
-        <h2>Blocked days</h2>
+      <section id="timeoff" className="pb-card">
+        <h2>
+          <IconCalendar size={18} /> Time off
+        </h2>
+        <p className="pb-applies">Changes here apply immediately.</p>
         <ul>
           {settings.blocked.map((b) => (
             <li key={b.id}>
-              {b.startDate} → {b.endDate} (end exclusive){' '}
+              {formatBlockRange(b.startDate, b.endDate)}
               <button onClick={() => void removeBlock(b.id)}>Remove</button>
             </li>
           ))}
@@ -596,12 +797,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         </div>
       </section>
 
-      <section>
-        <h2>Customers (invite-only)</h2>
-        <p>
-          <small>
-            Only invited customers can request bookings. Adding one emails them an invite.
-          </small>
+      <section id="clients" className="pb-card">
+        <h2>
+          <IconUsers size={18} /> Your clients
+        </h2>
+        <p className="pb-applies">
+          Only clients you invite can book — adding one sends them an invite by email.
         </p>
         <div className="pb-row">
           <input
@@ -620,24 +821,59 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         </div>
         <ul>
           {customers.map((cust) => (
-            <li key={cust.id}>
-              {cust.email}
-              {cust.name ? ` (${cust.name})` : ''} — <em>{cust.status}</em>{' '}
-              <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
+            <li key={cust.id} className="pb-customer">
+              <div className="pb-row">
+                <span>
+                  {cust.email}
+                  {cust.name ? ` (${cust.name})` : ''}{' '}
+                  <span
+                    className={`pb-chip${cust.status === 'active' ? ' pb-chip-ok' : ' pb-chip-warn'}`}
+                  >
+                    {cust.status.charAt(0).toUpperCase() + cust.status.slice(1)}
+                  </span>
+                </span>
+                <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
+              </div>
+              <ul className="pb-pets">
+                {cust.pets.map((p) => (
+                  <li key={p.id}>
+                    {p.name} <em>{p.petType}</em>
+                    <button onClick={() => void removePet(cust.id, p.id)}>Remove</button>
+                  </li>
+                ))}
+              </ul>
+              {enabledPetTypes.length > 0 && (
+                <PetAdder customer={cust} enabledPetTypes={enabledPetTypes} onAdd={addPet} />
+              )}
             </li>
           ))}
         </ul>
       </section>
 
-      <section>
-        <h2>Integrations</h2>
+      <section id="apps" className="pb-card">
+        <h2>
+          <IconPlug size={18} /> Connected apps
+        </h2>
         <ul>
           {settings.providers.map((p) => (
             <li key={p.capability}>
-              {p.label} — <em>{p.status}</em>{' '}
+              {p.label}{' '}
+              <span className={`pb-chip${p.status === 'connected' ? ' pb-chip-ok' : ''}`}>
+                {p.status === 'connected' ? 'Connected' : 'Not connected'}
+              </span>{' '}
               {p.authMode === 'oauth' ? (
                 p.status === 'connected' ? (
-                  <button onClick={() => void disconnectCalendar()}>Disconnect</button>
+                  <>
+                    <button onClick={() => void disconnectCalendar()}>Disconnect</button>
+                    <CalendarIdField
+                      key={p.capability}
+                      slug={slug}
+                      token={token}
+                      initialValue={p.calendarId}
+                      onSave={() => void refresh()}
+                      onError={handle}
+                    />
+                  </>
                 ) : (
                   <button onClick={() => void connectCalendar()}>Connect Google Calendar</button>
                 )
@@ -650,14 +886,34 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           ))}
         </ul>
         <p>
-          <small>Google Calendar uses real OAuth; other integrations are prototype stubs.</small>
+          <small>Google Calendar is fully connected; the others are previews for now.</small>
         </p>
       </section>
 
-      <section id="embed">
-        <h2>Embed on your website</h2>
+      <section id="embed" className="pb-card">
+        <h2>
+          <IconCode size={18} /> Add to your website
+        </h2>
+        <p className="pb-applies">
+          A live preview of your widget — exactly what customers see, with your saved branding. Save
+          settings to refresh it.
+        </p>
+        <WidgetPreview slug={slug} reloadKey={previewKey} />
         <Snippets session={session} />
       </section>
+
+      {(dirty || message || error) && (
+        <div className="pb-savebar" role="status">
+          {error ? (
+            <p className="pb-savebar-error">{error}</p>
+          ) : dirty ? (
+            <p>You have unsaved changes.</p>
+          ) : (
+            <p className="pb-savebar-saved">{message}</p>
+          )}
+          {dirty && <button onClick={save}>Save settings</button>}
+        </div>
+      )}
     </div>
   );
 }

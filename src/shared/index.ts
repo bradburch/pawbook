@@ -1,5 +1,5 @@
 // Booking, date, and pricing core — pure TypeScript with no runtime dependencies.
-export { formatShortDate } from './util/date-format.js';
+export { formatShortDate, formatBlockRange } from './util/date-format.js';
 export {
   addDays,
   nightsBetween,
@@ -16,3 +16,12 @@ export {
   type DayCapacity,
 } from './booking/capacity.js';
 export { billableUnits } from './pricing/booking-cost.js';
+export {
+  monthGrid,
+  shiftMonth,
+  nextRangeSelection,
+  isDateSelected,
+  rangePosition,
+  type RangePosition,
+  type RangeValue,
+} from './booking/calendar-ui.js';
