@@ -5,7 +5,7 @@ export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Instance-default business timezone used when a tenant has none set. */
 export const DEFAULT_TIMEZONE = 'America/Los_Angeles';
-/** Internal alias used by date-format.ts's Pacific-formatting helpers; new code should
+/** Internal alias used by the Pacific-specific offset helpers below; new code should
  *  prefer DEFAULT_TIMEZONE (and accept an explicit timezone where a tenant can set one). */
 export const PACIFIC = DEFAULT_TIMEZONE;
 
@@ -74,4 +74,55 @@ export function getPacificDateStr(
   timezone: string = DEFAULT_TIMEZONE,
 ): string {
   return date.toLocaleDateString('en-CA', { timeZone: timezone });
+}
+
+/** Milliseconds in one hour. */
+const MS_PER_HOUR = 3_600_000;
+
+/**
+ * Pacific-time UTC offset in minutes for a given instant (e.g. 420 for PDT, 480
+ * for PST). Derived from `Intl` so it's DST-correct without a tz database.
+ */
+function pacificOffsetMinutes(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC,
+    timeZoneName: 'shortOffset',
+  }).formatToParts(at);
+  const tz = parts.find((p) => p.type === 'timeZoneName')?.value ?? 'GMT-8';
+  const m = tz.match(/GMT([+-]\d{1,2})(?::(\d{2}))?/);
+  if (!m) return 480;
+  const hours = parseInt(m[1], 10);
+  const mins = parseInt(m[2] ?? '0', 10);
+  return -(hours * 60 + Math.sign(hours) * mins);
+}
+
+// NOTE: pacificDayStartUtcMs / hoursUntilStart are the cancellation-window helpers and are NOT
+// yet timezone-parameterized — they hardcode PACIFIC (the instance default). They have no live
+// callers today; thread a tenant `timezone` through them (like getPacificDateStr) when the
+// cancellation-policy feature lands, or a non-default sitter's fee windows will use Pacific.
+
+/** UTC milliseconds of the START of the Pacific calendar day `YYYY-MM-DD` (00:00 Pacific). */
+export function pacificDayStartUtcMs(dateStr: string): number {
+  const utcMidnight = parseDateUtc(dateStr);
+  // Offset at ~Pacific-noon avoids the rare midnight DST-transition ambiguity.
+  const offsetMin = pacificOffsetMinutes(new Date(utcMidnight + 12 * MS_PER_HOUR));
+  return utcMidnight + offsetMin * 60_000;
+}
+
+/**
+ * Hours from `now` until an appointment starts. Timed visits use their exact ISO
+ * `startDatetime`; date-only sits anchor to the START of their Pacific calendar
+ * day (the business timezone) — NOT UTC midnight — so cancellation-fee windows
+ * engage at the policy boundary. Negative means the appointment is already past.
+ */
+export function hoursUntilStart(
+  startDatetime: string | undefined,
+  startDate: string,
+  now: Date = new Date(),
+): number {
+  const nowMs = now.getTime();
+  const startMs = startDatetime
+    ? new Date(startDatetime).getTime()
+    : pacificDayStartUtcMs(startDate);
+  return (startMs - nowMs) / MS_PER_HOUR;
 }

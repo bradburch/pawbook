@@ -12,7 +12,20 @@ import {
 } from '../shared-ui/icons';
 import './admin.css';
 
-const TIMEZONES: string[] = Intl.supportedValuesOf('timeZone');
+const TIMEZONES: string[] =
+  typeof Intl.supportedValuesOf === 'function'
+    ? Intl.supportedValuesOf('timeZone')
+    : [
+        'America/Los_Angeles',
+        'America/Denver',
+        'America/Chicago',
+        'America/New_York',
+        'America/Anchorage',
+        'Pacific/Honolulu',
+        'Europe/London',
+        'Europe/Paris',
+        'Australia/Sydney',
+      ];
 
 /**
  * Sitter dashboard. Auth is email + password → an admin session token, held in localStorage
