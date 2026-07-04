@@ -8,13 +8,29 @@ export type ServiceOptionForm = {
   durationMinutes: number | null;
   rate: number;
 };
+export type QuestionForm = {
+  id?: string;
+  label: string;
+  type: 'text' | 'yesno' | 'number' | 'select';
+  required: boolean;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  options?: string[];
+};
 export type ServiceForm = {
   type: string;
   label: string;
   hasDuration: boolean;
   rateUnit: string;
+  shape: 'range' | 'single';
   enabled: boolean;
   options: ServiceOptionForm[];
+  questions: QuestionForm[];
+  minNights: number | null;
+  maxNights: number | null;
+  minPetCount: number | null;
+  maxPetCount: number | null;
 };
 export type Settings = {
   displayName: string;

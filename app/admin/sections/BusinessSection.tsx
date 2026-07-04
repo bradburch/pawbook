@@ -18,7 +18,7 @@ const TIMEZONES: string[] =
       ];
 
 /** A nullable capacity/limit input: blank ⇒ null (no limit), a number ⇒ that value. */
-function NullableNumberField({
+export function NullableNumberField({
   label,
   value,
   onChange,
