@@ -53,13 +53,13 @@ body {
   margin: 0;
 }
 
-/* ── Sticky topbar with section nav ────────────────────────────── */
+/* ── Sticky topbar ─────────────────────────────────────────────── */
 .pb-topbar {
   position: sticky;
   top: 0;
   z-index: 20;
   margin: 0 -20px;
-  padding: 14px 20px 0;
+  padding: 14px 20px;
   background: color-mix(in srgb, var(--page) 88%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
@@ -73,39 +73,18 @@ body {
   flex-wrap: wrap;
 }
 
-.pb-nav {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  padding: 6px 0 0;
-}
-
-.pb-nav a {
-  padding: 8px 10px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--soft);
-  text-decoration: none;
-  border-radius: 8px 8px 0 0;
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-}
-
-.pb-nav a:hover {
-  color: var(--ink);
-  background: var(--sage-wash);
-  border-bottom-color: var(--sage);
+/* Dashboard is wider than the login/loading pages to fit the sidebar. */
+.pb-dash {
+  max-width: 1040px;
 }
 
 /* ── Section cards ─────────────────────────────────────────────── */
 .pb-card {
-  margin-top: 20px;
   padding: 20px 24px 24px;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: 0 10px 24px -22px rgba(28, 58, 74, 0.45);
-  scroll-margin-top: 108px;
 }
 
 .pb-wrap h2 {
@@ -221,6 +200,86 @@ body {
 .pb-wrap button:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* ── Settings-style layout: section nav + single active panel ──── */
+.pb-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.pb-sidenav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 190px;
+  position: sticky;
+  /* --topbar-h is measured in App.tsx — the topbar's height isn't fixed, it wraps to two
+     lines for a long business name on a narrow viewport. 78px is the fallback before JS runs. */
+  top: var(--topbar-h, 78px);
+  z-index: 15;
+}
+
+.pb-wrap .pb-sidenav a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--soft);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.pb-wrap .pb-sidenav a:hover {
+  color: var(--ink);
+  background: var(--sage-wash);
+}
+
+.pb-wrap .pb-sidenav a.pb-sidenav-active {
+  color: var(--ink);
+  background: var(--sage-wash);
+  border-color: var(--sage);
+  font-weight: 600;
+}
+
+.pb-sidenav svg {
+  color: var(--gold);
+  flex: none;
+}
+
+.pb-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .pb-layout {
+    flex-direction: column;
+  }
+
+  /* Stays sticky (not static) so the nav is still reachable after scrolling into a long section. */
+  .pb-sidenav {
+    flex-direction: row;
+    /* Desktop's `flex: 0 0 190px` sets a 190px basis on the now-vertical (column) main axis of
+       .pb-layout, stretching this to 190px tall instead of a compact row — reset it. */
+    flex: 0 0 auto;
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 4px;
+    background: var(--page);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .pb-wrap .pb-sidenav a {
+    flex: none;
+    white-space: nowrap;
+  }
 }
 
 /* Row-level actions (Remove, Disconnect, Add duration) are quiet ghosts. */

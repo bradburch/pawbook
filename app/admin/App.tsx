@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_TIMEZONE, formatBlockRange } from '../../src/shared/index.js';
-import { adminApi, isAuthExpired, request, type Customer } from '../shared-ui/api.js';
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { adminApi, isAuthExpired, type Customer } from '../shared-ui/api.js';
 import {
   IconCalendar,
   IconCode,
@@ -10,22 +9,15 @@ import {
   IconTag,
   IconUsers,
 } from '../shared-ui/icons';
+import { AppsSection } from './sections/AppsSection';
+import { BusinessSection } from './sections/BusinessSection';
+import { ClientsSection } from './sections/ClientsSection';
+import { EmbedSection } from './sections/EmbedSection';
+import { PetsSection } from './sections/PetsSection';
+import { ServicesSection } from './sections/ServicesSection';
+import { TimeOffSection } from './sections/TimeOffSection';
+import { adminFetch, type Session, type Settings } from './shared.js';
 import './admin.css';
-
-const TIMEZONES: string[] =
-  typeof Intl.supportedValuesOf === 'function'
-    ? Intl.supportedValuesOf('timeZone')
-    : [
-        'America/Los_Angeles',
-        'America/Denver',
-        'America/Chicago',
-        'America/New_York',
-        'America/Anchorage',
-        'Pacific/Honolulu',
-        'Europe/London',
-        'Europe/Paris',
-        'Australia/Sydney',
-      ];
 
 /**
  * Sitter dashboard. Auth is email + password → an admin session token, held in localStorage
@@ -33,32 +25,7 @@ const TIMEZONES: string[] =
  * The tenant slug comes from the session, not the URL — the sitter never types it.
  */
 
-type Session = { token: string; slug: string; displayName: string };
-
 const TOKEN_KEY = 'pawbook-admin-token';
-
-/** A nullable capacity/limit input: blank ⇒ null (no limit), a number ⇒ that value. */
-function NullableNumberField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (value: number | null) => void;
-}) {
-  return (
-    <label>
-      {label} <span className="pb-hint">(blank = no limit)</span>
-      <input
-        type="number"
-        min={1}
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-      />
-    </label>
-  );
-}
 
 function getStoredToken(): string | null {
   try {
@@ -74,52 +41,6 @@ function storeToken(token: string | null): void {
   } catch {
     /* storage denied — session lasts the page lifetime only */
   }
-}
-
-type ServiceOptionForm = {
-  optionKey?: string;
-  label: string;
-  durationMinutes: number | null;
-  rate: number;
-};
-type ServiceForm = {
-  type: string;
-  label: string;
-  hasDuration: boolean;
-  rateUnit: string;
-  enabled: boolean;
-  options: ServiceOptionForm[];
-};
-type Settings = {
-  displayName: string;
-  accentColor: string;
-  maxBoardingPets: number | null;
-  maxHouseSitsPerDay: number | null;
-  maxStayNights: number | null;
-  timezone: string | null;
-  petTypes: { petType: string; enabled: boolean }[];
-  services: ServiceForm[];
-  blocked: { id: string; startDate: string; endDate: string | null }[];
-  providers: {
-    capability: string;
-    provider: string;
-    label: string;
-    authMode: 'oauth' | 'stub';
-    status: string;
-    connectedAt: string | null;
-    calendarId?: string | null;
-  }[];
-};
-
-function adminFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
-  return request<T>(path, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers ?? {}),
-    },
-  });
 }
 
 function Login({ onLogin }: { onLogin: (s: Session) => void }) {
@@ -195,198 +116,23 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   );
 }
 
-function Snippets({ session }: { session: Session }) {
-  const [snippets, setSnippets] = useState<{
-    script: string;
-    iframe: string;
-  } | null>(null);
+type SectionKey = 'business' | 'pets' | 'services' | 'timeoff' | 'clients' | 'apps' | 'embed';
 
-  useEffect(() => {
-    adminFetch<{ script: string; iframe: string }>(
-      session.token,
-      `/api/${session.slug}/admin/snippet`,
-    )
-      .then((s) => setSnippets(s))
-      .catch(() => setSnippets(null));
-  }, [session]);
+const SECTIONS: { key: SectionKey; label: string; icon: typeof IconStore }[] = [
+  { key: 'business', label: 'Business', icon: IconStore },
+  { key: 'pets', label: 'Pets', icon: IconPaw },
+  { key: 'services', label: 'Services & rates', icon: IconTag },
+  { key: 'timeoff', label: 'Time off', icon: IconCalendar },
+  { key: 'clients', label: 'Clients', icon: IconUsers },
+  { key: 'apps', label: 'Connected apps', icon: IconPlug },
+  { key: 'embed', label: 'Embed', icon: IconCode },
+];
 
-  if (!snippets) return <p>Loading…</p>;
-  return (
-    <div>
-      <p>
-        <strong>Squarespace</strong> (Code Block, Core plan or higher) and most sites — paste this
-        auto-resizing snippet:
-      </p>
-      <textarea readOnly rows={3} value={snippets.script} onFocus={(e) => e.target.select()} />
-      <p>
-        <strong>Wix</strong> ("Embed a site") and script-stripping hosts — use the plain iframe
-        (fixed height, scrolls internally):
-      </p>
-      <textarea readOnly rows={3} value={snippets.iframe} onFocus={(e) => e.target.select()} />
-    </div>
-  );
-}
-
-/**
- * A live, same-origin preview of the sitter's own embed widget — the exact `/embed/:slug` page a
- * customer sees, rendered with the tenant's SAVED branding, rates, and rules. `reloadKey` is bumped
- * after a save to remount the frame with fresh config. The widget always fetches config
- * server-side, so this never exposes anything the customer can't already see.
- *
- * Sizing: the production loader auto-resizes off the widget's `pawbook:resize` postMessage because
- * it frames the widget CROSS-origin and can't read its document. This preview is SAME-origin, so it
- * measures `contentDocument` directly and watches the inner <body> — more reliable than the
- * widget's single ping, which fires before its date inputs and fonts settle.
- */
-function WidgetPreview({ slug, reloadKey }: { slug: string; reloadKey: number }) {
-  const [height, setHeight] = useState(520);
-  const frameRef = useRef<HTMLIFrameElement>(null);
-
-  // `reloadKey` remounts the iframe (fresh config after a save). Sizing off the iframe `load` event
-  // is fragile — cache and StrictMode double-mount can drop it — so we briefly poll instead. Each
-  // tick re-observes whenever the iframe's <body> changes (the about:blank → /embed navigation
-  // swaps it); a ResizeObserver then tracks later changes (e.g. switching widget tabs). We measure
-  // the BODY's height, not documentElement.scrollHeight — the latter is floored at the iframe's own
-  // height, so it reads a stale 520 while the widget is still loading.
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
-    let observer: ResizeObserver | null = null;
-    let observed: HTMLElement | null = null;
-    let ticks = 0;
-    const measure = () => {
-      const body = frame.contentDocument?.body;
-      if (body) setHeight(Math.max(320, body.scrollHeight));
-    };
-    const tick = () => {
-      const body = frame.contentDocument?.body; // same-origin first-party path — always readable.
-      if (body && body !== observed) {
-        observer?.disconnect();
-        observer = new ResizeObserver(measure);
-        observer.observe(body);
-        observed = body;
-      }
-      measure();
-      if (++ticks > 25) window.clearInterval(timer); // ~5s; the ResizeObserver carries on after.
-    };
-    const timer = window.setInterval(tick, 200);
-    tick();
-    return () => {
-      window.clearInterval(timer);
-      observer?.disconnect();
-    };
-  }, [reloadKey]);
-
-  return (
-    <div className="pb-preview">
-      <div className="pb-preview-bar" aria-hidden="true">
-        <span className="pb-dot" />
-        <span className="pb-dot" />
-        <span className="pb-dot" />
-        <span className="pb-preview-url">/embed/{slug}</span>
-      </div>
-      <iframe
-        key={reloadKey}
-        ref={frameRef}
-        className="pb-preview-frame"
-        title="Live preview of your booking widget"
-        src={`/embed/${encodeURIComponent(slug)}`}
-        style={{ height }}
-      />
-    </div>
-  );
-}
-
-function PetAdder({
-  customer,
-  enabledPetTypes,
-  onAdd,
-}: {
-  customer: Customer;
-  enabledPetTypes: string[];
-  onAdd: (endUserId: string, name: string, petType: string) => void;
-}) {
-  const [name, setName] = useState('');
-  const [petType, setPetType] = useState(enabledPetTypes[0]);
-  return (
-    <div className="pb-row pb-add-pet">
-      <input placeholder="Pet name" value={name} onChange={(e) => setName(e.target.value)} />
-      <select value={petType} onChange={(e) => setPetType(e.target.value)}>
-        {enabledPetTypes.map((pt) => (
-          <option key={pt} value={pt}>
-            {pt === 'dog' ? 'Dog' : 'Cat'}
-          </option>
-        ))}
-      </select>
-      <button
-        onClick={() => {
-          if (name.trim()) {
-            onAdd(customer.id, name.trim(), petType);
-            setName('');
-          }
-        }}
-      >
-        Add pet
-      </button>
-    </div>
-  );
-}
-
-/**
- * Small inline field for setting the pet-sitting calendar id on a connected Google Calendar.
- * Keyed on the capability so local state resets if the provider changes.
- */
-function CalendarIdField({
-  slug,
-  token,
-  initialValue,
-  onSave,
-  onError,
-}: {
-  slug: string;
-  token: string;
-  initialValue: string | null | undefined;
-  onSave: () => void;
-  onError: (e: unknown) => void;
-}) {
-  const [value, setValue] = useState(initialValue ?? '');
-  const [busy, setBusy] = useState(false);
-
-  const save = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await adminApi.calendar.setCalendarId(slug, token, value);
-      onSave();
-    } catch (e) {
-      onError(e);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="pb-inline">
-      <label>
-        Pet-sitting calendar ID <span className="pb-hint">(blank = primary)</span>
-        <input
-          type="text"
-          placeholder="primary"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-        <small className="pb-hint">
-          Connect Google Calendar above, then paste the calendar you use for pet-sitting — bookings
-          sync there and your busy days block automatically. Find the ID in Google Calendar →
-          Settings → your calendar → &quot;Integrate calendar&quot; → Calendar ID (like{' '}
-          <code>abc123@group.calendar.google.com</code>). Leave blank to use your main calendar.
-        </small>
-      </label>
-      <button onClick={() => void save()} disabled={busy}>
-        {busy ? 'Saving…' : 'Save'}
-      </button>
-    </div>
-  );
+/** Reads the initial section from the URL hash (e.g. `/admin#clients`) so deep links and page
+ * refreshes land on the right section, same as the old anchor-nav did. */
+function sectionFromHash(): SectionKey {
+  const hash = window.location.hash.slice(1);
+  return SECTIONS.some((s) => s.key === hash) ? (hash as SectionKey) : 'business';
 }
 
 function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
@@ -402,8 +148,37 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const [error, setError] = useState('');
   // Bumped after a successful save so the embed preview remounts and pulls the fresh config.
   const [previewKey, setPreviewKey] = useState(0);
+  const [activeSection, setActiveSection] = useState<SectionKey>(sectionFromHash);
 
   const dirty = settings !== null && JSON.stringify(settings) !== savedSnapshot;
+
+  // The sticky sidebar nav docks just below the topbar, but the topbar's height isn't fixed —
+  // it wraps to two lines for a long business name on a narrow viewport. Measure it instead of
+  // guessing, so the sidebar never overlaps it. A callback ref (not useRef + an empty-deps
+  // effect) because the header doesn't exist yet on the first render — this component returns
+  // the "Loading…" paragraph below until `settings` arrives. useLayoutEffect (not useEffect) so
+  // the measurement applies before paint — no flash of the pre-JS 78px fallback.
+  const [topbarEl, setTopbarEl] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    // Scoped to the dashboard's own wrapper (the topbar's parent, also an ancestor of
+    // .pb-sidenav) rather than the document root, so this doesn't leak global state that could
+    // go stale for anything else that might ever read a same-named custom property.
+    const wrap = topbarEl?.parentElement;
+    if (!wrap) return;
+    const setHeight = () => wrap.style.setProperty('--topbar-h', `${topbarEl.offsetHeight}px`);
+    setHeight();
+    const observer = new ResizeObserver(setHeight);
+    observer.observe(topbarEl);
+    return () => observer.disconnect();
+  }, [topbarEl]);
+
+  // Keeps the active section in sync with browser back/forward through the hash history
+  // entries that switching sections now creates.
+  useEffect(() => {
+    const onHashChange = () => setActiveSection(sectionFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // The saved confirmation is transient; errors stay until resolved.
   useEffect(() => {
@@ -580,327 +355,89 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
   const enabledPetTypes = settings.petTypes.filter((p) => p.enabled).map((p) => p.petType);
 
+  const panels: Record<SectionKey, ReactNode> = {
+    business: <BusinessSection settings={settings} setSettings={setSettings} />,
+    pets: <PetsSection settings={settings} setSettings={setSettings} />,
+    services: <ServicesSection settings={settings} setSettings={setSettings} />,
+    timeoff: (
+      <TimeOffSection
+        blocked={settings.blocked}
+        blockStart={blockStart}
+        blockEnd={blockEnd}
+        setBlockStart={setBlockStart}
+        setBlockEnd={setBlockEnd}
+        addBlock={addBlock}
+        removeBlock={removeBlock}
+      />
+    ),
+    clients: (
+      <ClientsSection
+        customers={customers}
+        custEmail={custEmail}
+        custName={custName}
+        setCustEmail={setCustEmail}
+        setCustName={setCustName}
+        addCustomer={addCustomer}
+        removeCustomer={removeCustomer}
+        addPet={addPet}
+        removePet={removePet}
+        enabledPetTypes={enabledPetTypes}
+      />
+    ),
+    apps: (
+      <AppsSection
+        providers={settings.providers}
+        slug={slug}
+        token={token}
+        connect={connect}
+        connectCalendar={connectCalendar}
+        disconnectCalendar={disconnectCalendar}
+        onCalendarSaved={() => void refresh()}
+        handleError={handle}
+      />
+    ),
+    embed: (
+      <EmbedSection session={session} previewKey={previewKey} active={activeSection === 'embed'} />
+    ),
+  };
+
   return (
-    <div className="pb-wrap">
-      <header className="pb-topbar">
+    <div className="pb-wrap pb-dash">
+      <header className="pb-topbar" ref={setTopbarEl}>
         <div className="pb-topbar-row">
           <h1>{settings.displayName}</h1>
           <button className="pb-signout" onClick={onSignOut}>
             Sign out
           </button>
         </div>
-        <nav className="pb-nav" aria-label="Sections">
-          <a href="#business">Business</a>
-          <a href="#pets">Pets</a>
-          <a href="#services">Services</a>
-          <a href="#timeoff">Time off</a>
-          <a href="#clients">Clients</a>
-          <a href="#apps">Apps</a>
-          <a href="#embed">Embed</a>
-        </nav>
       </header>
 
-      <section id="business" className="pb-card">
-        <h2>
-          <IconStore size={18} /> Your business
-        </h2>
-        <label>
-          Business name
-          <input
-            value={settings.displayName}
-            onChange={(e) => setSettings({ ...settings, displayName: e.target.value })}
-          />
-        </label>
-        <label>
-          Brand color
-          <input
-            type="color"
-            value={settings.accentColor}
-            onChange={(e) => setSettings({ ...settings, accentColor: e.target.value })}
-          />
-        </label>
-        <NullableNumberField
-          label="Boarding spots per day"
-          value={settings.maxBoardingPets}
-          onChange={(maxBoardingPets) => setSettings({ ...settings, maxBoardingPets })}
-        />
-        <NullableNumberField
-          label="House-sits per day"
-          value={settings.maxHouseSitsPerDay}
-          onChange={(maxHouseSitsPerDay) => setSettings({ ...settings, maxHouseSitsPerDay })}
-        />
-        <NullableNumberField
-          label="Longest stay (nights)"
-          value={settings.maxStayNights}
-          onChange={(maxStayNights) => setSettings({ ...settings, maxStayNights })}
-        />
-        <label>
-          Your time zone
-          <select
-            value={settings.timezone ?? ''}
-            onChange={(e) =>
-              setSettings({
-                ...settings,
-                timezone: e.target.value === '' ? null : e.target.value,
-              })
-            }
-          >
-            <option value="">Use {DEFAULT_TIMEZONE} (default)</option>
-            {TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
+      <div className="pb-layout">
+        <nav className="pb-sidenav" aria-label="Sections">
+          {SECTIONS.map(({ key, label, icon: Icon }) => (
+            <a
+              key={key}
+              href={`#${key}`}
+              className={key === activeSection ? 'pb-sidenav-active' : ''}
+              aria-current={key === activeSection ? 'page' : undefined}
+            >
+              <Icon size={16} /> {label}
+            </a>
+          ))}
+        </nav>
 
-      <section id="pets" className="pb-card">
-        <h2>
-          <IconPaw size={18} /> Pets you care for
-        </h2>
-        {settings.petTypes.map((p, i) => (
-          <label className="pb-inline" key={p.petType}>
-            <input
-              type="checkbox"
-              checked={p.enabled}
-              onChange={(e) => {
-                const petTypes = [...settings.petTypes];
-                petTypes[i] = { ...p, enabled: e.target.checked };
-                setSettings({ ...settings, petTypes });
-              }}
-            />
-            {p.petType === 'dog' ? 'Dogs' : 'Cats'}
-          </label>
-        ))}
-      </section>
-
-      <section id="services" className="pb-card">
-        <h2>
-          <IconTag size={18} /> Services &amp; rates
-        </h2>
-        {settings.services.map((s, si) => {
-          const setService = (next: ServiceForm) => {
-            const services = [...settings.services];
-            services[si] = next;
-            setSettings({ ...settings, services });
-          };
-          return (
-            <div className="pb-service" key={s.type}>
-              <label className="pb-inline">
-                <input
-                  type="checkbox"
-                  checked={s.enabled}
-                  onChange={(e) => setService({ ...s, enabled: e.target.checked })}
-                />
-                {s.label}
-              </label>
-              {!s.hasDuration ? (
-                <label className="pb-inline">
-                  $
-                  <input
-                    type="number"
-                    min={1}
-                    value={s.options[0]?.rate ?? 0}
-                    onChange={(e) =>
-                      setService({
-                        ...s,
-                        options: [
-                          {
-                            label: 'Standard',
-                            durationMinutes: null,
-                            rate: Number(e.target.value),
-                          },
-                        ],
-                      })
-                    }
-                  />
-                  /{s.rateUnit}
-                </label>
-              ) : (
-                <div className="pb-options">
-                  {s.options.map((o, oi) => (
-                    <div className="pb-inline" key={oi}>
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="min"
-                        value={o.durationMinutes ?? 0}
-                        onChange={(e) => {
-                          const options = [...s.options];
-                          options[oi] = {
-                            ...o,
-                            durationMinutes: Number(e.target.value),
-                            label: `${e.target.value} min`,
-                          };
-                          setService({ ...s, options });
-                        }}
-                      />
-                      min · $
-                      <input
-                        type="number"
-                        min={1}
-                        value={o.rate}
-                        onChange={(e) => {
-                          const options = [...s.options];
-                          options[oi] = { ...o, rate: Number(e.target.value) };
-                          setService({ ...s, options });
-                        }}
-                      />
-                      /{s.rateUnit}
-                      <button
-                        onClick={() =>
-                          setService({
-                            ...s,
-                            options: s.options.filter((_, k) => k !== oi),
-                          })
-                        }
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() =>
-                      setService({
-                        ...s,
-                        options: [...s.options, { label: '30 min', durationMinutes: 30, rate: 20 }],
-                      })
-                    }
-                  >
-                    Add duration
-                  </button>
-                </div>
-              )}
+        {/* Every section stays mounted (just hidden) so in-progress edits — e.g. a typed-but-
+            unsaved Google Calendar ID — and the embed preview iframe survive switching tabs.
+            Rendered from SECTIONS (not a hand-listed div per key) so a section can't end up in
+            the nav with no matching panel, or vice versa. */}
+        <div className="pb-panel pb-card">
+          {SECTIONS.map(({ key }) => (
+            <div key={key} hidden={activeSection !== key}>
+              {panels[key]}
             </div>
-          );
-        })}
-      </section>
-
-      <section id="timeoff" className="pb-card">
-        <h2>
-          <IconCalendar size={18} /> Time off
-        </h2>
-        <p className="pb-applies">Changes here apply immediately.</p>
-        <ul>
-          {settings.blocked.map((b) => (
-            <li key={b.id}>
-              {formatBlockRange(b.startDate, b.endDate)}
-              <button onClick={() => void removeBlock(b.id)}>Remove</button>
-            </li>
           ))}
-        </ul>
-        <div className="pb-inline">
-          <input type="date" value={blockStart} onChange={(e) => setBlockStart(e.target.value)} />
-          <input type="date" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} />
-          <button onClick={addBlock}>Block range</button>
         </div>
-      </section>
-
-      <section id="clients" className="pb-card">
-        <h2>
-          <IconUsers size={18} /> Your clients
-        </h2>
-        <p className="pb-applies">
-          Only clients you invite can book — adding one sends them an invite by email.
-        </p>
-        <div className="pb-row">
-          <input
-            type="email"
-            placeholder="customer@email.com"
-            value={custEmail}
-            onChange={(e) => setCustEmail(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Name (optional)"
-            value={custName}
-            onChange={(e) => setCustName(e.target.value)}
-          />
-          <button onClick={() => void addCustomer()}>Add customer</button>
-        </div>
-        <ul>
-          {customers.map((cust) => (
-            <li key={cust.id} className="pb-customer">
-              <div className="pb-row">
-                <span>
-                  {cust.email}
-                  {cust.name ? ` (${cust.name})` : ''}{' '}
-                  <span
-                    className={`pb-chip${cust.status === 'active' ? ' pb-chip-ok' : ' pb-chip-warn'}`}
-                  >
-                    {cust.status.charAt(0).toUpperCase() + cust.status.slice(1)}
-                  </span>
-                </span>
-                <button onClick={() => void removeCustomer(cust.id)}>Remove</button>
-              </div>
-              <ul className="pb-pets">
-                {cust.pets.map((p) => (
-                  <li key={p.id}>
-                    {p.name} <em>{p.petType}</em>
-                    <button onClick={() => void removePet(cust.id, p.id)}>Remove</button>
-                  </li>
-                ))}
-              </ul>
-              {enabledPetTypes.length > 0 && (
-                <PetAdder customer={cust} enabledPetTypes={enabledPetTypes} onAdd={addPet} />
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section id="apps" className="pb-card">
-        <h2>
-          <IconPlug size={18} /> Connected apps
-        </h2>
-        <ul>
-          {settings.providers.map((p) => (
-            <li key={p.capability}>
-              {p.label}{' '}
-              <span className={`pb-chip${p.status === 'connected' ? ' pb-chip-ok' : ''}`}>
-                {p.status === 'connected' ? 'Connected' : 'Not connected'}
-              </span>{' '}
-              {p.authMode === 'oauth' ? (
-                p.status === 'connected' ? (
-                  <>
-                    <button onClick={() => void disconnectCalendar()}>Disconnect</button>
-                    <CalendarIdField
-                      key={p.capability}
-                      slug={slug}
-                      token={token}
-                      initialValue={p.calendarId}
-                      onSave={() => void refresh()}
-                      onError={handle}
-                    />
-                  </>
-                ) : (
-                  <button onClick={() => void connectCalendar()}>Connect Google Calendar</button>
-                )
-              ) : (
-                p.status === 'disconnected' && (
-                  <button onClick={() => void connect(p.capability)}>Connect (stub)</button>
-                )
-              )}
-            </li>
-          ))}
-        </ul>
-        <p>
-          <small>Google Calendar is fully connected; the others are previews for now.</small>
-        </p>
-      </section>
-
-      <section id="embed" className="pb-card">
-        <h2>
-          <IconCode size={18} /> Add to your website
-        </h2>
-        <p className="pb-applies">
-          A live preview of your widget — exactly what customers see, with your saved branding. Save
-          settings to refresh it.
-        </p>
-        <WidgetPreview slug={slug} reloadKey={previewKey} />
-        <Snippets session={session} />
-      </section>
+      </div>
 
       {(dirty || message || error) && (
         <div className="pb-savebar" role="status">
