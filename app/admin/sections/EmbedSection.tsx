@@ -129,6 +129,13 @@ export function EmbedSection({
   previewKey: number;
   active: boolean;
 }) {
+  // This section stays mounted even when its tab isn't active, so the preview iframe and
+  // snippet fetch don't restart on every tab switch — but they also shouldn't load the moment
+  // the dashboard opens for a sitter who never visits Embed. Load them once the tab is first
+  // opened, then leave them mounted from then on.
+  const [everActive, setEverActive] = useState(active);
+  if (active && !everActive) setEverActive(true);
+
   return (
     <>
       <h2>
@@ -138,8 +145,12 @@ export function EmbedSection({
         A live preview of your widget — exactly what customers see, with your saved branding. Save
         settings to refresh it.
       </p>
-      <WidgetPreview slug={session.slug} reloadKey={previewKey} active={active} />
-      <Snippets session={session} />
+      {everActive && (
+        <>
+          <WidgetPreview slug={session.slug} reloadKey={previewKey} active={active} />
+          <Snippets session={session} />
+        </>
+      )}
     </>
   );
 }
