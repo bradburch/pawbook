@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '../index';
-import { createTestEnv, TEST_SECRET, endUserToken } from './helpers';
+import { adminToken, createTestEnv, TENANT_A, TEST_SECRET, endUserToken } from './helpers';
 import { setProviderTokens } from '../db/repo';
 import { encryptToken } from '../lib/token-crypto';
 
@@ -59,6 +59,117 @@ describe('booking flow', () => {
       env,
     );
     expect(res.status).toBe(409);
+  });
+
+  it('rejects a booking missing a required question answer', async () => {
+    const { env } = createTestEnv();
+    const adminHeaders = {
+      Authorization: `Bearer ${await adminToken(TENANT_A)}`,
+      'Content-Type': 'application/json',
+    };
+    await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [{ label: 'Is your dog crate-trained?', type: 'yesno', required: true }],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const res = await app.request(
+      '/api/sunny-paws/bookings',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'boarding',
+          startDate: '2028-08-10',
+          endDate: '2028-08-15',
+          petIds: ['pet_sp_bella'],
+        }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('persists valid answers and enforces the min-nights constraint', async () => {
+    const { env } = createTestEnv();
+    const adminHeaders = {
+      Authorization: `Bearer ${await adminToken(TENANT_A)}`,
+      'Content-Type': 'application/json',
+    };
+    await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: adminHeaders,
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [{ label: 'Is your dog crate-trained?', type: 'yesno', required: true }],
+              minNights: 3,
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    const settings = (await (
+      await app.request('/api/sunny-paws/admin/settings', { headers: adminHeaders }, env)
+    ).json()) as { services: { type: string; questions: { id: string }[] }[] };
+    const questionId = settings.services.find((s) => s.type === 'boarding')!.questions[0].id;
+
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+
+    // Below the 3-night minimum → rejected.
+    const tooShort = await app.request(
+      '/api/sunny-paws/bookings',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'boarding',
+          startDate: '2028-08-10',
+          endDate: '2028-08-11',
+          petIds: ['pet_sp_bella'],
+          answers: { [questionId]: 'yes' },
+        }),
+      },
+      env,
+    );
+    expect(tooShort.status).toBe(400);
+
+    // Meets the minimum and answers the required question → succeeds.
+    const ok = await app.request(
+      '/api/sunny-paws/bookings',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'boarding',
+          startDate: '2028-08-10',
+          endDate: '2028-08-13',
+          petIds: ['pet_sp_bella'],
+          answers: { [questionId]: 'yes' },
+        }),
+      },
+      env,
+    );
+    expect(ok.status).toBe(201);
   });
 
   it('rejects reused and wrong codes', async () => {
