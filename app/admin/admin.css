@@ -266,6 +266,9 @@ body {
   /* Stays sticky (not static) so the nav is still reachable after scrolling into a long section. */
   .pb-sidenav {
     flex-direction: row;
+    /* Desktop's `flex: 0 0 190px` sets a 190px basis on the now-vertical (column) main axis of
+       .pb-layout, stretching this to 190px tall instead of a compact row — reset it. */
+    flex: 0 0 auto;
     overflow-x: auto;
     width: 100%;
     padding-bottom: 4px;

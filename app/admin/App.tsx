@@ -160,9 +160,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   // the measurement applies before paint — no flash of the pre-JS 78px fallback.
   const [topbarEl, setTopbarEl] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    if (!topbarEl) return;
-    const setHeight = () =>
-      document.documentElement.style.setProperty('--topbar-h', `${topbarEl.offsetHeight}px`);
+    // Scoped to the dashboard's own wrapper (the topbar's parent, also an ancestor of
+    // .pb-sidenav) rather than the document root, so this doesn't leak global state that could
+    // go stale for anything else that might ever read a same-named custom property.
+    const wrap = topbarEl?.parentElement;
+    if (!wrap) return;
+    const setHeight = () => wrap.style.setProperty('--topbar-h', `${topbarEl.offsetHeight}px`);
     setHeight();
     const observer = new ResizeObserver(setHeight);
     observer.observe(topbarEl);
