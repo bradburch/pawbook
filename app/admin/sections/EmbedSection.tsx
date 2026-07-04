@@ -45,7 +45,15 @@ function Snippets({ session }: { session: Session }) {
  * measures `contentDocument` directly and watches the inner <body> — more reliable than the
  * widget's single ping, which fires before its date inputs and fonts settle.
  */
-function WidgetPreview({ slug, reloadKey }: { slug: string; reloadKey: number }) {
+function WidgetPreview({
+  slug,
+  reloadKey,
+  active,
+}: {
+  slug: string;
+  reloadKey: number;
+  active: boolean;
+}) {
   const [height, setHeight] = useState(520);
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -55,6 +63,11 @@ function WidgetPreview({ slug, reloadKey }: { slug: string; reloadKey: number })
   // swaps it); a ResizeObserver then tracks later changes (e.g. switching widget tabs). We measure
   // the BODY's height, not documentElement.scrollHeight — the latter is floored at the iframe's own
   // height, so it reads a stale 520 while the widget is still loading.
+  //
+  // This section stays mounted even while its tab isn't active (`display: none`), where the body
+  // has no rendered box and reads a 0 height. `active` in the deps restarts the polling window
+  // fresh whenever the tab is switched to, so it gets a real measurement instead of relying on the
+  // ResizeObserver to catch a resize it may have missed while hidden.
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
@@ -82,7 +95,7 @@ function WidgetPreview({ slug, reloadKey }: { slug: string; reloadKey: number })
       window.clearInterval(timer);
       observer?.disconnect();
     };
-  }, [reloadKey]);
+  }, [reloadKey, active]);
 
   return (
     <div className="pb-preview">
@@ -104,7 +117,15 @@ function WidgetPreview({ slug, reloadKey }: { slug: string; reloadKey: number })
   );
 }
 
-export function EmbedSection({ session, previewKey }: { session: Session; previewKey: number }) {
+export function EmbedSection({
+  session,
+  previewKey,
+  active,
+}: {
+  session: Session;
+  previewKey: number;
+  active: boolean;
+}) {
   return (
     <>
       <h2>
@@ -114,7 +135,7 @@ export function EmbedSection({ session, previewKey }: { session: Session; previe
         A live preview of your widget — exactly what customers see, with your saved branding. Save
         settings to refresh it.
       </p>
-      <WidgetPreview slug={session.slug} reloadKey={previewKey} />
+      <WidgetPreview slug={session.slug} reloadKey={previewKey} active={active} />
       <Snippets session={session} />
     </>
   );

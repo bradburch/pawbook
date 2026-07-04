@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { adminApi, isAuthExpired, type Customer } from '../shared-ui/api.js';
 import {
   IconCalendar,
@@ -156,9 +156,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   // it wraps to two lines for a long business name on a narrow viewport. Measure it instead of
   // guessing, so the sidebar never overlaps it. A callback ref (not useRef + an empty-deps
   // effect) because the header doesn't exist yet on the first render — this component returns
-  // the "Loading…" paragraph below until `settings` arrives.
+  // the "Loading…" paragraph below until `settings` arrives. useLayoutEffect (not useEffect) so
+  // the measurement applies before paint — no flash of the pre-JS 78px fallback.
   const [topbarEl, setTopbarEl] = useState<HTMLElement | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!topbarEl) return;
     const setHeight = () =>
       document.documentElement.style.setProperty('--topbar-h', `${topbarEl.offsetHeight}px`);
@@ -426,7 +427,11 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
             />
           </div>
           <div hidden={activeSection !== 'embed'}>
-            <EmbedSection session={session} previewKey={previewKey} />
+            <EmbedSection
+              session={session}
+              previewKey={previewKey}
+              active={activeSection === 'embed'}
+            />
           </div>
         </div>
       </div>
