@@ -23,7 +23,7 @@ import {
   setProviderCalendarId,
   setPetTypeEnabled,
   setProviderStatus,
-  setServiceEnabled,
+  setServiceConfig,
   updateTenantSettings,
 } from '../db/repo';
 import { isEmailConfigured, sendInvite } from '../lib/email';
@@ -46,6 +46,7 @@ import {
   isValidRate,
 } from '../lib/validation';
 import type { AppEnv } from '../types';
+import type { ServiceQuestion } from '../../src/shared/index.js';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -62,7 +63,69 @@ function isValidTimezone(value: unknown): value is string | null | undefined {
 }
 
 type OptionBody = { label?: string; durationMinutes?: number | null; rate?: number };
-type ServiceBody = { type?: string; enabled?: boolean; options?: OptionBody[] };
+
+type QuestionBody = {
+  id?: string;
+  label?: string;
+  type?: string;
+  required?: boolean;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  options?: string[];
+};
+
+const QUESTION_TYPES = ['text', 'yesno', 'number', 'select'] as const;
+
+/**
+ * Heuristic reject for classic catastrophic-backtracking shapes: a quantified group whose body
+ * is itself quantified, e.g. `(a+)+` or `([a-zA-Z]+)+`. Not exhaustive — a determined admin could
+ * still craft a pathological pattern this misses — but it blocks the textbook ReDoS shapes without
+ * requiring a linear-time regex engine. Paired with a runtime input-length cap in
+ * src/shared/booking/service-rules.ts as a second safety rail.
+ */
+function looksCatastrophic(pattern: string): boolean {
+  return /\([^()]*[+*][^()]*\)[+*]/.test(pattern);
+}
+
+/** Validates a question's DEFINITION (not an answer) — shape/type/options/pattern sanity. */
+function validateQuestionBody(q: QuestionBody): string | null {
+  const label = q.label?.trim();
+  if (!label) return 'Every question needs a label.';
+  if (!QUESTION_TYPES.includes(q.type as (typeof QUESTION_TYPES)[number]))
+    return `Unknown question type for "${label}".`;
+  if (q.type === 'number') {
+    if (q.min !== undefined && (typeof q.min !== 'number' || !Number.isFinite(q.min)))
+      return `"${label}": min must be a number.`;
+    if (q.max !== undefined && (typeof q.max !== 'number' || !Number.isFinite(q.max)))
+      return `"${label}": max must be a number.`;
+    if (q.min !== undefined && q.max !== undefined && q.min > q.max)
+      return `"${label}": min cannot exceed max.`;
+  }
+  if (q.type === 'select' && (!Array.isArray(q.options) || q.options.length === 0))
+    return `"${label}" needs at least one option.`;
+  if (q.type === 'text' && q.pattern) {
+    try {
+      new RegExp(q.pattern);
+    } catch {
+      return `"${label}" has an invalid pattern.`;
+    }
+    if (looksCatastrophic(q.pattern))
+      return `"${label}": that pattern could hang on certain input — try a simpler one.`;
+  }
+  return null;
+}
+
+type ServiceBody = {
+  type?: string;
+  enabled?: boolean;
+  options?: OptionBody[];
+  questions?: QuestionBody[];
+  minNights?: number | null;
+  maxNights?: number | null;
+  minPetCount?: number | null;
+  maxPetCount?: number | null;
+};
 type SettingsBody = {
   displayName?: string;
   accentColor?: string;
@@ -111,21 +174,30 @@ export const adminRoutes = new Hono<AppEnv>()
         petType: pt,
         enabled: petTypes.some((p) => p.PetType === pt && p.Enabled),
       })),
-      services: Object.entries(SERVICE_CATALOG).map(([type, meta]) => ({
-        type,
-        label: meta.label,
-        hasDuration: meta.hasDuration,
-        rateUnit: meta.rateUnit,
-        enabled: enabledByType.get(type as keyof typeof SERVICE_CATALOG) ?? false,
-        options: options
-          .filter((o) => o.ServiceType === type)
-          .map((o) => ({
-            optionKey: o.OptionKey,
-            label: o.Label,
-            durationMinutes: o.DurationMinutes,
-            rate: o.Rate,
-          })),
-      })),
+      services: Object.entries(SERVICE_CATALOG).map(([type, meta]) => {
+        const svc = services.find((s) => s.ServiceType === type);
+        return {
+          type,
+          label: meta.label,
+          hasDuration: meta.hasDuration,
+          rateUnit: meta.rateUnit,
+          shape: meta.shape,
+          enabled: enabledByType.get(type as keyof typeof SERVICE_CATALOG) ?? false,
+          questions: svc?.Questions ?? [],
+          minNights: svc?.MinNights ?? null,
+          maxNights: svc?.MaxNights ?? null,
+          minPetCount: svc?.MinPetCount ?? null,
+          maxPetCount: svc?.MaxPetCount ?? null,
+          options: options
+            .filter((o) => o.ServiceType === type)
+            .map((o) => ({
+              optionKey: o.OptionKey,
+              label: o.Label,
+              durationMinutes: o.DurationMinutes,
+              rate: o.Rate,
+            })),
+        };
+      }),
       blocked: blocked.map((b) => ({ id: b.Id, startDate: b.StartDate, endDate: b.EndDate })),
       providers: providerViews(connections).map(
         ({ capability, provider, label, authMode, status, connectedAt, calendarId }) => ({
@@ -159,6 +231,12 @@ export const adminRoutes = new Hono<AppEnv>()
     const timezone = patchNullable<string>(body, 'timezone', tenant.Timezone);
     const petTypes = body.petTypes;
     const services = body.services ?? [];
+    // Per-service PATCH semantics for questions/constraints (mirrors patchNullable above): a field
+    // included in a service's body ⇒ take it; absent ⇒ keep that service's current value. Without
+    // this, a caller that PUTs `{type, enabled}` alone (omitting questions/constraints) would
+    // silently wipe them back to empty/unlimited.
+    const currentServices =
+      services.length > 0 ? await listServices(c.env.PAWBOOK_DB, tenant.Id) : [];
 
     if (!displayName) return c.json({ error: 'Display name required.' }, 400);
     if (!COLOR_RE.test(accentColor)) return c.json({ error: 'Accent color must be #rrggbb.' }, 400);
@@ -204,6 +282,27 @@ export const adminRoutes = new Hono<AppEnv>()
         if (new Set(mins).size !== mins.length)
           return c.json({ error: 'Duplicate durations for one service.' }, 400);
       }
+      for (const q of svc.questions ?? []) {
+        const qError = validateQuestionBody(q);
+        if (qError) return c.json({ error: qError }, 400);
+      }
+      if (
+        !isNullableLimit(svc.minNights ?? null, DEFENSIVE_MAX_NIGHTS) ||
+        !isNullableLimit(svc.maxNights ?? null, DEFENSIVE_MAX_NIGHTS)
+      )
+        return c.json({ error: `${meta.label}: nights must be a positive number, or blank.` }, 400);
+      if (svc.minNights != null && svc.maxNights != null && svc.minNights > svc.maxNights)
+        return c.json({ error: `${meta.label}: min nights cannot exceed max nights.` }, 400);
+      if (
+        !isNullableLimit(svc.minPetCount ?? null, DEFENSIVE_MAX_PET_COUNT) ||
+        !isNullableLimit(svc.maxPetCount ?? null, DEFENSIVE_MAX_PET_COUNT)
+      )
+        return c.json(
+          { error: `${meta.label}: pet count must be a positive number, or blank.` },
+          400,
+        );
+      if (svc.minPetCount != null && svc.maxPetCount != null && svc.minPetCount > svc.maxPetCount)
+        return c.json({ error: `${meta.label}: min pets cannot exceed max pets.` }, 400);
     }
 
     await updateTenantSettings(c.env.PAWBOOK_DB, tenant.Id, {
@@ -221,7 +320,30 @@ export const adminRoutes = new Hono<AppEnv>()
     for (const svc of services) {
       const svcType = svc.type as keyof typeof SERVICE_CATALOG;
       const meta = SERVICE_CATALOG[svcType];
-      await setServiceEnabled(c.env.PAWBOOK_DB, tenant.Id, svcType, svc.enabled ?? false);
+      const current = currentServices.find((s) => s.ServiceType === svcType);
+      const questions: ServiceQuestion[] =
+        svc.questions !== undefined
+          ? svc.questions.map((q) => ({
+              id: q.id ?? crypto.randomUUID(),
+              label: q.label!.trim(),
+              type: q.type as ServiceQuestion['type'],
+              required: q.required ?? false,
+              ...(q.type === 'number' && q.min !== undefined ? { min: q.min } : {}),
+              ...(q.type === 'number' && q.max !== undefined ? { max: q.max } : {}),
+              ...(q.type === 'text' && q.pattern ? { pattern: q.pattern } : {}),
+              ...(q.type === 'select' ? { options: q.options } : {}),
+            }))
+          : (current?.Questions ?? []);
+      await setServiceConfig(c.env.PAWBOOK_DB, tenant.Id, svcType, {
+        enabled: svc.enabled ?? false,
+        questions,
+        minNights: 'minNights' in svc ? (svc.minNights ?? null) : (current?.MinNights ?? null),
+        maxNights: 'maxNights' in svc ? (svc.maxNights ?? null) : (current?.MaxNights ?? null),
+        minPetCount:
+          'minPetCount' in svc ? (svc.minPetCount ?? null) : (current?.MinPetCount ?? null),
+        maxPetCount:
+          'maxPetCount' in svc ? (svc.maxPetCount ?? null) : (current?.MaxPetCount ?? null),
+      });
       await replaceServiceOptions(
         c.env.PAWBOOK_DB,
         tenant.Id,

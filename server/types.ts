@@ -1,4 +1,5 @@
 import type { PetType, RateUnit, ServiceType } from './lib/services';
+import type { ServiceQuestion } from '../src/shared/index.js';
 
 export type { PetType, RateUnit, ServiceType };
 
@@ -24,6 +25,11 @@ export type TenantService = {
   TenantId: string;
   ServiceType: ServiceType;
   Enabled: number;
+  Questions: ServiceQuestion[];
+  MinNights: number | null;
+  MaxNights: number | null;
+  MinPetCount: number | null;
+  MaxPetCount: number | null;
 };
 
 export type TenantServiceOption = {

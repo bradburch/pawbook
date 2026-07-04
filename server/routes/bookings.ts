@@ -16,6 +16,11 @@ import { syncBookingToCalendar } from '../lib/calendar-sync';
 import { SERVICE_CATALOG, isServiceType } from '../lib/services';
 import { endUserAuth } from '../lib/middleware';
 import { isValidPetCount, validateBoardingRange, validateSingleDate } from '../lib/validation';
+import {
+  nightsBetween,
+  validateAnswers,
+  validateServiceConstraints,
+} from '../../src/shared/index.js';
 import type { AppEnv } from '../types';
 
 export const bookingRoutes = new Hono<AppEnv>()
@@ -55,6 +60,7 @@ export const bookingRoutes = new Hono<AppEnv>()
         endDate?: string;
         optionKey?: string;
         petIds?: unknown;
+        answers?: unknown;
       }>()
       .catch(() => ({}) as Record<string, never>);
     const type = body.type;
@@ -64,6 +70,15 @@ export const bookingRoutes = new Hono<AppEnv>()
       ? body.petIds.filter((x): x is string => typeof x === 'string')
       : [];
     const petIds = [...new Set(rawPetIds)];
+    const rawAnswers = body.answers;
+    const answers: Record<string, string> =
+      rawAnswers && typeof rawAnswers === 'object' && !Array.isArray(rawAnswers)
+        ? Object.fromEntries(
+            Object.entries(rawAnswers as Record<string, unknown>).filter(
+              (entry): entry is [string, string] => typeof entry[1] === 'string',
+            ),
+          )
+        : {};
 
     if (!isServiceType(type)) return c.json({ error: 'Unknown service type.' }, 400);
     if (petIds.length === 0) return c.json({ error: 'Choose at least one pet.' }, 400);
@@ -105,6 +120,22 @@ export const bookingRoutes = new Hono<AppEnv>()
     if (dateError) return c.json({ error: dateError.error }, dateError.status);
     const endDate = shape === 'range' ? end : null;
 
+    const nights = shape === 'range' ? nightsBetween(start, end) : null;
+
+    const answersError = validateAnswers(service.Questions, answers);
+    if (answersError) return c.json({ error: answersError }, 400);
+
+    const constraintsError = validateServiceConstraints(
+      {
+        minNights: service.MinNights,
+        maxNights: service.MaxNights,
+        minPetCount: service.MinPetCount,
+        maxPetCount: service.MaxPetCount,
+      },
+      { nights, petCount: pets },
+    );
+    if (constraintsError) return c.json({ error: constraintsError }, 400);
+
     // Price is computed server-side (never trusted from the client) and is pure — no DB read.
     const estCost = estimateCost(type, option, start, end);
 
@@ -122,6 +153,7 @@ export const bookingRoutes = new Hono<AppEnv>()
       petCount: pets,
       estCost,
       status: 'pending',
+      answers,
     });
 
     let check;

@@ -12,6 +12,7 @@ import type {
   TenantUser,
 } from '../types';
 import type { ServiceType } from '../lib/services';
+import type { ServiceQuestion } from '../../src/shared/index.js';
 import { constantTimeEqual } from '../lib/timing';
 
 /**
@@ -54,10 +55,13 @@ export async function getTenantUserByEmail(
 
 export async function listServices(db: D1Database, tenantId: string): Promise<TenantService[]> {
   const { results } = await db
-    .prepare('SELECT TenantId, ServiceType, Enabled FROM TenantServices WHERE TenantId = ?')
+    .prepare(
+      `SELECT TenantId, ServiceType, Enabled, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount
+       FROM TenantServices WHERE TenantId = ?`,
+    )
     .bind(tenantId)
-    .all<TenantService>();
-  return results;
+    .all<Omit<TenantService, 'Questions'> & { Questions: string }>();
+  return results.map((r) => ({ ...r, Questions: JSON.parse(r.Questions) as ServiceQuestion[] }));
 }
 
 export async function listServiceOptions(
@@ -174,14 +178,15 @@ export async function insertBookingRequest(
     petCount: number;
     estCost: number | null;
     status: 'pending' | 'confirmed';
+    answers?: Record<string, string>;
   },
 ): Promise<string> {
   const id = crypto.randomUUID();
   await db
     .prepare(
       `INSERT INTO BookingRequests
-         (Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, OptionKey, PetType, PetCount, EstCost, Status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, OptionKey, PetType, PetCount, EstCost, Answers, Status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -194,6 +199,7 @@ export async function insertBookingRequest(
       row.petType,
       row.petCount,
       row.estCost,
+      JSON.stringify(row.answers ?? {}),
       row.status,
     )
     .run();
@@ -283,18 +289,37 @@ export async function updateTenantSettings(
     .run();
 }
 
-export async function setServiceEnabled(
+export async function setServiceConfig(
   db: D1Database,
   tenantId: string,
   serviceType: ServiceType,
-  enabled: boolean,
+  config: {
+    enabled: boolean;
+    questions: ServiceQuestion[];
+    minNights: number | null;
+    maxNights: number | null;
+    minPetCount: number | null;
+    maxPetCount: number | null;
+  },
 ): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO TenantServices (TenantId, ServiceType, Enabled) VALUES (?, ?, ?)
-       ON CONFLICT (TenantId, ServiceType) DO UPDATE SET Enabled = excluded.Enabled`,
+      `INSERT INTO TenantServices (TenantId, ServiceType, Enabled, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (TenantId, ServiceType) DO UPDATE SET
+         Enabled = excluded.Enabled, Questions = excluded.Questions, MinNights = excluded.MinNights,
+         MaxNights = excluded.MaxNights, MinPetCount = excluded.MinPetCount, MaxPetCount = excluded.MaxPetCount`,
     )
-    .bind(tenantId, serviceType, enabled ? 1 : 0)
+    .bind(
+      tenantId,
+      serviceType,
+      config.enabled ? 1 : 0,
+      JSON.stringify(config.questions),
+      config.minNights,
+      config.maxNights,
+      config.minPetCount,
+      config.maxPetCount,
+    )
     .run();
 }
 

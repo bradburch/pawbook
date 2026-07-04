@@ -374,6 +374,264 @@ describe('tenant admin', () => {
     expect(boarding.options).toHaveLength(1);
     expect(boarding.options[0].rate).toBe(50);
   });
+
+  it('persists per-service questions and constraints, round-tripping through GET and the public config', async () => {
+    const { env } = createTestEnv();
+    const put = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [
+                { label: 'Is your dog crate-trained?', type: 'yesno', required: true },
+                {
+                  label: 'Feeding schedule',
+                  type: 'select',
+                  required: false,
+                  options: ['am', 'pm'],
+                },
+              ],
+              minNights: 2,
+              maxNights: 14,
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(put.status).toBe(204);
+
+    const settings = (await (
+      await app.request('/api/sunny-paws/admin/settings', { headers: await auth(TENANT_A) }, env)
+    ).json()) as {
+      services: {
+        type: string;
+        shape: string;
+        questions: { id: string; label: string; type: string }[];
+        minNights: number | null;
+        maxNights: number | null;
+      }[];
+    };
+    const boarding = settings.services.find((s) => s.type === 'boarding')!;
+    expect(boarding.shape).toBe('range');
+    expect(boarding.questions).toHaveLength(2);
+    expect(boarding.questions[0].label).toBe('Is your dog crate-trained?');
+    expect(boarding.questions[0].id).toBeTruthy(); // server-assigned stable id
+    expect(boarding.minNights).toBe(2);
+    expect(boarding.maxNights).toBe(14);
+
+    const config = (await (await app.request('/api/sunny-paws/config', {}, env)).json()) as {
+      services: { type: string; questions: { label: string }[]; minNights: number | null }[];
+    };
+    const publicBoarding = config.services.find((s) => s.type === 'boarding')!;
+    expect(publicBoarding.questions).toHaveLength(2);
+    expect(publicBoarding.minNights).toBe(2);
+  });
+
+  it('rejects malformed question definitions without persisting anything', async () => {
+    const { env } = createTestEnv();
+
+    const badType = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [{ label: 'Bad', type: 'essay', required: false }],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(badType.status).toBe(400);
+
+    const badSelect = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [{ label: 'No options', type: 'select', required: false, options: [] }],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(badSelect.status).toBe(400);
+
+    const badRange = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              minNights: 10,
+              maxNights: 2,
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(badRange.status).toBe(400);
+
+    const badPattern = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [{ label: 'Bad pattern', type: 'text', required: false, pattern: '(' }],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(badPattern.status).toBe(400);
+
+    const catastrophicPattern = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [
+                { label: 'Nested quantifier', type: 'text', required: false, pattern: '(a+)+' },
+              ],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(catastrophicPattern.status).toBe(400);
+
+    const nonNumericMinMax = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [
+                { label: 'Bad bound', type: 'number', required: false, min: 'not-a-number' },
+              ],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(nonNumericMinMax.status).toBe(400);
+
+    // Nothing above should have persisted — boarding rate is still the seeded 50.
+    const config = (await (await app.request('/api/sunny-paws/config', {}, env)).json()) as {
+      services: { type: string; options: { rate: number }[] }[];
+    };
+    expect(config.services.find((s) => s.type === 'boarding')?.options[0].rate).toBe(50);
+  });
+
+  it('preserves existing questions and constraints when a PUT omits them for a service (patch semantics)', async () => {
+    const { env } = createTestEnv();
+    await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 50 }],
+              questions: [{ label: 'Is your dog crate-trained?', type: 'yesno', required: true }],
+              minNights: 2,
+              maxNights: 14,
+            },
+          ],
+        }),
+      },
+      env,
+    );
+
+    // A caller PUTs the same service with ONLY `type`/`enabled` — questions/constraints omitted.
+    const partial = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'boarding',
+              enabled: true,
+              options: [{ label: 'Standard', durationMinutes: null, rate: 55 }],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(partial.status).toBe(204);
+
+    const settings = (await (
+      await app.request('/api/sunny-paws/admin/settings', { headers: await auth(TENANT_A) }, env)
+    ).json()) as {
+      services: {
+        type: string;
+        questions: { label: string }[];
+        minNights: number | null;
+        maxNights: number | null;
+        options: { rate: number }[];
+      }[];
+    };
+    const boarding = settings.services.find((s) => s.type === 'boarding')!;
+    // The rate change from the partial PUT took effect...
+    expect(boarding.options[0].rate).toBe(55);
+    // ...but questions/constraints, which the partial PUT never mentioned, survived untouched.
+    expect(boarding.questions).toHaveLength(1);
+    expect(boarding.questions[0].label).toBe('Is your dog crate-trained?');
+    expect(boarding.minNights).toBe(2);
+    expect(boarding.maxNights).toBe(14);
+  });
 });
 
 describe('configurable limits via admin settings', () => {

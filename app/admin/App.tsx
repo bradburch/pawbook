@@ -239,6 +239,11 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
               durationMinutes: s.hasDuration ? o.durationMinutes : null,
               rate: o.rate,
             })),
+            questions: s.questions,
+            minNights: s.minNights,
+            maxNights: s.maxNights,
+            minPetCount: s.minPetCount,
+            maxPetCount: s.maxPetCount,
           })),
         }),
       });
