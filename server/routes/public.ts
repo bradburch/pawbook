@@ -23,21 +23,29 @@ export const publicRoutes = new Hono<AppEnv>()
       maxStayNights: tenant.MaxStayNights,
       timezone: tenant.Timezone,
       petTypes: petTypes.filter((p) => p.Enabled).map((p) => p.PetType),
-      services: [...enabled].map((type) => ({
-        type,
-        label: SERVICE_CATALOG[type].label,
-        shape: SERVICE_CATALOG[type].shape,
-        rateUnit: SERVICE_CATALOG[type].rateUnit,
-        hasDuration: SERVICE_CATALOG[type].hasDuration,
-        options: options
-          .filter((o) => o.ServiceType === type)
-          .map((o) => ({
-            optionKey: o.OptionKey,
-            label: o.Label,
-            durationMinutes: o.DurationMinutes,
-            rate: o.Rate,
-          })),
-      })),
+      services: [...enabled].map((type) => {
+        const svc = services.find((s) => s.ServiceType === type)!;
+        return {
+          type,
+          label: SERVICE_CATALOG[type].label,
+          shape: SERVICE_CATALOG[type].shape,
+          rateUnit: SERVICE_CATALOG[type].rateUnit,
+          hasDuration: SERVICE_CATALOG[type].hasDuration,
+          questions: svc.Questions,
+          minNights: svc.MinNights,
+          maxNights: svc.MaxNights,
+          minPetCount: svc.MinPetCount,
+          maxPetCount: svc.MaxPetCount,
+          options: options
+            .filter((o) => o.ServiceType === type)
+            .map((o) => ({
+              optionKey: o.OptionKey,
+              label: o.Label,
+              durationMinutes: o.DurationMinutes,
+              rate: o.Rate,
+            })),
+        };
+      }),
     });
   })
 
