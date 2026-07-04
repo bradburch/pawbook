@@ -109,10 +109,7 @@ export type ServiceConstraints = {
 };
 
 // Returns an error message, or null if the answer is valid for this question.
-export function validateAnswer(
-  question: ServiceQuestion,
-  value: string | undefined,
-): string | null;
+export function validateAnswer(question: ServiceQuestion, value: string | undefined): string | null;
 
 // Validates a full answer set against a service's questions in one pass.
 // Returns the first error found, or null.
@@ -131,7 +128,7 @@ export function validateServiceConstraints(
 
 These are pure, zero-dependency functions (consistent with the rest of
 `src/shared/`) — the widget calls them for inline feedback, `bookings.ts` calls
-the *same* functions as the authoritative check.
+the _same_ functions as the authoritative check.
 
 ### 3. Repo layer (`server/db/repo.ts`)
 
