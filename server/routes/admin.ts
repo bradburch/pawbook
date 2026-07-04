@@ -23,7 +23,7 @@ import {
   setProviderCalendarId,
   setPetTypeEnabled,
   setProviderStatus,
-  setServiceEnabled,
+  setServiceConfig,
   updateTenantSettings,
 } from '../db/repo';
 import { isEmailConfigured, sendInvite } from '../lib/email';
@@ -221,7 +221,14 @@ export const adminRoutes = new Hono<AppEnv>()
     for (const svc of services) {
       const svcType = svc.type as keyof typeof SERVICE_CATALOG;
       const meta = SERVICE_CATALOG[svcType];
-      await setServiceEnabled(c.env.PAWBOOK_DB, tenant.Id, svcType, svc.enabled ?? false);
+      await setServiceConfig(c.env.PAWBOOK_DB, tenant.Id, svcType, {
+        enabled: svc.enabled ?? false,
+        questions: [],
+        minNights: null,
+        maxNights: null,
+        minPetCount: null,
+        maxPetCount: null,
+      });
       await replaceServiceOptions(
         c.env.PAWBOOK_DB,
         tenant.Id,
