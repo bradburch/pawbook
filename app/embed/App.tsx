@@ -6,6 +6,20 @@ import {
 } from '../../src/shared/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Calendar } from './Calendar';
+import {
+  api,
+  getToken,
+  isAuthExpired,
+  setToken,
+  type Availability,
+  type Booking,
+  type Pet,
+  type ServiceQuestion,
+  type TenantConfig,
+} from '../shared-ui/api';
+import './widget.css';
+import { SERVICE_ICONS } from './services';
+import { IconCheck, IconPaw } from '../shared-ui/icons';
 
 const errorMsg = (e: unknown): string => (e instanceof Error ? e.message : 'Try again.');
 
@@ -57,20 +71,6 @@ function QuestionField({
     </label>
   );
 }
-import {
-  api,
-  getToken,
-  isAuthExpired,
-  setToken,
-  type Availability,
-  type Booking,
-  type Pet,
-  type ServiceQuestion,
-  type TenantConfig,
-} from '../shared-ui/api';
-import './widget.css';
-import { SERVICE_ICONS } from './services';
-import { IconCheck, IconPaw } from '../shared-ui/icons';
 
 /** Widget tenant comes from the iframe path: /embed/:slug — never from the host page. */
 const slug = window.location.pathname.split('/').filter(Boolean)[1] ?? '';
