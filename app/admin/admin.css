@@ -217,30 +217,29 @@ body {
   flex: 0 0 190px;
   position: sticky;
   top: 78px;
+  z-index: 15;
 }
 
-.pb-wrap .pb-sidenav button {
+.pb-wrap .pb-sidenav a {
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 10px 12px;
-  min-height: unset;
-  background: none;
+  text-decoration: none;
   border: 1px solid transparent;
+  border-radius: 10px;
   color: var(--soft);
   font-family: var(--sans);
   font-size: 0.9rem;
   font-weight: 500;
-  text-align: left;
 }
 
-.pb-wrap .pb-sidenav button:hover {
-  filter: none;
+.pb-wrap .pb-sidenav a:hover {
   color: var(--ink);
   background: var(--sage-wash);
 }
 
-.pb-wrap .pb-sidenav button.pb-sidenav-active {
+.pb-wrap .pb-sidenav a.pb-sidenav-active {
   color: var(--ink);
   background: var(--sage-wash);
   border-color: var(--sage);
@@ -262,14 +261,17 @@ body {
     flex-direction: column;
   }
 
+  /* Stays sticky (not static) so the nav is still reachable after scrolling into a long section. */
   .pb-sidenav {
     flex-direction: row;
     overflow-x: auto;
-    position: static;
     width: 100%;
+    padding-bottom: 4px;
+    background: var(--page);
+    border-bottom: 1px solid var(--line);
   }
 
-  .pb-wrap .pb-sidenav button {
+  .pb-wrap .pb-sidenav a {
     flex: none;
     white-space: nowrap;
   }

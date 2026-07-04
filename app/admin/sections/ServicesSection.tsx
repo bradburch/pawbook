@@ -1,13 +1,7 @@
 import { IconTag } from '../../shared-ui/icons';
-import type { ServiceForm, Settings } from '../shared.js';
+import type { ServiceForm, SettingsSectionProps } from '../shared.js';
 
-export function ServicesSection({
-  settings,
-  setSettings,
-}: {
-  settings: Settings;
-  setSettings: (settings: Settings) => void;
-}) {
+export function ServicesSection({ settings, setSettings }: SettingsSectionProps) {
   return (
     <>
       <h2>

@@ -37,6 +37,12 @@ export type Settings = {
   }[];
 };
 
+/** Shared prop shape for sections that edit the staged, save-button-gated `settings` draft. */
+export type SettingsSectionProps = {
+  settings: Settings;
+  setSettings: (settings: Settings) => void;
+};
+
 export function adminFetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
   return request<T>(path, {
     ...init,

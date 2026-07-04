@@ -1,13 +1,7 @@
 import { IconPaw } from '../../shared-ui/icons';
-import type { Settings } from '../shared.js';
+import type { SettingsSectionProps } from '../shared.js';
 
-export function PetsSection({
-  settings,
-  setSettings,
-}: {
-  settings: Settings;
-  setSettings: (settings: Settings) => void;
-}) {
+export function PetsSection({ settings, setSettings }: SettingsSectionProps) {
   return (
     <>
       <h2>

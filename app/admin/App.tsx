@@ -349,31 +349,30 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       <div className="pb-layout">
         <nav className="pb-sidenav" aria-label="Sections">
           {SECTIONS.map(({ key, label, icon: Icon }) => (
-            <button
+            <a
               key={key}
+              href={`#${key}`}
               className={key === activeSection ? 'pb-sidenav-active' : ''}
               aria-current={key === activeSection ? 'page' : undefined}
-              onClick={() => {
-                setActiveSection(key);
-                window.location.hash = key;
-              }}
             >
               <Icon size={16} /> {label}
-            </button>
+            </a>
           ))}
         </nav>
 
+        {/* Every section stays mounted (just hidden) so in-progress edits — e.g. a typed-but-
+            unsaved Google Calendar ID — and the embed preview iframe survive switching tabs. */}
         <div className="pb-panel pb-card">
-          {activeSection === 'business' && (
+          <div hidden={activeSection !== 'business'}>
             <BusinessSection settings={settings} setSettings={setSettings} />
-          )}
-          {activeSection === 'pets' && (
+          </div>
+          <div hidden={activeSection !== 'pets'}>
             <PetsSection settings={settings} setSettings={setSettings} />
-          )}
-          {activeSection === 'services' && (
+          </div>
+          <div hidden={activeSection !== 'services'}>
             <ServicesSection settings={settings} setSettings={setSettings} />
-          )}
-          {activeSection === 'timeoff' && (
+          </div>
+          <div hidden={activeSection !== 'timeoff'}>
             <TimeOffSection
               blocked={settings.blocked}
               blockStart={blockStart}
@@ -383,8 +382,8 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
               addBlock={addBlock}
               removeBlock={removeBlock}
             />
-          )}
-          {activeSection === 'clients' && (
+          </div>
+          <div hidden={activeSection !== 'clients'}>
             <ClientsSection
               customers={customers}
               custEmail={custEmail}
@@ -397,8 +396,8 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
               removePet={removePet}
               enabledPetTypes={enabledPetTypes}
             />
-          )}
-          {activeSection === 'apps' && (
+          </div>
+          <div hidden={activeSection !== 'apps'}>
             <AppsSection
               providers={settings.providers}
               slug={slug}
@@ -409,8 +408,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
               onCalendarSaved={() => void refresh()}
               handleError={handle}
             />
-          )}
-          {activeSection === 'embed' && <EmbedSection session={session} previewKey={previewKey} />}
+          </div>
+          <div hidden={activeSection !== 'embed'}>
+            <EmbedSection session={session} previewKey={previewKey} />
+          </div>
         </div>
       </div>
 
