@@ -351,6 +351,21 @@ describe('countSlotBookings / listSlotBookingCounts', () => {
       estCost: null,
       status: 'confirmed',
     });
+    // Same option, but on toDateExclusive itself — must NOT be included in the [from, to) range
+    // below. This is what actually exercises the exclusive upper bound (a `StartDate <=
+    // toDateExclusive` bug would wrongly pull this one in).
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-02',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 1,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
 
     const count = await countSlotBookings(env.PAWBOOK_DB, TENANT_A, 'walk', 'morning-walk', '2028-09-01');
     expect(count).toBe(1);
