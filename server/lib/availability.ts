@@ -10,7 +10,12 @@ import {
   type CapacityEvent,
   type CapacityLimits,
 } from '../../src/shared/index.js';
-import { getProviderConnection, listCapacityRows, countSlotBookings, listSlotBookingCounts } from '../db/repo';
+import {
+  getProviderConnection,
+  listCapacityRows,
+  countSlotBookings,
+  listSlotBookingCounts,
+} from '../db/repo';
 import { getCalendarAccessToken } from './calendar-sync';
 import { categorizeCalendarEvent, listCalendarEvents } from './google-calendar';
 import { SERVICE_CATALOG, type ServiceType } from '../lib/services';
@@ -198,65 +203,19 @@ export async function monthAvailability(
   const timeMin = `${addDays(monthStart, -1)}T00:00:00Z`;
   const timeMax = `${addDays(monthEndExclusive, 1)}T00:00:00Z`;
 
-  const conn = await getProviderConnection(env.PAWBOOK_DB, tenant.Id, 'calendar');
-
-  const capacityEvents: CapacityEvent[] = [];
-  const mineDays = new Set<string>();
-
-  try {
-    if (conn && conn.Status === 'connected' && conn.AccessToken && conn.RefreshToken) {
-      const accessToken = await getCalendarAccessToken(env, tenant, conn);
-      const events = await listCalendarEvents(
-        accessToken,
-        conn.CalendarId ?? 'primary',
-        timeMin,
-        timeMax,
-      );
-
-      for (const ev of events) {
-        const result = categorizeCalendarEvent(ev);
-        if (result.kind === 'booking') {
-          const { category, petCount, email } = result;
-          if (category === 'boarding') {
-            capacityEvents.push({
-              start_date: ev.start,
-              end_date: ev.end,
-              type: 'boarding',
-              petCount,
-            });
-          } else if (category === 'housesitting') {
-            capacityEvents.push({ start_date: ev.start, end_date: ev.end, type: 'house-sit' });
-          }
-          // walk/daycare/checkin: no capacity event
-          if (email === callerEmail) {
-            for (let d = ev.start; d < ev.end; d = addDays(d, 1)) {
-              mineDays.add(d);
-            }
-          }
-        } else if (result.kind === 'block') {
-          capacityEvents.push({ start_date: ev.start, end_date: ev.end, type: 'blocked' });
-        }
-        // kind === 'ignore': skip
-      }
-    }
-  } catch {
-    // Calendar read failed (e.g. Google 5xx, token refresh error). Fail open: treat as if
-    // no calendar is connected so the widget stays usable. All days will appear available.
-  }
-
-  const cap = buildCapacity(capacityEvents);
   const requestType: 'boarding' | 'house-sit' | null =
     serviceType === 'housesitting' || serviceType === 'boarding'
       ? serviceTypeToCapacityType(serviceType)
       : null;
 
-  // Slot capacity is DB-sourced (our own bookings), independent of the Google Calendar
-  // connection above — fetched ONCE for the whole grid (not per day), matching buildCapacity's
-  // "build the map once" pattern.
+  // Slot capacity is DB-sourced (our own bookings) and independent of the Google Calendar work
+  // below — fetched ONCE for the whole grid (not per day), matching buildCapacity's "build the
+  // map once" pattern, and run concurrently with the calendar fetch rather than after it, since
+  // neither depends on the other's result.
   const capacityLimit = requestType === null ? (option?.Capacity ?? null) : null;
-  const slotCounts =
+  const slotCountsPromise =
     capacityLimit !== null
-      ? await listSlotBookingCounts(
+      ? listSlotBookingCounts(
           env.PAWBOOK_DB,
           tenant.Id,
           serviceType,
@@ -264,7 +223,66 @@ export async function monthAvailability(
           monthStart,
           monthEndExclusive,
         )
-      : null;
+      : Promise.resolve(null);
+
+  const conn = await getProviderConnection(env.PAWBOOK_DB, tenant.Id, 'calendar');
+
+  const capacityEvents: CapacityEvent[] = [];
+  const mineDays = new Set<string>();
+
+  const calendarWork = (async () => {
+    try {
+      if (conn && conn.Status === 'connected' && conn.AccessToken && conn.RefreshToken) {
+        const accessToken = await getCalendarAccessToken(env, tenant, conn);
+        const events = await listCalendarEvents(
+          accessToken,
+          conn.CalendarId ?? 'primary',
+          timeMin,
+          timeMax,
+        );
+
+        for (const ev of events) {
+          const result = categorizeCalendarEvent(ev);
+          if (result.kind === 'booking') {
+            const { category, petCount, email } = result;
+            if (category === 'boarding') {
+              capacityEvents.push({
+                start_date: ev.start,
+                end_date: ev.end,
+                type: 'boarding',
+                petCount,
+              });
+            } else if (category === 'housesitting') {
+              capacityEvents.push({ start_date: ev.start, end_date: ev.end, type: 'house-sit' });
+            }
+            // walk/daycare/checkin: no capacity event
+            if (email === callerEmail) {
+              // A same-day timed event (a windowed booking) normalizes start===end after
+              // date-only slicing — the exclusive-end loop below would never run for it, so
+              // handle that case directly instead of falling through to the multi-day loop.
+              if (ev.start === ev.end) {
+                mineDays.add(ev.start);
+              } else {
+                for (let d = ev.start; d < ev.end; d = addDays(d, 1)) {
+                  mineDays.add(d);
+                }
+              }
+            }
+          } else if (result.kind === 'block') {
+            capacityEvents.push({ start_date: ev.start, end_date: ev.end, type: 'blocked' });
+          }
+          // kind === 'ignore': skip
+        }
+      }
+    } catch {
+      // Calendar read failed (e.g. Google 5xx, token refresh error). Fail open: treat as if
+      // no calendar is connected so the widget stays usable. All days will appear available.
+    }
+  })();
+
+  const [slotCounts] = await Promise.all([slotCountsPromise, calendarWork]);
+
+  const cap = buildCapacity(capacityEvents);
 
   const days: MonthDay[] = [];
   for (let i = 0; i < daysInMonth; i++) {

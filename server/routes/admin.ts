@@ -65,6 +65,7 @@ function isValidTimezone(value: unknown): value is string | null | undefined {
 }
 
 type OptionBody = {
+  optionKey?: string;
   label?: string;
   durationMinutes?: number | null;
   rate?: number;
@@ -122,13 +123,21 @@ type ResolvedOption = {
  * how EstCost is never taken from the request body), and the OptionKey each option is saved
  * under. Non-windowed options keep today's `d${durationMinutes}` / `standard` scheme; windowed
  * options derive OptionKey from a slug of their label instead (their duration is no longer a
- * stable, unique-enough key — two different windows can share a length). Returns an error
- * message, or the resolved rows ready to persist.
+ * stable, unique-enough key — two different windows can share a length).
+ *
+ * `existingKeys` are this service's current OptionKeys (from the DB, before this save). An
+ * option that names one of them via `optionKey` keeps that key rather than getting a freshly
+ * derived one — otherwise renaming a windowed option (whose key is label-derived) would sever
+ * it from bookings already made against the old key, silently letting the slot oversell past
+ * its capacity. Only a genuinely new option (no matching existing key) gets a fresh one.
+ *
+ * Returns an error message, or the resolved rows ready to persist.
  */
 function resolveServiceOptions(
   meta: (typeof SERVICE_CATALOG)[keyof typeof SERVICE_CATALOG],
   serviceLabel: string,
   opts: OptionBody[],
+  existingKeys: Set<string>,
 ): { error: string } | { resolved: ResolvedOption[] } {
   const resolved: ResolvedOption[] = [];
   for (const o of opts) {
@@ -140,6 +149,8 @@ function resolveServiceOptions(
     const hasEnd = o.endTime !== undefined && o.endTime !== null;
     if (hasStart !== hasEnd)
       return { error: `${serviceLabel}: a time window needs both a start and an end time.` };
+    if (hasStart && !meta.hasDuration)
+      return { error: `${serviceLabel}: only per-visit services can have a time window.` };
     if (hasStart && (!isValidTimeString(o.startTime) || !isValidTimeString(o.endTime)))
       return { error: `${serviceLabel}: times must be in HH:MM format.` };
     if (hasStart && (o.endTime as string) <= (o.startTime as string))
@@ -158,14 +169,17 @@ function resolveServiceOptions(
     if (meta.hasDuration && !isValidDuration(durationMinutes))
       return { error: `${serviceLabel}: durations must be whole minutes ≥ 1.` };
 
-    const optionKey = windowed
+    const derivedKey = windowed
       ? slugifyLabel(label)
       : meta.hasDuration
         ? `d${durationMinutes}`
         : 'standard';
+    const preserveExisting = o.optionKey !== undefined && existingKeys.has(o.optionKey);
+    const optionKey = preserveExisting ? (o.optionKey as string) : derivedKey;
     // A label that's entirely punctuation/whitespace after the non-empty check above still
-    // slugifies to '' (e.g. "---") — treat that the same as no usable label.
-    if (windowed && optionKey === '')
+    // slugifies to '' (e.g. "---") — treat that the same as no usable label. Only relevant when
+    // a fresh key is actually being derived; a preserved key is already known-valid.
+    if (windowed && !preserveExisting && derivedKey === '')
       return { error: `${serviceLabel}: that label has no usable letters or numbers.` };
 
     resolved.push({
@@ -298,7 +312,7 @@ export const adminRoutes = new Hono<AppEnv>()
               startTime: o.StartTime,
               endTime: o.EndTime,
               capacity: o.Capacity,
-            })),
+            })), // optionKey round-trips back on save so resolveServiceOptions can preserve identity
         };
       }),
       blocked: blocked.map((b) => ({ id: b.Id, startDate: b.StartDate, endDate: b.EndDate })),
@@ -340,6 +354,14 @@ export const adminRoutes = new Hono<AppEnv>()
     // silently wipe them back to empty/unlimited.
     const currentServices =
       services.length > 0 ? await listServices(c.env.PAWBOOK_DB, tenant.Id) : [];
+    const currentOptions =
+      services.length > 0 ? await listServiceOptions(c.env.PAWBOOK_DB, tenant.Id) : [];
+    const existingKeysByType = new Map<string, Set<string>>();
+    for (const o of currentOptions) {
+      const keys = existingKeysByType.get(o.ServiceType) ?? new Set<string>();
+      keys.add(o.OptionKey);
+      existingKeysByType.set(o.ServiceType, keys);
+    }
 
     if (!displayName) return c.json({ error: 'Display name required.' }, 400);
     if (!COLOR_RE.test(accentColor)) return c.json({ error: 'Accent color must be #rrggbb.' }, 400);
@@ -376,7 +398,12 @@ export const adminRoutes = new Hono<AppEnv>()
       // on the (TenantId, ServiceType, OptionKey) UNIQUE constraint mid-write. Reject up front.
       if (!meta.hasDuration && opts.length > 1)
         return c.json({ error: `${meta.label} takes a single price.` }, 400);
-      const resolvedOptions = resolveServiceOptions(meta, meta.label, opts);
+      const resolvedOptions = resolveServiceOptions(
+        meta,
+        meta.label,
+        opts,
+        existingKeysByType.get(svc.type) ?? new Set(),
+      );
       if ('error' in resolvedOptions) return c.json({ error: resolvedOptions.error }, 400);
       resolvedOptionsByType.set(svc.type, resolvedOptions.resolved);
       for (const q of svc.questions ?? []) {

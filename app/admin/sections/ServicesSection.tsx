@@ -211,7 +211,19 @@ export function ServicesSection({ settings, setSettings }: SettingsSectionProps)
                             min={1}
                             placeholder="min"
                             value={o.durationMinutes ?? 0}
-                            onChange={(e) => setOption({ durationMinutes: Number(e.target.value) })}
+                            onChange={(e) => {
+                              const durationMinutes = Number(e.target.value);
+                              // Keep the label in sync with duration until the sitter customizes
+                              // it — detected by the current label still matching what
+                              // auto-derivation would have produced for the current duration.
+                              const autoLabel = `${o.durationMinutes ?? 0} min`;
+                              setOption({
+                                durationMinutes,
+                                ...(o.label === autoLabel
+                                  ? { label: `${durationMinutes} min` }
+                                  : {}),
+                              });
+                            }}
                           />
                         )}
                         {!windowed ? 'min · $' : '$'}
@@ -259,14 +271,7 @@ export function ServicesSection({ settings, setSettings }: SettingsSectionProps)
                       ...s,
                       options: [
                         ...s.options,
-                        {
-                          label: '30 min',
-                          durationMinutes: 30,
-                          rate: 20,
-                          startTime: null,
-                          endTime: null,
-                          capacity: null,
-                        },
+                        { ...emptyOption(), label: '30 min', durationMinutes: 30, rate: 20 },
                       ],
                     })
                   }

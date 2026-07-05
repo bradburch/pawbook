@@ -417,7 +417,13 @@ describe('countSlotBookings / listSlotBookingCounts', () => {
       status: 'confirmed',
     });
 
-    const count = await countSlotBookings(env.PAWBOOK_DB, TENANT_A, 'walk', 'morning-walk', '2028-09-01');
+    const count = await countSlotBookings(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-01',
+    );
     expect(count).toBe(1);
 
     const counts = await listSlotBookingCounts(
@@ -446,7 +452,13 @@ describe('countSlotBookings / listSlotBookingCounts', () => {
       estCost: null,
       status: 'pending',
     });
-    const including = await countSlotBookings(env.PAWBOOK_DB, TENANT_A, 'walk', 'morning-walk', '2028-09-05');
+    const including = await countSlotBookings(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-05',
+    );
     const excluding = await countSlotBookings(
       env.PAWBOOK_DB,
       TENANT_A,

@@ -40,9 +40,15 @@ export const bookingRoutes = new Hono<AppEnv>()
     const user = await getEndUserById(c.env.PAWBOOK_DB, tenant.Id, c.get('endUserId'));
     const options = await listServiceOptions(c.env.PAWBOOK_DB, tenant.Id);
     const serviceOptions = options.filter((o) => o.ServiceType === type);
-    const option = optionKey
-      ? (serviceOptions.find((o) => o.OptionKey === optionKey) ?? null)
-      : (serviceOptions[0] ?? null);
+    let option = serviceOptions[0] ?? null;
+    if (optionKey) {
+      // An unmatched key must error, not silently drop the capacity filter — a stale key (e.g.
+      // a customer's widget holding one from before the sitter renamed the option) would
+      // otherwise show every day as available, ignoring the option's real capacity.
+      const found = serviceOptions.find((o) => o.OptionKey === optionKey);
+      if (!found) return c.json({ error: 'Unknown service option.' }, 400);
+      option = found;
+    }
     const result = await monthAvailability(c.env, tenant, type, month, user?.Email ?? '', option);
     return c.json(result);
   })

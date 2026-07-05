@@ -194,4 +194,45 @@ describe('GET /api/:slug/availability/month', () => {
     const d6 = body.days.find((d) => d.date === '2026-10-06')!;
     expect(d6.status).toBe('available');
   });
+
+  it('rejects an unmatched ?option= instead of silently dropping the capacity filter', async () => {
+    const { env } = createTestEnv();
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const res = await app.request(
+      '/api/sunny-paws/availability/month?type=walk&month=2026-10&option=does-not-exist',
+      { headers: { Authorization: `Bearer ${token}` } },
+      env,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('marks a same-day timed booking (windowed walk) as "mine"', async () => {
+    const { env } = createTestEnv();
+    await seedConnectedCalendar(env);
+    mockCalendarFetch({
+      summary: 'Walk — jess@example.com (1 pet)',
+      start: { dateTime: '2026-10-15T11:00:00-07:00' },
+      end: { dateTime: '2026-10-15T14:00:00-07:00' },
+      extendedProperties: {
+        private: {
+          pawbook: 'true',
+          category: 'walk',
+          petCount: '1',
+          customerEmail: 'jess@example.com',
+        },
+      },
+    });
+
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const res = await app.request(
+      '/api/sunny-paws/availability/month?type=walk&month=2026-10',
+      { headers: { Authorization: `Bearer ${token}` } },
+      env,
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { days: MonthDay[] };
+    const d15 = body.days.find((d) => d.date === '2026-10-15')!;
+    expect(d15.mine).toBe(true);
+  });
 });
