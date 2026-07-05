@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import app from '../index';
-import { insertBookingRequest } from '../db/repo';
+import { countSlotBookings, insertBookingRequest, listSlotBookingCounts } from '../db/repo';
 import { checkAvailability, rowsToCapacityEvents } from '../lib/availability';
 import { SERVICE_CATALOG } from '../lib/services';
 import type { Tenant, TenantServiceOption } from '../types';
@@ -307,5 +307,90 @@ describe('checkAvailability', () => {
       )
     ).json()) as { available: boolean };
     expect(res.available).toBe(true);
+  });
+});
+
+describe('countSlotBookings / listSlotBookingCounts', () => {
+  it('counts only pending/confirmed bookings for the given option and date', async () => {
+    const { env, raw } = createTestEnv();
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 1,
+      startTime: '11:00',
+      estCost: null,
+      status: 'pending',
+    });
+    const cancelledId = await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 1,
+      startTime: '11:00',
+      estCost: null,
+      status: 'pending',
+    });
+    raw.prepare('UPDATE BookingRequests SET Status = ? WHERE Id = ?').run('cancelled', cancelledId);
+    // A different option, same date — must not count toward morning-walk.
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'd30',
+      petType: null,
+      petCount: 1,
+      startTime: null,
+      estCost: null,
+      status: 'confirmed',
+    });
+
+    const count = await countSlotBookings(env.PAWBOOK_DB, TENANT_A, 'walk', 'morning-walk', '2028-09-01');
+    expect(count).toBe(1);
+
+    const counts = await listSlotBookingCounts(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-01',
+      '2028-09-02',
+    );
+    expect(counts.get('2028-09-01')).toBe(1);
+    expect(counts.has('2028-09-02')).toBe(false);
+  });
+
+  it('countSlotBookings excludes the given booking id (self-exclusion for race checks)', async () => {
+    const { env } = createTestEnv();
+    const id = await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-05',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 1,
+      startTime: '11:00',
+      estCost: null,
+      status: 'pending',
+    });
+    const including = await countSlotBookings(env.PAWBOOK_DB, TENANT_A, 'walk', 'morning-walk', '2028-09-05');
+    const excluding = await countSlotBookings(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-05',
+      id,
+    );
+    expect(including).toBe(1);
+    expect(excluding).toBe(0);
   });
 });
