@@ -242,6 +242,9 @@ describe('checkAvailability', () => {
       DurationMinutes: 30,
       Rate: 20,
       RateUnit: 'visit',
+      StartTime: null,
+      EndTime: null,
+      Capacity: null,
       ...over,
     };
   }
