@@ -93,6 +93,29 @@ migration — it just starts getting populated instead of hardcoded `null`.
 service-level one, so `walk`/`checkin` (the only `hasDuration: true` types)
 simply gain optional fields on their existing option rows.
 
+**`DurationMinutes` is derived, not independently set, when a window is
+present.** When `StartTime`/`EndTime` are both set, `DurationMinutes` is
+computed as `EndTime - StartTime` (minutes) rather than typed separately by
+the sitter — this is what makes the calendar event's end time actually match
+the window (see Section 6), by construction rather than by a separate
+consistency check that could drift.
+
+### 2a. OptionKey derivation
+
+Today, `hasDuration` options derive `OptionKey` as `` `d${durationMinutes}` ``
+(`admin.ts:352`), and duplicate-duration options are rejected
+(`admin.ts:280-284`). Two windowed options of equal length (e.g. two 3-hour
+group walks), or a windowed option whose window length happens to match a
+plain duration option, would collide under that scheme. Fix: **windowed
+options derive `OptionKey` from a slug of their label instead**
+(e.g. "Morning Walk" → `morning-walk`); non-windowed options keep the existing
+`d${durationMinutes}` scheme unchanged. The existing per-service duplicate
+check (`admin.ts:280-284`) is generalized to check the *final derived
+`OptionKey` set* for the service rather than just `DurationMinutes` — this
+covers collisions from either derivation scheme in one check, and matches the
+real invariant that actually matters: the DB's `UNIQUE (TenantId, ServiceType,
+OptionKey)` constraint (`schema.sql:53`).
+
 ### 3. Repo layer (`server/db/repo.ts`)
 
 - `listServiceOptions` SELECT expands to include the three new columns.
@@ -116,8 +139,15 @@ simply gain optional fields on their existing option rows.
 
   Same status filter already used by `listCapacityRows` (pending+confirmed
   count toward capacity; cancelled doesn't).
-- `insertBookingRequest` (or its caller) sets `StartTime` from the resolved
-  option when present.
+- `insertBookingRequest`'s INSERT (`repo.ts:186-190`) currently writes `Id,
+  TenantId, EndUserId, ServiceType, StartDate, EndDate, OptionKey, PetType,
+  PetCount, EstCost, Answers, Status` — `StartTime` is **not** in that column
+  list today even though the column exists and is already read back via
+  `BOOKING_COLS`. The function signature and INSERT both need a `startTime`
+  param/column added. The call site in `bookings.ts:146-157` passes
+  `startTime: option.StartTime` alongside the other fields — this is a
+  distinct edit from the calendar-sync payload change in Section 5 below;
+  both call sites need the value, not just one.
 
 ### 4. Capacity check (`server/lib/availability.ts`)
 
@@ -151,13 +181,20 @@ response (the widget never displays raw counts); the counting only drives the
 
 ### 6. Calendar sync (`server/lib/calendar-sync.ts`, `server/lib/google-calendar.ts`)
 
-No changes needed — `buildEventResource` (`google-calendar.ts:151-185`)
-already branches into a timed `dateTime` event when `startTime` is present.
-This path has simply never been exercised because nothing upstream set
-`startTime` until now. Each booking still produces its own event (see
-Non-goals) — multiple customers in one Morning Walk slot just show up as
-separate overlapping timed events on the sitter's calendar, each carrying its
-own customer/pet/answers.
+No changes needed to `buildEventResource` (`google-calendar.ts:151-185`)
+itself — it already branches into a timed `dateTime` event when `startTime`
+is present, computing the event's end via `durationMinutes`
+(`addMinutesToLocal`). This path has simply never been exercised because
+nothing upstream set `startTime` until now. Because Section 2 makes
+`DurationMinutes` *derived* from `EndTime - StartTime` for windowed options
+(not independently settable), passing `option.StartTime` and
+`option.DurationMinutes` through as today's sync payload already does
+(`bookings.ts:183-184`) is sufficient — no separate `EndTime` plumbing into
+calendar sync is needed, and there is no way for the two to drift out of
+sync. Each booking still produces its own event (see Non-goals) — multiple
+customers in one Morning Walk slot just show up as separate overlapping
+timed events on the sitter's calendar, each carrying its own customer/pet/
+answers.
 
 ### 7. Admin route (`server/routes/admin.ts`)
 
@@ -172,6 +209,34 @@ own customer/pet/answers.
     `DEFENSIVE_MAX_PET_COUNT` (already a generic "sane positive int" ceiling
     per its own comment) — same shape as every other nullable numeric limit
     in this route.
+  - `label`: must be non-empty after trim (previously unvalidated, since
+    label wasn't client-editable before this change).
+  - **`durationMinutes` is never trusted from the client when a window is
+    set** — matching this codebase's existing convention that price/derived
+    numbers are always server-computed (`estCost` is never taken from the
+    request body; see `availability.ts:54-62`). When `startTime`/`endTime`
+    are both present, the server overwrites whatever `durationMinutes` the
+    client sent with `minutesBetween(endTime, startTime)` before persisting
+    or validating anything downstream (e.g. `isValidDuration`). The client
+    hiding the duration field (Section 9) is a UX nicety, not the source of
+    truth.
+  - **`optionKey` derivation and collision handling.** Non-windowed options
+    keep the existing `` `d${durationMinutes}` `` scheme. Windowed options
+    derive `optionKey` as `slugify(label)`: lowercase, non-alphanumeric runs
+    replaced with `-`, leading/trailing `-` trimmed (e.g. "Morning Walk!" →
+    `morning-walk`). After the non-empty-label check above, a slug can only
+    come out empty if the label is pure punctuation/whitespace after
+    trimming being non-empty but not alphanumeric (e.g. label `"---"`) — treat
+    that case as invalid input too (reject with the same non-empty-label
+    error, since a label with no derivable identity isn't a real name). The
+    existing per-service duplicate check (`admin.ts:280-284`, today keyed on
+    `durationMinutes`) is generalized to check the **final derived
+    `optionKey` set** for the service instead, covering collisions from
+    either derivation scheme with one check. On collision, the error message
+    changes from "Duplicate durations for one service" to "Two options have
+    the same name — use distinct labels for each service option." (the old
+    message is specific to the numeric-duration case and would be wrong for
+    a label collision).
 - `GET /:slug/admin/settings` options mapping (`admin.ts:191-198`) adds the
   three fields — pure pass-through.
 - On save, the option write includes the three fields alongside
@@ -183,7 +248,10 @@ own customer/pet/answers.
 `endTime`, `capacity` to each option entry, so the widget has everything it
 needs to render and gate without a second request.
 
-### 9. Admin UI (`app/admin/sections/ServicesSection.tsx`)
+### 9. Admin UI (`app/admin/sections/ServicesSection.tsx`, `app/admin/shared.ts`)
+
+`ServiceOptionForm` (`app/admin/shared.ts:5-10`) gains `startTime: string |
+null`, `endTime: string | null`, `capacity: number | null`.
 
 Each duration option row (`ServicesSection.tsx:170-222`) gains:
 
@@ -191,12 +259,15 @@ Each duration option row (`ServicesSection.tsx:170-222`) gains:
   — default value still auto-derives from duration when untouched, but
   sitters can freely rename any option (e.g. "60 min" → "Morning Walk").
 - Two native `<input type="time">` fields for `startTime`/`endTime` — no
-  picker library, no dependency.
+  picker library, no dependency. When both are filled, the duration field is
+  hidden/disabled and computed from the window instead (per Section 2 —
+  duration is derived, not independently entered, so the two can't drift).
 - A nullable capacity number input, reusing the existing `NullableNumberField`
   component already used for min/max nights/pets.
 
 Blank window/capacity fields = today's exact behavior (unrestricted,
-unlimited). No UI change at all for sitters who never touch these fields.
+unlimited, duration typed directly). No UI change at all for sitters who
+never touch these fields.
 
 ### 10. Widget (`app/embed/`)
 
@@ -243,16 +314,22 @@ Following this repo's convention — shared/pure logic tests under
 - `migrations/0006_service_slots.sql` (new) + `sql/schema.sql`.
 - `server/types.ts` — `TenantServiceOption` gains three fields.
 - `server/db/repo.ts` — `listServiceOptions` column expansion; new
-  `countSlotBookings`; `insertBookingRequest`/caller sets `StartTime`.
+  `countSlotBookings`; `insertBookingRequest` signature + INSERT gain
+  `startTime` (currently absent from both, despite the column existing).
 - `server/lib/availability.ts` — `checkSingle` capacity branch;
   `monthAvailability` slot-aware status for windowed options.
-- `server/routes/bookings.ts` — `startTime: option.StartTime` in the sync
-  payload (`bookings.ts:183`).
-- `server/routes/admin.ts` — `OptionBody` type, validation, `GET`/`PUT`
+- `server/routes/bookings.ts` — `insertBookingRequest` call
+  (`bookings.ts:146-157`) passes `startTime: option.StartTime`; sync payload
+  (`bookings.ts:183`) does the same — two distinct call sites, both required.
+- `server/routes/admin.ts` — `OptionBody` type, validation (including the
+  generalized per-service `OptionKey`-uniqueness check from Section 2a),
+  windowed-option `OptionKey` slug derivation, `GET`/`PUT`
   `/:slug/admin/settings` options mapping.
 - `server/routes/public.ts` — `GET /:slug/config` options mapping.
+- `app/admin/shared.ts` — `ServiceOptionForm` type additions.
 - `app/admin/sections/ServicesSection.tsx` — label input for all options,
-  time window + capacity fields per option.
+  time window + capacity fields per option, duration field disabled/derived
+  when a window is set.
 - `app/shared-ui/api.ts` — config type additions.
 - `app/embed/App.tsx` — windowed option label rendering.
 - Tests: additions to `availability.test.ts`, `admin.test.ts`,
