@@ -10,7 +10,7 @@ import {
   type CapacityEvent,
   type CapacityLimits,
 } from '../../src/shared/index.js';
-import { getProviderConnection, listCapacityRows } from '../db/repo';
+import { getProviderConnection, listCapacityRows, countSlotBookings, listSlotBookingCounts } from '../db/repo';
 import { getCalendarAccessToken } from './calendar-sync';
 import { categorizeCalendarEvent, listCalendarEvents } from './google-calendar';
 import { SERVICE_CATALOG, type ServiceType } from '../lib/services';
@@ -126,6 +126,19 @@ async function checkSingle(
   if (walkHasConflict(date, capacity)) {
     return { available: false, reason: 'That day is blocked off.' };
   }
+  if (option.Capacity !== null) {
+    const count = await countSlotBookings(
+      env.PAWBOOK_DB,
+      tenant.Id,
+      serviceType,
+      option.OptionKey,
+      date,
+      excludeBookingId,
+    );
+    if (count >= option.Capacity) {
+      return { available: false, reason: 'That session is full.' };
+    }
+  }
   return { available: true, estCost: estimateCost(serviceType, option, date, date) };
 }
 
@@ -172,6 +185,7 @@ export async function monthAvailability(
   serviceType: ServiceType,
   month: string, // YYYY-MM
   callerEmail: string,
+  option: TenantServiceOption | null = null,
 ): Promise<{ today: string; days: MonthDay[] }> {
   const today = getPacificDateStr(new Date(), tenant.Timezone ?? DEFAULT_TIMEZONE);
 
@@ -236,6 +250,22 @@ export async function monthAvailability(
       ? serviceTypeToCapacityType(serviceType)
       : null;
 
+  // Slot capacity is DB-sourced (our own bookings), independent of the Google Calendar
+  // connection above — fetched ONCE for the whole grid (not per day), matching buildCapacity's
+  // "build the map once" pattern.
+  const capacityLimit = requestType === null ? (option?.Capacity ?? null) : null;
+  const slotCounts =
+    capacityLimit !== null
+      ? await listSlotBookingCounts(
+          env.PAWBOOK_DB,
+          tenant.Id,
+          serviceType,
+          option!.OptionKey,
+          monthStart,
+          monthEndExclusive,
+        )
+      : null;
+
   const days: MonthDay[] = [];
   for (let i = 0; i < daysInMonth; i++) {
     const date = addDays(monthStart, i);
@@ -254,8 +284,11 @@ export async function monthAvailability(
       status = unavailable ? 'unavailable' : max != null && rawUsed > 0 ? 'partial' : 'available';
       used = max != null ? rawUsed : null;
     } else {
-      // Single-day unlimited service (walk / daycare / check-in): block-only
-      status = walkHasConflict(date, cap) ? 'unavailable' : 'available';
+      // Single-day unlimited service (walk / daycare / check-in): block-only, plus a per-slot
+      // capacity check when the option has one. Customers never see raw counts — only status.
+      const blocked = walkHasConflict(date, cap);
+      const full = capacityLimit !== null && (slotCounts!.get(date) ?? 0) >= capacityLimit;
+      status = blocked || full ? 'unavailable' : 'available';
       used = null;
       max = null;
     }

@@ -308,6 +308,56 @@ describe('checkAvailability', () => {
     ).json()) as { available: boolean };
     expect(res.available).toBe(true);
   });
+
+  it('rejects once a windowed option hits its capacity, ignoring cancelled bookings', async () => {
+    const { env, raw } = createTestEnv();
+    const t = tenant();
+    const slotOption = opt({ OptionKey: 'morning-walk', Capacity: 2 });
+
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 1,
+      startTime: '11:00',
+      estCost: null,
+      status: 'pending',
+    });
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 1,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    const cancelledId = await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 1,
+      startTime: '11:00',
+      estCost: null,
+      status: 'pending',
+    });
+    raw.prepare('UPDATE BookingRequests SET Status = ? WHERE Id = ?').run('cancelled', cancelledId);
+
+    const full = await checkAvailability(env, t, 'walk', slotOption, '2028-09-01', '');
+    expect(full).toMatchObject({ available: false });
+
+    const otherDate = await checkAvailability(env, t, 'walk', slotOption, '2028-09-02', '');
+    expect(otherDate).toMatchObject({ available: true });
+  });
 });
 
 describe('countSlotBookings / listSlotBookingCounts', () => {
