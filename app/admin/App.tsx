@@ -27,6 +27,7 @@ import {
   type SettingsPayload,
 } from './shared.js';
 import './admin.css';
+import { useAsync } from '../shared-ui/useAsync';
 
 /**
  * Sitter dashboard. Auth is email + password → an admin session token, held in localStorage
@@ -320,33 +321,25 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       await refresh();
     });
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [custEmail, setCustEmail] = useState('');
   const [custName, setCustName] = useState('');
 
-  const loadCustomers = useCallback(
-    () => adminApi.customers.list(slug, token).then(({ customers: list }) => list),
-    [slug, token],
-  );
+  const loadCustomers = useCallback(async (): Promise<Customer[]> => {
+    try {
+      const { customers: list } = await adminApi.customers.list(slug, token);
+      return list;
+    } catch (e) {
+      handle(e);
+      return [];
+    }
+  }, [slug, token, handle]);
 
-  useEffect(() => {
-    let active = true;
-    loadCustomers()
-      .then((list) => {
-        if (active) setCustomers(list);
-      })
-      .catch((e) => {
-        if (active) handle(e);
-      });
-    return () => {
-      active = false;
-    };
-  }, [loadCustomers, handle]);
+  const { data: customers, reload: reloadCustomers } = useAsync(loadCustomers);
 
   const withCustomerRefresh = (fn: () => Promise<unknown>) =>
     run(async () => {
       await fn();
-      setCustomers(await loadCustomers());
+      reloadCustomers();
     });
 
   const addCustomer = () =>
@@ -398,7 +391,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     ),
     clients: (
       <ClientsSection
-        customers={customers}
+        customers={customers ?? []}
         custEmail={custEmail}
         custName={custName}
         setCustEmail={setCustEmail}
