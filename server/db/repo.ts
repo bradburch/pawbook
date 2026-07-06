@@ -172,6 +172,29 @@ export async function listCapacityRows(
 }
 
 /**
+ * One end user's own pending/confirmed booking date ranges overlapping [from, to) — across
+ * EVERY service type (unlike listCapacityRows, which is boarding/house-sit/blocked only).
+ * Feeds the month grid's "mine" flag, so a walk/daycare/check-in booking still highlights.
+ */
+export async function listUserBookingDatesInRange(
+  db: D1Database,
+  tenantId: string,
+  endUserId: string,
+  fromDate: string,
+  toDateExclusive: string,
+): Promise<{ StartDate: string; EndDate: string | null }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT StartDate, EndDate FROM BookingRequests
+       WHERE TenantId = ? AND EndUserId = ? AND Status IN ('pending', 'confirmed')
+         AND StartDate < ? AND COALESCE(EndDate, StartDate) >= ?`,
+    )
+    .bind(tenantId, endUserId, toDateExclusive, fromDate)
+    .all<{ StartDate: string; EndDate: string | null }>();
+  return results;
+}
+
+/**
  * Count non-cancelled bookings against one option on one date — enforces a windowed option's
  * Capacity. `excludeId` lets the post-insert race check ask "do I still fit, ignoring myself?",
  * matching the pattern `listCapacityRows` already uses for boarding/house-sit.
