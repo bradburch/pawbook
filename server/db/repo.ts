@@ -710,25 +710,6 @@ export async function promoteCustomerActive(
     .run();
 }
 
-export async function setProviderStatus(
-  db: D1Database,
-  tenantId: string,
-  capability: string,
-  provider: string,
-  status: 'connected-stub',
-): Promise<void> {
-  const connectedAt = new Date().toISOString();
-  await db
-    .prepare(
-      `INSERT INTO ProviderConnections (Id, TenantId, Capability, Provider, Status, ConnectedAt)
-       VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT (TenantId, Capability)
-       DO UPDATE SET Provider = excluded.Provider, Status = excluded.Status, ConnectedAt = excluded.ConnectedAt`,
-    )
-    .bind(crypto.randomUUID(), tenantId, capability, provider, status, connectedAt)
-    .run();
-}
-
 export async function listAllEndUserPetsByTenant(
   db: D1Database,
   tenantId: string,

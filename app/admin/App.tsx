@@ -284,18 +284,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       await refresh();
     });
 
-  const connect = (capability: string) =>
-    run(async () => {
-      await adminFetch(token, `/api/${slug}/admin/providers/${capability}/connect`, {
-        method: 'POST',
-      });
-      await refresh();
-    });
-
   const connectCalendar = () =>
-    // NOTE: The route and this client call are still calendar-specific because there is exactly one
-    // OAuth provider. When a second is added, generalize adminApi.calendar + the
-    // /providers/calendar/... routes to accept a `capability` param. Deliberate YAGNI boundary.
     run(async () => {
       const { url } = await adminApi.calendar.start(slug, token);
       const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
@@ -407,10 +396,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     ),
     apps: (
       <AppsSection
-        providers={settings.providers}
+        calendar={settings.calendar}
         slug={slug}
         token={token}
-        connect={connect}
         connectCalendar={connectCalendar}
         disconnectCalendar={disconnectCalendar}
         onCalendarSaved={() => void refresh()}

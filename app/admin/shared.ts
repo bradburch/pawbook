@@ -45,15 +45,11 @@ export type Settings = {
   petTypes: { petType: string; enabled: boolean }[];
   services: ServiceForm[];
   blocked: { id: string; startDate: string; endDate: string | null }[];
-  providers: {
-    capability: string;
-    provider: string;
-    label: string;
-    authMode: 'oauth' | 'stub';
+  calendar: {
     status: string;
     connectedAt: string | null;
-    calendarId?: string | null;
-  }[];
+    calendarId: string | null;
+  };
 };
 
 /** Shared prop shape for sections that edit the staged, save-button-gated `settings` draft. */

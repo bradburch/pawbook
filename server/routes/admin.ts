@@ -23,7 +23,6 @@ import {
   replaceServiceOptions,
   setProviderCalendarId,
   setPetTypeEnabled,
-  setProviderStatus,
   setServiceConfig,
   updateBookingStatus,
   updateTenantSettings,
@@ -32,7 +31,7 @@ import { isEmailConfigured, sendInvite } from '../lib/email';
 import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { adminAuth } from '../lib/middleware';
 import { signState } from '../lib/oauth-state';
-import { findCapability, providerViews } from '../lib/providers';
+import { calendarView } from '../lib/providers';
 import { embedSnippets } from '../lib/snippet';
 import { isPetType, isServiceType, PET_TYPES, SERVICE_CATALOG } from '../lib/services';
 import { decryptToken } from '../lib/token-crypto';
@@ -318,17 +317,7 @@ export const adminRoutes = new Hono<AppEnv>()
         };
       }),
       blocked: blocked.map((b) => ({ id: b.Id, startDate: b.StartDate, endDate: b.EndDate })),
-      providers: providerViews(connections).map(
-        ({ capability, provider, label, authMode, status, connectedAt, calendarId }) => ({
-          capability,
-          provider,
-          label,
-          authMode,
-          status,
-          connectedAt,
-          calendarId,
-        }),
-      ),
+      calendar: calendarView(connections),
     });
   })
 
@@ -525,20 +514,6 @@ export const adminRoutes = new Hono<AppEnv>()
   .get('/:slug/admin/snippet', (c) => {
     const tenant = c.get('tenant');
     return c.json(embedSnippets(new URL(c.req.url).origin, tenant.Slug));
-  })
-
-  .post('/:slug/admin/providers/:capability/connect', async (c) => {
-    const tenant = c.get('tenant');
-    const descriptor = findCapability(c.req.param('capability'));
-    if (!descriptor) return c.json({ error: 'Unknown capability.' }, 404);
-    await setProviderStatus(
-      c.env.PAWBOOK_DB,
-      tenant.Id,
-      descriptor.capability,
-      descriptor.provider,
-      'connected-stub',
-    );
-    return c.json({ status: 'connected-stub' });
   })
 
   .get('/:slug/admin/providers/calendar/oauth/start', async (c) => {
