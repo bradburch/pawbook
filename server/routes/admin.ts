@@ -13,6 +13,7 @@ import {
   insertInvitedCustomer,
   listAllEndUserPetsByTenant,
   listBlockedRanges,
+  listBookingsForTenant,
   listCustomers,
   listPetTypes,
   listProviderConnections,
@@ -24,6 +25,7 @@ import {
   setPetTypeEnabled,
   setProviderStatus,
   setServiceConfig,
+  updateBookingStatus,
   updateTenantSettings,
 } from '../db/repo';
 import { isEmailConfigured, sendInvite } from '../lib/email';
@@ -675,4 +677,42 @@ export const adminRoutes = new Hono<AppEnv>()
     const removed = await removeEndUserPet(c.env.PAWBOOK_DB, tenant.Id, c.req.param('petId'));
     if (!removed) return c.json({ error: 'Not found.' }, 404);
     return c.body(null, 204);
+  })
+
+  .get('/:slug/admin/bookings', async (c) => {
+    const tenant = c.get('tenant');
+    const rows = await listBookingsForTenant(c.env.PAWBOOK_DB, tenant.Id);
+    return c.json({
+      bookings: rows.map((r) => ({
+        id: r.Id,
+        customerEmail: r.Email,
+        customerName: r.Name,
+        type: r.ServiceType,
+        startDate: r.StartDate,
+        endDate: r.EndDate,
+        startTime: r.StartTime,
+        optionKey: r.OptionKey,
+        petCount: r.PetCount,
+        estCost: r.EstCost,
+        status: r.Status,
+        createdAt: r.CreatedAt,
+      })),
+    });
+  })
+
+  .post('/:slug/admin/bookings/:id/status', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req.json<{ status?: unknown }>().catch(() => ({}) as { status?: unknown });
+    const status = body.status;
+    if (status !== 'confirmed' && status !== 'cancelled')
+      return c.json({ error: "Status must be 'confirmed' or 'cancelled'." }, 400);
+    // ponytail: cancel leaves any synced GCal event in place; delete via GCalEventId if sitters complain
+    const updated = await updateBookingStatus(
+      c.env.PAWBOOK_DB,
+      tenant.Id,
+      c.req.param('id'),
+      status,
+    );
+    if (!updated) return c.json({ error: 'Not found.' }, 404);
+    return c.json({ status });
   });

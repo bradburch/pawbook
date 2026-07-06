@@ -28,6 +28,12 @@ const TENANT_COLS =
 const BOOKING_COLS =
   'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, CreatedAt';
 
+/** BOOKING_COLS, table-qualified — needed once a query joins BookingRequests against another
+ * table (EndUsers) that shares column names like Id/TenantId, which would otherwise be ambiguous. */
+const BOOKING_COLS_QUALIFIED = BOOKING_COLS.split(', ')
+  .map((col) => `BookingRequests.${col}`)
+  .join(', ');
+
 export async function getTenantBySlug(db: D1Database, slug: string): Promise<Tenant | null> {
   return await db
     .prepare(`SELECT ${TENANT_COLS} FROM Tenants WHERE Slug = ?`)
@@ -284,6 +290,51 @@ export async function listBookingsForUser(
     .bind(tenantId, endUserId)
     .all<BookingRow>();
   return results;
+}
+
+/**
+ * All non-blocked bookings for the sitter's admin list, newest-first, with the customer's
+ * Email/Name joined in (NULL for a booking whose customer was later removed — EndUserId only
+ * ever points at a row in the SAME tenant, enforced by how bookings are created).
+ */
+export async function listBookingsForTenant(
+  db: D1Database,
+  tenantId: string,
+): Promise<(BookingRow & { Email: string | null; Name: string | null })[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT ${BOOKING_COLS_QUALIFIED}, EndUsers.Email AS Email, EndUsers.Name AS Name
+       FROM BookingRequests
+       LEFT JOIN EndUsers ON EndUsers.Id = BookingRequests.EndUserId
+         AND EndUsers.TenantId = BookingRequests.TenantId
+       WHERE BookingRequests.TenantId = ? AND BookingRequests.ServiceType != 'blocked'
+       ORDER BY BookingRequests.StartDate DESC, BookingRequests.CreatedAt DESC`,
+    )
+    .bind(tenantId)
+    .all<BookingRow & { Email: string | null; Name: string | null }>();
+  return results;
+}
+
+/**
+ * Sitter-driven lifecycle transition. The guard is entirely in SQL so it's atomic with the write:
+ * 'blocked' rows aren't real bookings (never surfaced or manageable here), and 'cancelled' is
+ * terminal — once cancelled, no further transition matches. Confirming an already-confirmed row
+ * still matches (harmless no-op). Returns whether a row actually changed.
+ */
+export async function updateBookingStatus(
+  db: D1Database,
+  tenantId: string,
+  id: string,
+  status: 'confirmed' | 'cancelled',
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `UPDATE BookingRequests SET Status = ?
+       WHERE TenantId = ? AND Id = ? AND ServiceType != 'blocked' AND Status != 'cancelled'`,
+    )
+    .bind(status, tenantId, id)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
 }
 
 export async function listProviderConnections(
