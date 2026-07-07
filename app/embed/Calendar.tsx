@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { api, isAuthExpired, type MonthDay } from '../shared-ui/api';
 import {
   monthGrid,
@@ -52,6 +52,16 @@ export function Calendar({
   /** Called when the month fetch is rejected as unauthenticated (expired token). */
   onAuthExpired?: () => void;
 }) {
+  // Held in a ref (not a fetchMonth dep) so a parent that passes a fresh closure every render
+  // doesn't give fetchMonth a new identity each time — that would make useAsync refetch, which
+  // triggers a render, which makes a new closure, looping forever. Assigned in an effect (not
+  // during render — React forbids mutating a ref's `current` synchronously in the render body)
+  // so the ref is current before any later event/effect reads it.
+  const onAuthExpiredRef = useRef(onAuthExpired);
+  useEffect(() => {
+    onAuthExpiredRef.current = onAuthExpired;
+  });
+
   const fetchMonth = useCallback(async () => {
     // reloadKey doesn't change what's fetched — referencing it is what forces a fresh
     // fetchMonth identity (and therefore a refetch) after a booking submission bumps it.
@@ -63,7 +73,7 @@ export function Calendar({
       // An expired/invalid token must degrade to re-identify (see server/lib/token.ts) —
       // otherwise the calendar renders with no availability and silently ignores taps.
       if (isAuthExpired(e)) {
-        onAuthExpired?.();
+        onAuthExpiredRef.current?.();
         // Never resolve: the parent unmounts this component right after onAuthExpired()
         // flips auth state, so this just leaves `loading` true until then (matching the old
         // behavior of never updating fetch state once the token is known to be dead).
@@ -71,7 +81,7 @@ export function Calendar({
       }
       throw e;
     }
-  }, [slug, token, serviceType, month, optionKey, onAuthExpired, reloadKey]);
+  }, [slug, token, serviceType, month, optionKey, reloadKey]);
 
   const { data, error, loading } = useAsync(fetchMonth);
   const loadError = !loading && !!error;

@@ -12,9 +12,11 @@ function formatWhen(b: AdminBooking): string {
 export function BookingsSection({
   session,
   handleError,
+  clearError,
 }: {
   session: Session;
   handleError: (e: unknown) => void;
+  clearError: () => void;
 }) {
   const [bookings, setBookings] = useState<AdminBooking[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -35,6 +37,7 @@ export function BookingsSection({
 
   const setStatus = async (id: string, status: 'confirmed' | 'cancelled') => {
     if (busyId) return;
+    clearError();
     setBusyId(id);
     try {
       await adminApi.bookings.setStatus(session.slug, session.token, id, status);

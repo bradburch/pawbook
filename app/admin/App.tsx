@@ -333,7 +333,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const enabledPetTypes = settings.petTypes.filter((p) => p.enabled).map((p) => p.petType);
 
   const panels: Record<SectionKey, ReactNode> = {
-    bookings: <BookingsSection session={session} handleError={handle} />,
+    bookings: (
+      <BookingsSection session={session} handleError={handle} clearError={() => setError('')} />
+    ),
     business: <BusinessSection settings={settings} setSettings={setSettings} />,
     pets: <PetsSection settings={settings} setSettings={setSettings} />,
     services: <ServicesSection settings={settings} setSettings={setSettings} />,
@@ -344,6 +346,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         token={token}
         onChanged={refresh}
         handleError={handle}
+        clearError={() => setError('')}
       />
     ),
     clients: (

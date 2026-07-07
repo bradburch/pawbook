@@ -10,12 +10,14 @@ export function TimeOffSection({
   token,
   onChanged,
   handleError,
+  clearError,
 }: {
   blocked: Settings['blocked'];
   slug: string;
   token: string;
   onChanged: () => Promise<void>;
   handleError: (e: unknown) => void;
+  clearError: () => void;
 }) {
   const [blockStart, setBlockStart] = useState('');
   const [blockEnd, setBlockEnd] = useState('');
@@ -23,6 +25,7 @@ export function TimeOffSection({
 
   const addBlock = async () => {
     if (busy) return;
+    clearError();
     setBusy(true);
     try {
       await adminFetch(token, `/api/${slug}/admin/blocked`, {
@@ -41,6 +44,7 @@ export function TimeOffSection({
 
   const removeBlock = async (id: string) => {
     if (busy) return;
+    clearError();
     setBusy(true);
     try {
       await adminFetch(token, `/api/${slug}/admin/blocked/${id}`, { method: 'DELETE' });
