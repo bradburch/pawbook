@@ -6,9 +6,7 @@ import { Identify } from './Identify';
 import { errorMsg, slug } from './shared';
 
 type MineOutcome =
-  | { kind: 'ok'; bookings: Booking[] }
-  | { kind: 'reauth' }
-  | { kind: 'error'; message: string };
+  { kind: 'ok'; bookings: Booking[] } | { kind: 'reauth' } | { kind: 'error'; message: string };
 
 export function MineTab() {
   // Resolves to a settled outcome rather than throwing — an expired/invalid token degrades to

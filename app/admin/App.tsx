@@ -127,14 +127,7 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
 }
 
 type SectionKey =
-  | 'bookings'
-  | 'business'
-  | 'pets'
-  | 'services'
-  | 'timeoff'
-  | 'clients'
-  | 'apps'
-  | 'embed';
+  'bookings' | 'business' | 'pets' | 'services' | 'timeoff' | 'clients' | 'apps' | 'embed';
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof IconStore }[] = [
   { key: 'bookings', label: 'Bookings', icon: IconClipboardCheck },
@@ -250,28 +243,24 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         maxStayNights: settings.maxStayNights,
         timezone: settings.timezone,
         petTypes: settings.petTypes.filter((p) => p.enabled).map((p) => p.petType),
-        services: settings.services.map(
-          (s): ServicePayload => ({
-            type: s.type,
-            enabled: s.enabled,
-            options: s.options.map(
-              (o): ServiceOptionForm => ({
-                optionKey: o.optionKey,
-                label: o.label,
-                durationMinutes: s.hasDuration ? o.durationMinutes : null,
-                rate: o.rate,
-                startTime: o.startTime,
-                endTime: o.endTime,
-                capacity: o.capacity,
-              }),
-            ),
-            questions: s.questions,
-            minNights: s.minNights,
-            maxNights: s.maxNights,
-            minPetCount: s.minPetCount,
-            maxPetCount: s.maxPetCount,
-          }),
-        ),
+        services: settings.services.map((s): ServicePayload => ({
+          type: s.type,
+          enabled: s.enabled,
+          options: s.options.map((o): ServiceOptionForm => ({
+            optionKey: o.optionKey,
+            label: o.label,
+            durationMinutes: s.hasDuration ? o.durationMinutes : null,
+            rate: o.rate,
+            startTime: o.startTime,
+            endTime: o.endTime,
+            capacity: o.capacity,
+          })),
+          questions: s.questions,
+          minNights: s.minNights,
+          maxNights: s.maxNights,
+          minPetCount: s.minPetCount,
+          maxPetCount: s.maxPetCount,
+        })),
       };
       await adminFetch(token, `/api/${slug}/admin/settings`, {
         method: 'PUT',
@@ -281,7 +270,6 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       setSavedSnapshot(JSON.stringify(settings));
       setPreviewKey((k) => k + 1);
     });
-
 
   const connectCalendar = () =>
     run(async () => {

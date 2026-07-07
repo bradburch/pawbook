@@ -101,8 +101,7 @@ export function ClientsSection({
       setCustName('');
     });
 
-  const removeCustomer = (id: string) =>
-    mutate(() => adminApi.customers.remove(slug, token, id));
+  const removeCustomer = (id: string) => mutate(() => adminApi.customers.remove(slug, token, id));
 
   const removePet = (endUserId: string, petId: string) =>
     mutate(() => adminApi.customers.removePet(slug, token, endUserId, petId));

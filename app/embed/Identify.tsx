@@ -3,8 +3,7 @@ import { api, setToken } from '../shared-ui/api';
 import { errorMsg, slug } from './shared';
 
 type IdentifyState =
-  | { step: 'email' }
-  | { step: 'code'; codeId: string; prototypeCode?: string; email: string };
+  { step: 'email' } | { step: 'code'; codeId: string; prototypeCode?: string; email: string };
 
 export function Identify({ onDone }: { onDone: () => void }) {
   const [state, setState] = useState<IdentifyState>({ step: 'email' });
