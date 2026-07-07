@@ -10,6 +10,7 @@ function PetAdder({
   token,
   onAdded,
   onError,
+  clearError,
 }: {
   customer: Customer;
   enabledPetTypes: string[];
@@ -17,6 +18,7 @@ function PetAdder({
   token: string;
   onAdded: () => void;
   onError: (e: unknown) => void;
+  clearError: () => void;
 }) {
   const [name, setName] = useState('');
   const [petType, setPetType] = useState(enabledPetTypes[0]);
@@ -24,6 +26,7 @@ function PetAdder({
 
   const add = async () => {
     if (!name.trim() || busy) return;
+    clearError();
     setBusy(true);
     try {
       await adminApi.customers.addPet(slug, token, customer.id, name.trim(), petType);
@@ -60,6 +63,7 @@ export function ClientsSection({
   token,
   onCustomersChanged,
   handleError,
+  clearError,
 }: {
   customers: Customer[];
   enabledPetTypes: string[];
@@ -67,18 +71,21 @@ export function ClientsSection({
   token: string;
   onCustomersChanged: () => void;
   handleError: (e: unknown) => void;
+  clearError: () => void;
 }) {
   const [custEmail, setCustEmail] = useState('');
   const [custName, setCustName] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const addCustomer = async () => {
+  /** Matches the old Dashboard run() semantics: clear the error banner at the START of each
+   * action (so a stale error from an earlier failure doesn't outlive a later action), run the
+   * mutation, refresh the list on success, and route failures through the shared handler. */
+  const mutate = async (fn: () => Promise<unknown>) => {
     if (busy) return;
+    clearError();
     setBusy(true);
     try {
-      await adminApi.customers.add(slug, token, custEmail.trim().toLowerCase(), custName.trim());
-      setCustEmail('');
-      setCustName('');
+      await fn();
       onCustomersChanged();
     } catch (e) {
       handleError(e);
@@ -87,18 +94,18 @@ export function ClientsSection({
     }
   };
 
-  const removeCustomer = async (id: string) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await adminApi.customers.remove(slug, token, id);
-      onCustomersChanged();
-    } catch (e) {
-      handleError(e);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const addCustomer = () =>
+    mutate(async () => {
+      await adminApi.customers.add(slug, token, custEmail.trim().toLowerCase(), custName.trim());
+      setCustEmail('');
+      setCustName('');
+    });
+
+  const removeCustomer = (id: string) =>
+    mutate(() => adminApi.customers.remove(slug, token, id));
+
+  const removePet = (endUserId: string, petId: string) =>
+    mutate(() => adminApi.customers.removePet(slug, token, endUserId, petId));
 
   return (
     <>
@@ -146,21 +153,7 @@ export function ClientsSection({
               {cust.pets.map((p) => (
                 <li key={p.id}>
                   {p.name} <em>{p.petType}</em>
-                  <button
-                    onClick={() => void (async () => {
-                      if (busy) return;
-                      setBusy(true);
-                      try {
-                        await adminApi.customers.removePet(slug, token, cust.id, p.id);
-                        onCustomersChanged();
-                      } catch (e) {
-                        handleError(e);
-                      } finally {
-                        setBusy(false);
-                      }
-                    })()}
-                    disabled={busy}
-                  >
+                  <button onClick={() => void removePet(cust.id, p.id)} disabled={busy}>
                     Remove
                   </button>
                 </li>
@@ -174,6 +167,7 @@ export function ClientsSection({
                 token={token}
                 onAdded={onCustomersChanged}
                 onError={handleError}
+                clearError={clearError}
               />
             )}
           </li>

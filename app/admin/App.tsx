@@ -354,6 +354,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         token={token}
         onCustomersChanged={reloadCustomers}
         handleError={handle}
+        clearError={() => setError('')}
       />
     ),
     apps: (
