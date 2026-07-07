@@ -10,7 +10,13 @@ export interface AsyncResult<T> {
 /**
  * Runs `fn` in an effect and exposes its settled result. Re-runs whenever `fn`'s identity
  * changes — memoize it with `useCallback` listing its real dependencies, the same discipline
- * `useEffect` deps already require — or whenever `reload()` is called.
+ * `useEffect` deps already require — or whenever `reload()` is called. `reload()` is
+ * fire-and-forget: it schedules a re-run and returns immediately; observe completion through
+ * `loading`/`data`, not a promise.
+ *
+ * On failure, `error` is set but the last successful `data` is retained (stale-while-error),
+ * so a failed reload doesn't blank out data the user was already looking at. Callers that
+ * want blank-on-error can gate on `error` themselves.
  *
  * Replaces the repeated `let active = true` + cleanup-flag dance: a stale resolution (from a
  * superseded `fn` or a reload that's since been superseded again) is detected the same way —
@@ -35,7 +41,11 @@ export function useAsync<T>(fn: () => Promise<T>): AsyncResult<T> {
         if (active) setSettled({ forFn: fn, forReload: reloadCount, data, error: null });
       })
       .catch((error: unknown) => {
-        if (active) setSettled({ forFn: fn, forReload: reloadCount, data: null, error });
+        // Keep prev.data: a failed refetch shows the error alongside the last-known data
+        // rather than wiping it (stale-while-error, see the doc comment).
+        if (active) {
+          setSettled((prev) => ({ forFn: fn, forReload: reloadCount, data: prev.data, error }));
+        }
       });
     return () => {
       active = false;

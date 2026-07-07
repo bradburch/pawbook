@@ -75,8 +75,12 @@ export function Calendar({
 
   const { data, error, loading } = useAsync(fetchMonth);
   const loadError = !loading && !!error;
-  const days = loading ? new Map<string, MonthDay>() : (data?.days ?? new Map<string, MonthDay>());
-  const today = loading ? '' : (data?.today ?? '');
+  // Gate on loadError as well as loading: useAsync retains the last successful data on a
+  // failed fetch, but this grid should render blank + the error message (the pre-hook
+  // behavior), not a stale month's availability.
+  const showData = !loading && !loadError;
+  const days = showData ? (data?.days ?? new Map<string, MonthDay>()) : new Map<string, MonthDay>();
+  const today = showData ? (data?.today ?? '') : '';
 
   const parts = month.split('-');
   const year = Number(parts[0]);

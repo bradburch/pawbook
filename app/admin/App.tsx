@@ -329,8 +329,10 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       const { customers: list } = await adminApi.customers.list(slug, token);
       return list;
     } catch (e) {
+      // Route through the shared handler (error banner / sign-out on expired auth), but still
+      // reject so useAsync keeps the last-known list instead of blanking it under the banner.
       handle(e);
-      return [];
+      throw e;
     }
   }, [slug, token, handle]);
 
