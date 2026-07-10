@@ -654,38 +654,42 @@ export const adminRoutes = new Hono<AppEnv>()
         continue;
       }
 
-      const existing = await getEndUserByEmail(c.env.PAWBOOK_DB, tenant.Id, email);
-      const name = rawName.trim() || null;
-      const customer = await insertInvitedCustomer(c.env.PAWBOOK_DB, tenant.Id, email, name);
-      if (!existing && !freshCustomers.some((f) => f.endUserId === customer.Id)) {
-        importedCustomers++;
-        freshCustomers.push({ email, endUserId: customer.Id });
-      }
+      try {
+        const existing = await getEndUserByEmail(c.env.PAWBOOK_DB, tenant.Id, email);
+        const name = rawName.trim() || null;
+        const customer = await insertInvitedCustomer(c.env.PAWBOOK_DB, tenant.Id, email, name);
+        if (!existing && !freshCustomers.some((f) => f.endUserId === customer.Id)) {
+          importedCustomers++;
+          freshCustomers.push({ email, endUserId: customer.Id });
+        }
 
-      const petName = rawPetName.trim();
-      const petType = rawPetType.trim().toLowerCase();
-      if (!petName && !petType) continue; // client-only row
-      if (petName && !petType) {
-        skippedRows.push({ row, reason: 'Pet name given without a pet type' });
-        continue;
+        const petName = rawPetName.trim();
+        const petType = rawPetType.trim().toLowerCase();
+        if (!petName && !petType) continue; // client-only row
+        if (petName && !petType) {
+          skippedRows.push({ row, reason: 'Pet name given without a pet type' });
+          continue;
+        }
+        if (!petName && petType) {
+          skippedRows.push({ row, reason: 'Pet type given without a pet name' });
+          continue;
+        }
+        if (!isPetType(petType) || !petTypesEnabled.has(petType)) {
+          skippedRows.push({ row, reason: `'${rawPetType.trim()}' is not an enabled pet type` });
+          continue;
+        }
+        const petSet = existingPetNames.get(customer.Id) ?? new Set<string>();
+        if (petSet.has(petName.toLowerCase())) {
+          skippedRows.push({ row, reason: 'Pet already exists for this client' });
+          continue;
+        }
+        await addEndUserPet(c.env.PAWBOOK_DB, tenant.Id, customer.Id, petName, petType);
+        petSet.add(petName.toLowerCase());
+        existingPetNames.set(customer.Id, petSet);
+        importedPets++;
+      } catch {
+        skippedRows.push({ row, reason: 'Could not import this row' });
       }
-      if (!petName && petType) {
-        skippedRows.push({ row, reason: 'Pet type given without a pet name' });
-        continue;
-      }
-      if (!isPetType(petType) || !petTypesEnabled.has(petType)) {
-        skippedRows.push({ row, reason: `'${rawPetType.trim()}' is not an enabled pet type` });
-        continue;
-      }
-      const petSet = existingPetNames.get(customer.Id) ?? new Set<string>();
-      if (petSet.has(petName.toLowerCase())) {
-        skippedRows.push({ row, reason: 'Pet already exists for this client' });
-        continue;
-      }
-      await addEndUserPet(c.env.PAWBOOK_DB, tenant.Id, customer.Id, petName, petType);
-      petSet.add(petName.toLowerCase());
-      existingPetNames.set(customer.Id, petSet);
-      importedPets++;
     }
 
     if (sendInvites && isEmailConfigured(c.env)) {

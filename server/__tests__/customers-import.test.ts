@@ -142,4 +142,33 @@ describe('POST /:slug/admin/customers/import', () => {
     expect(body.importedCustomers).toBe(0);
     expect(body.skippedRows).toEqual([]);
   });
+
+  it('turns a single row DB failure into a skip instead of a 500', async () => {
+    vi.doMock('../db/repo', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('../db/repo')>();
+      return {
+        ...actual,
+        addEndUserPet: vi.fn().mockRejectedValueOnce(new Error('boom')),
+      };
+    });
+    vi.resetModules();
+    const { default: freshApp } = await import('../index');
+    const { env } = createTestEnv();
+    const csv = 'Client Email,Client Name,Pet Name,Pet Type\nboom@example.com,X,Rex,dog\n';
+    const token = await adminToken(TENANT_A);
+    const res = await freshApp.request(
+      '/api/sunny-paws/admin/customers/import',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv, sendInvites: false }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as ImportResult;
+    expect(body.skippedRows).toEqual([{ row: 2, reason: 'Could not import this row' }]);
+    vi.doUnmock('../db/repo');
+    vi.resetModules();
+  });
 });
