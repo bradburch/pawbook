@@ -119,14 +119,14 @@ export async function reconcileBookingsWithCalendar(env: Env, tenant: Tenant): P
 /** Reconciles at most once per CALENDAR_SYNC_TTL_SECONDS per tenant, via PAWBOOK_CACHE. */
 export async function reconcileIfStale(env: Env, tenant: Tenant): Promise<void> {
   const key = calendarSyncKey(tenant.Id);
-  // Everything here — including the KV read/write, not just the Calendar call — must be
-  // best-effort: a KV outage must never throw out of the GET route any more than a Calendar
-  // outage would. The dashboard falls back to current DB state and tries again next TTL window.
+  if (await env.PAWBOOK_CACHE.get(key).catch(() => null)) return;
   try {
-    if (await env.PAWBOOK_CACHE.get(key)) return;
     await reconcileBookingsWithCalendar(env, tenant);
-    await env.PAWBOOK_CACHE.put(key, '1', { expirationTtl: CALENDAR_SYNC_TTL_SECONDS });
   } catch {
-    /* best-effort; see comment above */
+    /* best-effort; the dashboard falls back to current DB state */
+  } finally {
+    await env.PAWBOOK_CACHE.put(key, '1', { expirationTtl: CALENDAR_SYNC_TTL_SECONDS }).catch(
+      () => {},
+    );
   }
 }

@@ -95,6 +95,18 @@ describe('reconcileIfStale', () => {
     await reconcileIfStale(env, tenant);
     expect(spy).toHaveBeenCalledTimes(1); // second call within the TTL skips Calendar entirely
   });
+
+  it('writes the TTL marker even when reconciliation fails, throttling retries during an outage', async () => {
+    const { env } = createTestEnv();
+    await connectCalendar(env);
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('', { status: 500 })); // Calendar API failure
+    await reconcileIfStale(env, tenant);
+    expect(spy).toHaveBeenCalledTimes(1);
+    await reconcileIfStale(env, tenant);
+    expect(spy).toHaveBeenCalledTimes(1); // marker was written despite the first call's failure
+  });
 });
 
 describe('GET /:slug/admin/bookings triggers reconciliation', () => {
