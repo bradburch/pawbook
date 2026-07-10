@@ -8,6 +8,7 @@ import {
   countBookingsForUser,
   createService,
   getEndUserById,
+  getEndUserByEmail,
   deleteBlockedRange,
   deleteCustomer,
   deleteService,
@@ -30,6 +31,7 @@ import {
   updateTenantSettings,
 } from '../db/repo';
 import { isEmailConfigured, sendInvite } from '../lib/email';
+import { parseCsvRows } from '../lib/csv';
 import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { adminAuth } from '../lib/middleware';
 import { signState } from '../lib/oauth-state';
@@ -610,4 +612,93 @@ export const adminRoutes = new Hono<AppEnv>()
     const removed = await removeEndUserPet(c.env.PAWBOOK_DB, tenant.Id, c.req.param('petId'));
     if (!removed) return c.json({ error: 'Not found.' }, 404);
     return c.body(null, 204);
+  })
+  .post('/:slug/admin/customers/import', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req
+      .json<{ csv?: unknown; sendInvites?: unknown }>()
+      .catch(() => ({}) as { csv?: unknown; sendInvites?: unknown });
+    const csv = typeof body.csv === 'string' ? body.csv : '';
+    const sendInvites = body.sendInvites === true;
+
+    const rows = parseCsvRows(csv).slice(1); // row 1 is the header
+    const petTypesEnabled = new Set(
+      (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id))
+        .filter((pt) => pt.Enabled)
+        .map((pt) => pt.PetType),
+    );
+    const existingPetNames = new Map<string, Set<string>>();
+    for (const pet of await listAllEndUserPetsByTenant(c.env.PAWBOOK_DB, tenant.Id)) {
+      const set = existingPetNames.get(pet.EndUserId) ?? new Set<string>();
+      set.add(pet.Name.toLowerCase());
+      existingPetNames.set(pet.EndUserId, set);
+    }
+
+    let importedCustomers = 0;
+    let importedPets = 0;
+    let invitesSent = 0;
+    let invitesFailed = 0;
+    const skippedRows: { row: number; reason: string }[] = [];
+    const freshCustomers: { email: string; endUserId: string }[] = [];
+
+    for (const [i, cells] of rows.entries()) {
+      const row = i + 2; // 1-indexed against the sitter's file; +1 since the header was sliced off
+      if (cells.length < 4) {
+        skippedRows.push({ row, reason: 'Could not parse this row' });
+        continue;
+      }
+      const [rawEmail, rawName, rawPetName, rawPetType] = cells;
+      const email = rawEmail.trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) {
+        skippedRows.push({ row, reason: 'Invalid email address' });
+        continue;
+      }
+
+      const existing = await getEndUserByEmail(c.env.PAWBOOK_DB, tenant.Id, email);
+      const name = rawName.trim() || null;
+      const customer = await insertInvitedCustomer(c.env.PAWBOOK_DB, tenant.Id, email, name);
+      if (!existing && !freshCustomers.some((f) => f.endUserId === customer.Id)) {
+        importedCustomers++;
+        freshCustomers.push({ email, endUserId: customer.Id });
+      }
+
+      const petName = rawPetName.trim();
+      const petType = rawPetType.trim().toLowerCase();
+      if (!petName && !petType) continue; // client-only row
+      if (petName && !petType) {
+        skippedRows.push({ row, reason: 'Pet name given without a pet type' });
+        continue;
+      }
+      if (!petName && petType) {
+        skippedRows.push({ row, reason: 'Pet type given without a pet name' });
+        continue;
+      }
+      if (!isPetType(petType) || !petTypesEnabled.has(petType)) {
+        skippedRows.push({ row, reason: `'${rawPetType.trim()}' is not an enabled pet type` });
+        continue;
+      }
+      const petSet = existingPetNames.get(customer.Id) ?? new Set<string>();
+      if (petSet.has(petName.toLowerCase())) {
+        skippedRows.push({ row, reason: 'Pet already exists for this client' });
+        continue;
+      }
+      await addEndUserPet(c.env.PAWBOOK_DB, tenant.Id, customer.Id, petName, petType);
+      petSet.add(petName.toLowerCase());
+      existingPetNames.set(customer.Id, petSet);
+      importedPets++;
+    }
+
+    if (sendInvites && isEmailConfigured(c.env)) {
+      const widgetUrl = new URL(`/embed/${tenant.Slug}`, c.req.url).toString();
+      for (const { email } of freshCustomers) {
+        try {
+          await sendInvite(c.env, email, tenant.DisplayName, widgetUrl);
+          invitesSent++;
+        } catch {
+          invitesFailed++;
+        }
+      }
+    }
+
+    return c.json({ importedCustomers, importedPets, invitesSent, invitesFailed, skippedRows });
   });
