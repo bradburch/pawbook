@@ -75,6 +75,14 @@ export type Customer = {
   pets: Pet[];
 };
 
+export type ImportResult = {
+  importedCustomers: number;
+  importedPets: number;
+  invitesSent: number;
+  invitesFailed: number;
+  skippedRows: { row: number; reason: string }[];
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -186,6 +194,12 @@ export const adminApi = {
       request<unknown>(`/api/${slug}/admin/customers/${endUserId}/pets/${petId}`, {
         method: 'DELETE',
         headers: authHeaders(token),
+      }),
+    import: (slug: string, token: string, csv: string, sendInvites: boolean) =>
+      request<ImportResult>(`/api/${slug}/admin/customers/import`, {
+        method: 'POST',
+        headers: { ...jsonHeaders, ...authHeaders(token) },
+        body: JSON.stringify({ csv, sendInvites }),
       }),
   },
   calendar: {
