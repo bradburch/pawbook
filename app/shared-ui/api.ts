@@ -75,6 +75,21 @@ export type Customer = {
   pets: Pet[];
 };
 
+export type AdminBooking = {
+  id: string;
+  customerEmail: string | null;
+  customerName: string | null;
+  type: string;
+  startDate: string;
+  endDate: string | null;
+  startTime: string | null;
+  optionKey: string | null;
+  petCount: number;
+  estCost: number | null;
+  status: string;
+  createdAt: string;
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -186,6 +201,23 @@ export const adminApi = {
       request<unknown>(`/api/${slug}/admin/customers/${endUserId}/pets/${petId}`, {
         method: 'DELETE',
         headers: authHeaders(token),
+      }),
+  },
+  bookings: {
+    list: (slug: string, token: string) =>
+      request<{ bookings: AdminBooking[] }>(`/api/${slug}/admin/bookings`, {
+        headers: authHeaders(token),
+      }),
+    setStatus: (
+      slug: string,
+      token: string,
+      id: string,
+      status: 'confirmed' | 'declined' | 'cancelled',
+    ) =>
+      request<{ status: string; notified: boolean }>(`/api/${slug}/admin/bookings/${id}/status`, {
+        method: 'POST',
+        headers: { ...jsonHeaders, ...authHeaders(token) },
+        body: JSON.stringify({ status }),
       }),
   },
   calendar: {
