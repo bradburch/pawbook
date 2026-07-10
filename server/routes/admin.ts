@@ -33,6 +33,7 @@ import {
   updateTenantSettings,
 } from '../db/repo';
 import { isEmailConfigured, sendBookingStatusEmail, sendInvite } from '../lib/email';
+import { reconcileIfStale } from '../lib/calendar-sync';
 import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { adminAuth } from '../lib/middleware';
 import { signState } from '../lib/oauth-state';
@@ -617,6 +618,7 @@ export const adminRoutes = new Hono<AppEnv>()
 
   .get('/:slug/admin/bookings', async (c) => {
     const tenant = c.get('tenant');
+    await reconcileIfStale(c.env, tenant);
     const rows = await listBookingsForTenant(c.env.PAWBOOK_DB, tenant.Id);
     return c.json({
       bookings: rows.map((r) => ({

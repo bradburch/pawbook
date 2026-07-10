@@ -553,6 +553,18 @@ export async function deleteBlockedRange(
   return (result.meta as { changes?: number }).changes !== 0;
 }
 
+/** Ids of bookings synced to Calendar and not yet cancelled — reconciliation's candidate set. */
+export async function listSyncedBookingIds(db: D1Database, tenantId: string): Promise<string[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT Id FROM BookingRequests
+       WHERE TenantId = ? AND GCalEventId IS NOT NULL AND Status != 'cancelled'`,
+    )
+    .bind(tenantId)
+    .all<{ Id: string }>();
+  return results.map((r) => r.Id);
+}
+
 export async function getProviderConnection(
   db: D1Database,
   tenantId: string,
