@@ -100,15 +100,22 @@ export async function reconcileBookingsWithCalendar(env: Env, tenant: Tenant): P
 
   const accessToken = await getCalendarAccessToken(env, tenant, conn);
   const today = getPacificDateStr(new Date(), tenant.Timezone ?? DEFAULT_TIMEZONE);
+  const windowStart = addDays(today, -1);
+  const windowEndExclusive = addDays(today, 180);
   const events = await listCalendarEvents(
     accessToken,
     conn.CalendarId ?? 'primary',
-    `${addDays(today, -1)}T00:00:00Z`,
-    `${addDays(today, 180)}T00:00:00Z`,
+    `${windowStart}T00:00:00Z`,
+    `${windowEndExclusive}T00:00:00Z`,
   );
   const liveBookingIds = new Set(events.map((e) => e.private.bookingId).filter(Boolean));
 
-  const candidates = await listSyncedBookingIds(env.PAWBOOK_DB, tenant.Id);
+  const candidates = await listSyncedBookingIds(
+    env.PAWBOOK_DB,
+    tenant.Id,
+    windowStart,
+    windowEndExclusive,
+  );
   for (const id of candidates) {
     if (!liveBookingIds.has(id)) {
       await updateBookingStatus(env.PAWBOOK_DB, tenant.Id, id, 'cancelled');

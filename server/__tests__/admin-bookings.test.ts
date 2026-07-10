@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '../index';
 import { insertBookingRequest } from '../db/repo';
 import { adminToken, createTestEnv, TENANT_A } from './helpers';
 
 describe('admin bookings', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it('lists bookings, joining customer email/name and deriving status from Declined', async () => {
     const { env } = createTestEnv();
     const id = await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
@@ -102,6 +104,34 @@ describe('admin bookings', () => {
       env,
     );
     expect(res.status).toBe(404);
+  });
+
+  it('cancelling a booking never calls out to Google Calendar (no event delete/update on cancel)', async () => {
+    const { env } = createTestEnv();
+    const id = await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-06-01',
+      endDate: '2030-06-03',
+      optionKey: 'standard',
+      petType: 'dog',
+      petCount: 1,
+      estCost: 100,
+      status: 'confirmed',
+    });
+    const spy = vi.spyOn(globalThis, 'fetch');
+    const token = await adminToken(TENANT_A);
+    const res = await app.request(
+      `/api/sunny-paws/admin/bookings/${id}/status`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('declining a booking is reflected as status "declined" in the list', async () => {

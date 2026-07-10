@@ -553,14 +553,25 @@ export async function deleteBlockedRange(
   return (result.meta as { changes?: number }).changes !== 0;
 }
 
-/** Ids of bookings synced to Calendar and not yet cancelled — reconciliation's candidate set. */
-export async function listSyncedBookingIds(db: D1Database, tenantId: string): Promise<string[]> {
+/**
+ * Ids of bookings synced to Calendar and not yet cancelled, bounded to [fromDate, toDateExclusive)
+ * — reconciliation's candidate set, restricted to the same window it queried Calendar for (a
+ * booking outside that window couldn't possibly have appeared in the Calendar response, so it must
+ * never be treated as "missing").
+ */
+export async function listSyncedBookingIds(
+  db: D1Database,
+  tenantId: string,
+  fromDate: string,
+  toDateExclusive: string,
+): Promise<string[]> {
   const { results } = await db
     .prepare(
       `SELECT Id FROM BookingRequests
-       WHERE TenantId = ? AND GCalEventId IS NOT NULL AND Status != 'cancelled'`,
+       WHERE TenantId = ? AND GCalEventId IS NOT NULL AND Status != 'cancelled'
+         AND StartDate < ? AND COALESCE(EndDate, StartDate) >= ?`,
     )
-    .bind(tenantId)
+    .bind(tenantId, toDateExclusive, fromDate)
     .all<{ Id: string }>();
   return results.map((r) => r.Id);
 }

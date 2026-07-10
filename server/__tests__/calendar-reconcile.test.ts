@@ -3,10 +3,18 @@ import app from '../index';
 import { reconcileBookingsWithCalendar, reconcileIfStale } from '../lib/calendar-sync';
 import { insertBookingRequest, setBookingGCalEventId, setProviderTokens } from '../db/repo';
 import { encryptToken } from '../lib/token-crypto';
+import { addDays, DEFAULT_TIMEZONE, getPacificDateStr } from '../../src/shared/index.js';
 import { adminToken, createTestEnv, TENANT_A, TEST_SECRET } from './helpers';
 import type { Tenant } from '../types';
 
 const tenant = { Id: TENANT_A, Slug: 'sunny-paws', Timezone: null } as Tenant;
+
+// reconcileBookingsWithCalendar's query window is [today-1, today+180) relative to the *real*
+// clock (no fake timers here), so "in window" fixtures must be computed relative to actual today
+// rather than hardcoded — a hardcoded future date eventually ages out of the window.
+const TODAY = getPacificDateStr(new Date(), DEFAULT_TIMEZONE);
+const IN_WINDOW_START = addDays(TODAY, 10);
+const IN_WINDOW_END = addDays(TODAY, 13);
 
 async function connectCalendar(env: Env) {
   await setProviderTokens(env.PAWBOOK_DB, TENANT_A, 'calendar', 'google-calendar', {
@@ -22,8 +30,8 @@ function calendarListResponse(bookingIds: string[]) {
     JSON.stringify({
       items: bookingIds.map((id) => ({
         summary: 'Boarding',
-        start: { date: '2030-03-01' },
-        end: { date: '2030-03-04' },
+        start: { date: IN_WINDOW_START },
+        end: { date: IN_WINDOW_END },
         extendedProperties: { private: { pawbook: 'true', category: 'boarding', bookingId: id } },
       })),
     }),
@@ -31,12 +39,18 @@ function calendarListResponse(bookingIds: string[]) {
   );
 }
 
-async function seedSyncedBooking(env: Env): Promise<string> {
+async function seedSyncedBooking(
+  env: Env,
+  dates: { startDate: string; endDate: string } = {
+    startDate: IN_WINDOW_START,
+    endDate: IN_WINDOW_END,
+  },
+): Promise<string> {
   const id = await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
     endUserId: null,
     serviceType: 'boarding',
-    startDate: '2030-03-01',
-    endDate: '2030-03-04',
+    startDate: dates.startDate,
+    endDate: dates.endDate,
     optionKey: 'standard',
     petType: 'dog',
     petCount: 1,
@@ -52,6 +66,18 @@ async function statusOf(env: Env, id: string): Promise<string> {
     .bind(id)
     .first<{ Status: string }>();
   return row!.Status;
+}
+
+async function bookingRow(
+  env: Env,
+  id: string,
+): Promise<{ Status: string; StartDate: string; EndDate: string | null }> {
+  const row = await env.PAWBOOK_DB.prepare(
+    'SELECT Status, StartDate, EndDate FROM BookingRequests WHERE Id = ?',
+  )
+    .bind(id)
+    .first<{ Status: string; StartDate: string; EndDate: string | null }>();
+  return row!;
 }
 
 describe('reconcileBookingsWithCalendar', () => {
@@ -80,6 +106,47 @@ describe('reconcileBookingsWithCalendar', () => {
     const spy = vi.spyOn(globalThis, 'fetch');
     await reconcileBookingsWithCalendar(env, tenant);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('leaves a booking outside the Calendar query window untouched, even though its event is absent from the response', async () => {
+    const { env } = createTestEnv();
+    await connectCalendar(env);
+    // Well outside any [today-1, today+180) window relative to actual real-world "today".
+    const id = await seedSyncedBooking(env, { startDate: '2020-01-01', endDate: '2020-01-04' });
+    // Simulates the booking being outside the query window: the response simply never contains it.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(calendarListResponse([]));
+    await reconcileBookingsWithCalendar(env, tenant);
+    expect(await statusOf(env, id)).toBe('confirmed');
+  });
+
+  it('ignores a time change on an otherwise-present event — only presence of the bookingId is checked', async () => {
+    const { env } = createTestEnv();
+    await connectCalendar(env);
+    const id = await seedSyncedBooking(env); // default in-window dates
+    const before = await bookingRow(env, id);
+    // Event exists (same bookingId) but with different start/end dates than the DB row — still
+    // well within the query window, just not matching the DB row's own dates.
+    const shiftedStart = addDays(IN_WINDOW_START, 45);
+    const shiftedEnd = addDays(IN_WINDOW_END, 45);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              summary: 'Boarding',
+              start: { date: shiftedStart },
+              end: { date: shiftedEnd },
+              extendedProperties: {
+                private: { pawbook: 'true', category: 'boarding', bookingId: id },
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    await reconcileBookingsWithCalendar(env, tenant);
+    expect(await bookingRow(env, id)).toEqual(before);
   });
 });
 
