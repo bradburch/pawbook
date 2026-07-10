@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useState } fro
 import { adminApi, isAuthExpired, type Customer } from '../shared-ui/api.js';
 import {
   IconCalendar,
+  IconClipboardCheck,
   IconCode,
   IconPaw,
   IconPlug,
@@ -10,6 +11,7 @@ import {
   IconUsers,
 } from '../shared-ui/icons';
 import { AppsSection } from './sections/AppsSection';
+import { BookingsSection } from './sections/BookingsSection';
 import { BusinessSection } from './sections/BusinessSection';
 import { ClientsSection } from './sections/ClientsSection';
 import { EmbedSection } from './sections/EmbedSection';
@@ -116,9 +118,11 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   );
 }
 
-type SectionKey = 'business' | 'pets' | 'services' | 'timeoff' | 'clients' | 'apps' | 'embed';
+type SectionKey =
+  'bookings' | 'business' | 'pets' | 'services' | 'timeoff' | 'clients' | 'apps' | 'embed';
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof IconStore }[] = [
+  { key: 'bookings', label: 'Bookings', icon: IconClipboardCheck },
   { key: 'business', label: 'Business', icon: IconStore },
   { key: 'pets', label: 'Pets', icon: IconPaw },
   { key: 'services', label: 'Services & rates', icon: IconTag },
@@ -376,6 +380,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const enabledPetTypes = settings.petTypes.filter((p) => p.enabled).map((p) => p.petType);
 
   const panels: Record<SectionKey, ReactNode> = {
+    bookings: (
+      <BookingsSection session={session} handleError={handle} clearError={() => setError('')} />
+    ),
     business: <BusinessSection settings={settings} setSettings={setSettings} />,
     pets: <PetsSection settings={settings} setSettings={setSettings} />,
     services: (
