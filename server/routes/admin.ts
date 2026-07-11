@@ -659,6 +659,7 @@ export const adminRoutes = new Hono<AppEnv>()
 
     for (const [i, cells] of rows.entries()) {
       const row = i + 2; // 1-indexed against the sitter's file; +1 since the header was sliced off
+      if (cells.length === 1 && cells[0] === '') continue; // blank line — not a real row
       if (cells.length < 4) {
         skippedRows.push({ row, reason: 'Could not parse this row' });
         continue;

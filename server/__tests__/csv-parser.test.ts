@@ -3,7 +3,7 @@ import { parseCsvRows } from '../lib/csv';
 
 describe('parseCsvRows', () => {
   it('splits a simple comma-separated file into rows and cells', () => {
-    const text = 'a,b,c\n1,2,3\n';
+    const text = 'a,b,c\n1,2,3';
     expect(parseCsvRows(text)).toEqual([
       ['a', 'b', 'c'],
       ['1', '2', '3'],
@@ -24,19 +24,16 @@ describe('parseCsvRows', () => {
   });
 
   it('tolerates CRLF line endings', () => {
-    const text = 'a,b\r\n1,2\r\n';
+    const text = 'a,b\r\n1,2';
     expect(parseCsvRows(text)).toEqual([
       ['a', 'b'],
       ['1', '2'],
     ]);
   });
 
-  it('skips blank lines', () => {
+  it('represents a blank line as a single empty-string cell, preserving row alignment', () => {
     const text = 'a,b\n\n1,2\n\n';
-    expect(parseCsvRows(text)).toEqual([
-      ['a', 'b'],
-      ['1', '2'],
-    ]);
+    expect(parseCsvRows(text)).toEqual([['a', 'b'], [''], ['1', '2'], [''], ['']]);
   });
 
   it('returns an empty array for an empty string', () => {

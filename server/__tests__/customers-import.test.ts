@@ -170,6 +170,15 @@ describe('POST /:slug/admin/customers/import', () => {
     expect(countEndUsers()).toBe(before); // no rows should have been processed at all
   });
 
+  it('preserves correct row numbers after a blank line in the file', async () => {
+    const { env } = createTestEnv();
+    // Blank line at position 2; without the fix this shifts the reported row number for the
+    // invalid-email row below by one.
+    const csv = 'Client Email,Client Name,Pet Name,Pet Type\n\nnot-an-email,X,,\n';
+    const { body } = await importCsv(env, csv);
+    expect(body.skippedRows).toEqual([{ row: 3, reason: 'Invalid email address' }]);
+  });
+
   it('turns a single row DB failure into a skip instead of a 500', async () => {
     vi.doMock('../db/repo', async (importOriginal) => {
       const actual = await importOriginal<typeof import('../db/repo')>();

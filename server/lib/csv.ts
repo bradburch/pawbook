@@ -6,10 +6,10 @@
  * avoids a dependency for a narrow, well-defined need.
  */
 export function parseCsvRows(text: string): string[][] {
+  if (text === '') return [];
   const rows: string[][] = [];
   const lines = text.split(/\r\n|\r|\n/);
   for (const line of lines) {
-    if (line === '') continue;
     const cells: string[] = [];
     let cell = '';
     let inQuotes = false;
