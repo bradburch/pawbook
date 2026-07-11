@@ -63,6 +63,14 @@ import type { ServiceQuestion } from '../../src/shared/index.js';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
+/**
+ * Each pet-bearing row triggers several sequential D1 calls; an unbounded import can exceed
+ * Workers' subrequest/CPU ceiling mid-loop, which aborts outside the per-row try/catch and
+ * returns a bare 500 with no partial-import report. Cap row count so oversized files fail fast
+ * with an actionable error instead of a platform crash.
+ */
+const MAX_IMPORT_ROWS = 500;
+
 /** null/undefined (use default) or a timezone Intl accepts. */
 function isValidTimezone(value: unknown): value is string | null | undefined {
   if (value === null || value === undefined) return true;
@@ -622,6 +630,14 @@ export const adminRoutes = new Hono<AppEnv>()
     const sendInvites = body.sendInvites === true;
 
     const rows = parseCsvRows(csv).slice(1); // row 1 is the header
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return c.json(
+        {
+          error: `This file has ${rows.length} rows; split it into files of ${MAX_IMPORT_ROWS} or fewer and import in batches.`,
+        },
+        400,
+      );
+    }
     const petTypesEnabled = new Set(
       (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id))
         .filter((pt) => pt.Enabled)

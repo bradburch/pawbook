@@ -143,6 +143,33 @@ describe('POST /:slug/admin/customers/import', () => {
     expect(body.skippedRows).toEqual([]);
   });
 
+  it('rejects a file over the row cap before touching the database', async () => {
+    const { env, raw } = createTestEnv();
+    const countEndUsers = () =>
+      (raw.prepare('SELECT COUNT(*) AS n FROM EndUsers').get() as { n: number }).n;
+    const before = countEndUsers();
+    const header = 'Client Email,Client Name,Pet Name,Pet Type';
+    const rows = Array.from(
+      { length: 501 },
+      (_, n) => `over${n}@example.com,Over ${n},,`,
+    ).join('\n');
+    const token = await adminToken(TENANT_A);
+    const res = await app.request(
+      '/api/sunny-paws/admin/customers/import',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: `${header}\n${rows}`, sendInvites: false }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/501 rows/);
+    expect(body.error).toMatch(/500 or fewer/);
+    expect(countEndUsers()).toBe(before); // no rows should have been processed at all
+  });
+
   it('turns a single row DB failure into a skip instead of a 500', async () => {
     vi.doMock('../db/repo', async (importOriginal) => {
       const actual = await importOriginal<typeof import('../db/repo')>();
