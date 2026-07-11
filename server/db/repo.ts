@@ -28,13 +28,6 @@ const TENANT_COLS =
 const BOOKING_COLS =
   'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, Declined, CreatedAt';
 
-// Same columns, each prefixed with the table name — needed once a query JOINs BookingRequests
-// with another table that also has an `Id` column (e.g. EndUsers), which makes the unqualified
-// `Id` ambiguous.
-const BOOKING_COLS_QUALIFIED = BOOKING_COLS.split(', ')
-  .map((c) => `BookingRequests.${c}`)
-  .join(', ');
-
 export async function getTenantBySlug(db: D1Database, slug: string): Promise<Tenant | null> {
   return await db
     .prepare(`SELECT ${TENANT_COLS} FROM Tenants WHERE Slug = ?`)
@@ -321,7 +314,7 @@ export async function listBookingsForTenant(
 ): Promise<(BookingRow & { Email: string | null; Name: string | null })[]> {
   const { results } = await db
     .prepare(
-      `SELECT ${BOOKING_COLS_QUALIFIED}, EndUsers.Email AS Email, EndUsers.Name AS Name
+      `SELECT BookingRequests.*, EndUsers.Email AS Email, EndUsers.Name AS Name
        FROM BookingRequests
        LEFT JOIN EndUsers ON EndUsers.Id = BookingRequests.EndUserId
          AND EndUsers.TenantId = BookingRequests.TenantId
@@ -376,7 +369,7 @@ export async function getBookingWithCustomer(
 ): Promise<(BookingRow & { Email: string | null; Name: string | null }) | null> {
   return await db
     .prepare(
-      `SELECT ${BOOKING_COLS_QUALIFIED}, EndUsers.Email AS Email, EndUsers.Name AS Name
+      `SELECT BookingRequests.*, EndUsers.Email AS Email, EndUsers.Name AS Name
        FROM BookingRequests
        LEFT JOIN EndUsers ON EndUsers.Id = BookingRequests.EndUserId
          AND EndUsers.TenantId = BookingRequests.TenantId
