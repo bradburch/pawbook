@@ -1,11 +1,18 @@
-import { DEFAULT_TIMEZONE } from '../../src/shared/index.js';
+import { addDays, DEFAULT_TIMEZONE, getPacificDateStr } from '../../src/shared/index.js';
 import {
   getEndUserById,
   getProviderConnection,
+  listSyncedBookingIds,
   setBookingGCalEventId,
   setProviderTokens,
+  updateBookingStatus,
 } from '../db/repo';
-import { buildEventResource, createEvent, refreshAccessToken } from './google-calendar';
+import {
+  buildEventResource,
+  createEvent,
+  listCalendarEvents,
+  refreshAccessToken,
+} from './google-calendar';
 import type { ServiceType } from './services';
 import { decryptToken, encryptToken } from './token-crypto';
 import type { Tenant, ProviderConnectionWithTokens } from '../types';
@@ -76,4 +83,57 @@ export async function syncBookingToCalendar(env: Env, tenant: Tenant, b: SyncInp
 
   const { id } = await createEvent(accessToken, conn.CalendarId ?? 'primary', resource);
   await setBookingGCalEventId(env.PAWBOOK_DB, tenant.Id, b.bookingId, id);
+}
+
+const CALENDAR_SYNC_TTL_SECONDS = 120;
+const calendarSyncKey = (tenantId: string) => `calendar-sync:${tenantId}:last`;
+
+/**
+ * Reconciles this tenant's synced bookings against Google Calendar: if a booking's event was
+ * deleted directly in Calendar (not through Pawbook), the booking is marked cancelled. Read-only
+ * against Google and strictly best-effort — a Calendar failure must never block the dashboard from
+ * returning current DB state, same philosophy as syncBookingToCalendar above.
+ */
+export async function reconcileBookingsWithCalendar(env: Env, tenant: Tenant): Promise<void> {
+  const conn = await getProviderConnection(env.PAWBOOK_DB, tenant.Id, 'calendar');
+  if (!conn || conn.Status !== 'connected' || !conn.AccessToken || !conn.RefreshToken) return;
+
+  const accessToken = await getCalendarAccessToken(env, tenant, conn);
+  const today = getPacificDateStr(new Date(), tenant.Timezone ?? DEFAULT_TIMEZONE);
+  const windowStart = addDays(today, -1);
+  const windowEndExclusive = addDays(today, 180);
+  const events = await listCalendarEvents(
+    accessToken,
+    conn.CalendarId ?? 'primary',
+    `${windowStart}T00:00:00Z`,
+    `${windowEndExclusive}T00:00:00Z`,
+  );
+  const liveBookingIds = new Set(events.map((e) => e.private.bookingId).filter(Boolean));
+
+  const candidates = await listSyncedBookingIds(
+    env.PAWBOOK_DB,
+    tenant.Id,
+    windowStart,
+    windowEndExclusive,
+  );
+  for (const id of candidates) {
+    if (!liveBookingIds.has(id)) {
+      await updateBookingStatus(env.PAWBOOK_DB, tenant.Id, id, 'cancelled');
+    }
+  }
+}
+
+/** Reconciles at most once per CALENDAR_SYNC_TTL_SECONDS per tenant, via PAWBOOK_CACHE. */
+export async function reconcileIfStale(env: Env, tenant: Tenant): Promise<void> {
+  const key = calendarSyncKey(tenant.Id);
+  if (await env.PAWBOOK_CACHE.get(key).catch(() => null)) return;
+  try {
+    await reconcileBookingsWithCalendar(env, tenant);
+  } catch {
+    /* best-effort; the dashboard falls back to current DB state */
+  } finally {
+    await env.PAWBOOK_CACHE.put(key, '1', { expirationTtl: CALENDAR_SYNC_TTL_SECONDS }).catch(
+      () => {},
+    );
+  }
 }
