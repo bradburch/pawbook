@@ -538,6 +538,18 @@ body {
   margin-top: 4px;
 }
 
+/* ── Payments panel (shared by Bookings rows + Earnings outstanding table) ── */
+.pb-payments {
+  width: 100%;
+  border-top: 1px dashed var(--line);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.pb-payments .pb-row {
+  align-items: flex-end;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pb-wrap button {
     transition: none;
