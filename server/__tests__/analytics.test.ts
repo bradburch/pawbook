@@ -119,6 +119,7 @@ describe('getAnalytics (repo)', () => {
 
   it('topClients: two payments on one booking count as ONE booking; two bookings as two', async () => {
     const { env } = createTestEnv();
+    // jess@example.com is pre-seeded (eu_pr_jess, 'Jess Demo', active); insertInvitedCustomer is idempotent and keeps the seeded row.
     const jess = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_C, 'jess@example.com', 'Jess');
     const b1 = await makeBooking(env, TENANT_C, { endUserId: jess.Id });
     const b2 = await makeBooking(env, TENANT_C, { endUserId: jess.Id });
@@ -126,11 +127,8 @@ describe('getAnalytics (repo)', () => {
     await pay(env, TENANT_C, b1, 20);
     await pay(env, TENANT_C, b2, 50);
     const { topClients } = await getAnalytics(env.PAWBOOK_DB, TENANT_C, TODAY);
-    // Name asserted via jess.Name (not a literal): tnt_pawsandrelax seeds an active customer at
-    // this exact email (sql/seed.sql), and insertInvitedCustomer is idempotent — it returns the
-    // existing seeded record ('Jess Demo') rather than the 'Jess' passed here.
     expect(topClients).toEqual([
-      { EndUserId: jess.Id, Name: jess.Name, Email: 'jess@example.com', Total: 100, Bookings: 2 },
+      { EndUserId: jess.Id, Name: 'Jess Demo', Email: 'jess@example.com', Total: 100, Bookings: 2 },
     ]);
   });
 
@@ -182,7 +180,12 @@ describe('GET /:slug/admin/analytics (route)', () => {
     const res = await getAnalyticsRoute(env);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      tiles: { thisMonth: number; lastMonth: number; outstandingTotal: number; outstandingCount: number };
+      tiles: {
+        thisMonth: number;
+        lastMonth: number;
+        outstandingTotal: number;
+        outstandingCount: number;
+      };
       monthly: { month: string; total: number }[];
       byService: unknown[];
       topClients: unknown[];
@@ -204,6 +207,7 @@ describe('GET /:slug/admin/analytics (route)', () => {
 
   it('derives tiles in JS and maps every aggregate to camelCase', async () => {
     const { env } = createTestEnv();
+    // jess@example.com is pre-seeded (eu_pr_jess, 'Jess Demo', active); insertInvitedCustomer is idempotent and keeps the seeded row.
     const jess = await insertInvitedCustomer(env.PAWBOOK_DB, TENANT_C, 'jess@example.com', 'Jess');
     const bookingId = await makeBooking(env, TENANT_C, { endUserId: jess.Id, estCost: 300 });
     const today = getPacificDateStr();
@@ -214,10 +218,21 @@ describe('GET /:slug/admin/analytics (route)', () => {
     const lastMonthDate = `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}-15`;
     await pay(env, TENANT_C, bookingId, 60, lastMonthDate);
     const body = (await (await getAnalyticsRoute(env)).json()) as {
-      tiles: { thisMonth: number; lastMonth: number; outstandingTotal: number; outstandingCount: number };
+      tiles: {
+        thisMonth: number;
+        lastMonth: number;
+        outstandingTotal: number;
+        outstandingCount: number;
+      };
       monthly: { month: string; total: number }[];
       byService: { serviceType: string; label: string; total: number }[];
-      topClients: { endUserId: string; name: string | null; email: string | null; total: number; bookings: number }[];
+      topClients: {
+        endUserId: string;
+        name: string | null;
+        email: string | null;
+        total: number;
+        bookings: number;
+      }[];
       outstanding: { bookingId: string; estCost: number; paidTotal: number; balance: number }[];
     };
     expect(body.tiles).toEqual({
@@ -229,12 +244,12 @@ describe('GET /:slug/admin/analytics (route)', () => {
     expect(body.monthly[11]).toEqual({ month: today.slice(0, 7), total: 100 });
     expect(body.byService).toEqual([{ serviceType: 'boarding', label: 'Boarding', total: 160 }]);
     expect(body.topClients).toEqual([
-      { endUserId: jess.Id, name: jess.Name, email: 'jess@example.com', total: 160, bookings: 1 },
+      { endUserId: jess.Id, name: 'Jess Demo', email: 'jess@example.com', total: 160, bookings: 1 },
     ]);
     expect(body.outstanding).toEqual([
       {
         bookingId,
-        name: jess.Name,
+        name: 'Jess Demo',
         email: 'jess@example.com',
         serviceType: 'boarding',
         startDate: '2030-01-01',
