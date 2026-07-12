@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminApi, type AnalyticsPayload } from '../../shared-ui/api.js';
 import { IconChartBar } from '../../shared-ui/icons';
 import { PaymentsPanel } from '../PaymentsPanel';
@@ -71,6 +71,7 @@ export function EarningsSection({
 }) {
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const alive = useRef(true);
 
   const load = () => adminApi.analytics.get(session.slug, session.token);
 
@@ -85,12 +86,23 @@ export function EarningsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
+  useEffect(() => {
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
   const reload = async () => {
     clearError();
     try {
-      setData(await load());
+      const result = await load();
+      if (alive.current) {
+        setData(result);
+      }
     } catch (e) {
-      handleError(e);
+      if (alive.current) {
+        handleError(e);
+      }
     }
   };
 
