@@ -31,6 +31,9 @@ export function PaymentsPanel({
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const amountNum = Number(amount);
+  const canSubmit = Number.isInteger(amountNum) && amountNum >= 1 && paidDate.trim() !== '';
+
   const load = () =>
     adminApi.payments
       .list(session.slug, session.token, bookingId)
@@ -133,7 +136,7 @@ export function PaymentsPanel({
           Note
           <input value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
-        <button disabled={busy || !amount} onClick={() => void record()}>
+        <button disabled={busy || !canSubmit} onClick={() => void record()}>
           Record payment
         </button>
       </div>
