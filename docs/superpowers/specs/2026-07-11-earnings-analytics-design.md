@@ -1,7 +1,7 @@
 # Earnings analytics: payment tracking + dashboard — design
 
 **Date:** 2026-07-11
-**Status:** Draft (pending subagent review + user approval)
+**Status:** Revised after two-subagent review (fact-check vs codebase + design review); pending user approval
 **Branch target:** off `custom-services`
 
 ## Problem
@@ -49,6 +49,13 @@ recorded so far.
   `Rate`. The rest of the schema is whole-dollar; introducing cents only for
   payments would poison every aggregate with unit ambiguity.
 - **Invoicing/receipts.** No PDFs, no emails to clients about payments.
+- **Refunds / cancel-after-payment netting.** Revenue aggregates count
+  payments regardless of the booking's later status — cash already received
+  is real revenue (only the *outstanding* query filters to confirmed).
+  There are no negative amounts (`CHECK (Amount > 0)`); deleting the
+  payment record is the only correction mechanism, which is why
+  `deletePayment` has no booking-status guard. Revisit if real refund
+  bookkeeping is ever needed.
 - **Charting library.** Charts are hand-rolled SVG/CSS — a 12-bar monthly
   chart is ~30 lines of JSX, and the repo's only runtime deps are
   hono/react/react-dom. Revisit if charts multiply or need
@@ -107,15 +114,27 @@ New functions, all tenant-scoped like every existing query:
 
 - `insertPayment(db, { tenantId, bookingRequestId, amount, method, paidDate, note })`
   — inserts iff the booking exists for this tenant, is not `ServiceType='blocked'`,
-  and is not cancelled (guard in the `WHERE`/subquery, same atomic-guard
-  idiom as `updateBookingStatus`). Returns the row or null.
-- `deletePayment(db, tenantId, paymentId)` — returns whether a row changed
-  (route 404s on false, the existing idiom).
-- `listPaymentsForBookings(db, tenantId, bookingIds)` — payments grouped by
-  booking, for the Bookings section's paid-total display. In practice
-  implemented as a `PaidTotal` aggregate added to `listBookingsForTenant`
-  via `LEFT JOIN (SELECT BookingRequestId, SUM(Amount) ...)` — one query,
-  no N+1.
+  and is not cancelled. A plain `INSERT` has no `WHERE`, so this is an
+  `INSERT INTO Payments (...) SELECT ... FROM BookingRequests WHERE
+  TenantId = ? AND Id = ? AND ServiceType != 'blocked' AND Status != 'cancelled'`
+  — a new idiom for `repo.ts` (no existing guarded insert to copy), atomic
+  like `updateBookingStatus`'s `UPDATE ... WHERE` guard. Returns whether a
+  row was inserted (`meta.changes`). `pending` bookings are **deliberately
+  allowed** — deposits are commonly collected before a booking is
+  confirmed. Note the outstanding table only lists confirmed bookings, so a
+  deposit on a pending booking won't appear there until confirmation.
+- `deletePayment(db, tenantId, bookingRequestId, paymentId)` — the `WHERE`
+  includes `BookingRequestId = ?` so a payment id paired with the wrong
+  booking id in the URL 404s instead of silently deleting. Deliberately has
+  **no status guard** (works on cancelled bookings too) — deleting the
+  record is the only correction mechanism for refunds (see Non-goals).
+  Returns whether a row changed (route 404s on false, the existing idiom).
+- `listPaymentsForBooking(db, tenantId, bookingRequestId)` — the individual
+  payment rows for one booking (date/amount/method/note), for the
+  payment-list UI below.
+- `listBookingsForTenant` (existing) gains a `PaidTotal` aggregate via
+  `LEFT JOIN (SELECT BookingRequestId, SUM(Amount) ...)` — one query, no
+  N+1.
 - `getAnalytics(db, tenantId)` — runs the four aggregate queries and
   returns one object:
   - **monthly**: `SELECT substr(PaidDate,1,7) AS Month, SUM(Amount) ... GROUP BY Month`
@@ -141,14 +160,23 @@ Added to the existing chained Hono app (same `adminAuth` + tenant middleware
 stack as every other `/:slug/admin/*` route):
 
 - `GET /:slug/admin/analytics` — returns `getAnalytics` payload verbatim.
+- `GET /:slug/admin/bookings` (existing) — its response-mapping object
+  (`server/routes/admin.ts:~746`, the `status: r.Declined ? 'declined' :
+  r.Status` block) gains `paidTotal: r.PaidTotal ?? 0` so the repo-layer
+  join actually reaches the client.
 - `POST /:slug/admin/bookings/:id/payments` — body
-  `{ amount, method, paidDate, note? }`. Validates: amount is a positive
-  integer (reuse the defensive-validation style at the top of the file),
-  method is one of the allowed set, paidDate matches `YYYY-MM-DD`. 404 if
+  `{ amount, method, paidDate, note? }`. Validates: amount via the existing
+  `isValidRate` (whole dollars ≥ 1, `server/lib/services.ts`), method is
+  one of the allowed set, paidDate via the existing `isRealDate`
+  (`server/lib/validation.ts` — a bare `YYYY-MM-DD` regex accepts
+  2026-02-30, which would corrupt monthly bucketing). 404 if
   `insertPayment` refuses (wrong tenant / blocked / cancelled). Returns the
   created payment plus the booking's new paid total.
-- `DELETE /:slug/admin/bookings/:id/payments/:paymentId` — 404 if nothing
-  deleted.
+- `DELETE /:slug/admin/bookings/:id/payments/:paymentId` — passes both ids
+  to `deletePayment`; 404 if nothing deleted (including a payment/booking
+  mismatch).
+- `GET /:slug/admin/bookings/:id/payments` — the individual payment rows
+  for one booking, backing the payment-list UI.
 
 No KV caching on the analytics endpoint — it's a handful of indexed
 aggregates over a prototype-scale D1; add caching only if it measurably
@@ -162,18 +190,28 @@ drags.
   outstanding table with an inline record-payment form (amount, method
   select, date defaulting to today, note). Recording a payment re-fetches
   the payload. Empty states ("No payments recorded yet") for a brand-new
-  tenant.
+  tenant. Because `byService`/`topClients` are all-time while the chart is
+  12 months, those two widgets are labeled "(all-time)".
 - **`app/admin/sections/BookingsSection.tsx`** — each non-blocked,
-  non-cancelled booking row additionally shows `paid $X of $Y` (or
-  `paid in full`) from the new `paidTotal` field, plus a "Record payment"
-  action opening the same small form. The form component is shared:
-  **`app/admin/RecordPaymentForm.tsx`**, imported by both sections.
+  non-cancelled booking row additionally shows `paid $X of $Y` from the new
+  `paidTotal` field (`paid in full` once `paidTotal >= EstCost`, covering
+  overpayment/tips), plus a "Payments" action that expands an inline panel:
+  the booking's individual payment rows (date, amount, method, note) each
+  with a delete button, and the record-payment form beneath. Both record
+  and delete re-fetch the bookings list, mirroring the existing
+  `setStatus → reload` pattern in this file. The panel is a shared
+  component — **`app/admin/PaymentsPanel.tsx`** (list + form + delete) —
+  also used by EarningsSection's outstanding table (which re-fetches the
+  analytics payload instead). `app/admin/` currently only holds `App.tsx`;
+  a shared non-section component at that level is a new-but-consistent
+  placement.
 - **`app/shared-ui/api.ts`** — `AnalyticsPayload`, `Payment` types;
-  `adminApi.analytics.get` and `adminApi.payments.record/remove`;
+  `adminApi.analytics.get` and `adminApi.payments.list/record/remove`;
   `AdminBooking` gains `paidTotal`.
 - **`app/admin/App.tsx`** — `'earnings'` added to the `SectionKey` union,
-  `SECTIONS` array (icon: an existing icon component or a small new one in
-  the same style), and the `panels` record.
+  `SECTIONS` array, and the `panels` record. Icon: reuse an existing
+  component from `app/shared-ui/icons.tsx` or add a new one there (icons do
+  not live in `App.tsx`; they're imported).
 - Charts follow the admin app's existing visual language (accent color from
   tenant settings where the UI already does that); axis labels are plain
   text, no interactivity.
@@ -186,9 +224,9 @@ drags.
   returns null/false), matching the "row didn't change → not found" idiom.
 - Analytics endpoint has no partial-failure mode: it's read-only SELECTs;
   any D1 error surfaces as the standard 500.
-- Frontend: fetch errors in EarningsSection render the section's error
-  message pattern used by other sections (whatever BookingsSection does on
-  load failure).
+- Frontend: sections don't render their own errors — they call the
+  `handleError` prop that funnels into `App.tsx`'s single app-level error
+  banner (`App.tsx:499`). EarningsSection does the same.
 
 ## Testing
 
@@ -196,7 +234,9 @@ Per-concern test files, mirroring the existing convention:
 
 - `server/__tests__/payments-repo.test.ts` — `insertPayment` guards
   (cancelled booking refused, blocked row refused, cross-tenant refused,
-  happy path), `deletePayment` tenant scoping, paid-total aggregation on
+  pending booking *allowed*, happy path), `deletePayment` tenant scoping
+  and booking/payment-mismatch refusal (and that it works on a cancelled
+  booking), `listPaymentsForBooking`, paid-total aggregation on
   `listBookingsForTenant`.
 - `server/__tests__/analytics.test.ts` — seed a tenant with bookings +
   payments and assert each aggregate: monthly buckets (including
@@ -205,5 +245,6 @@ Per-concern test files, mirroring the existing convention:
   (partial payment → correct balance; EstCost NULL excluded; fully-paid
   excluded; cancelled excluded), and route-level validation (bad amount,
   bad method, bad date → 400; foreign booking → 404).
-- `server/__tests__/migration-0008.test.ts` — migration applies cleanly on
-  a 0007-state DB, per the existing migration-test pattern.
+- No dedicated migration test: the repo only writes those for table-rebuild
+  migrations (0002/0003/0006); pure additive `CREATE TABLE` migrations
+  (0004, this one) rely on repo/route tests exercising the new table.
