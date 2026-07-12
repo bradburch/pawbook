@@ -23,6 +23,7 @@ function chipClass(status: string): string {
  * for unpaid estimate-less rows. 'paid in full' covers overpayment/tips (paidTotal > estCost). */
 function paidText(b: AdminBooking): string | null {
   if (b.status === 'cancelled' || b.status === 'declined') return null;
+  if (b.paidTotal === 0) return null;
   if (b.estCost == null) return b.paidTotal > 0 ? `paid $${b.paidTotal}` : null;
   return b.paidTotal >= b.estCost ? 'paid in full' : `paid $${b.paidTotal} of $${b.estCost}`;
 }
@@ -129,7 +130,7 @@ export function BookingsSection({
           {paid && <> · {paid}</>}
         </span>
         {actionsFor(b)}
-        {openId === b.id && (
+        {b.status !== 'cancelled' && b.status !== 'declined' && openId === b.id && (
           <PaymentsPanel
             session={session}
             bookingId={b.id}
