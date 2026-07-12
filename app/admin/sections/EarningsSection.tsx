@@ -87,6 +87,7 @@ export function EarningsSection({
   }, [session]);
 
   useEffect(() => {
+    alive.current = true;
     return () => {
       alive.current = false;
     };
