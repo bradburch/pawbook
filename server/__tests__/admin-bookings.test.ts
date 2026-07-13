@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import app from '../index';
+import { insertBookingRequest } from '../db/repo';
 import { adminHeaders, createTestEnv, endUserToken, TENANT_A, TENANT_B } from './helpers';
 
 /** Books one dog (Bella, sunny-paws) for a 2-night boarding stay via the real customer flow. */
@@ -44,6 +45,20 @@ describe('admin booking lifecycle', () => {
     expect(mine?.status).toBe('pending');
     // The seeded blocked range for sunny-paws must never appear in the admin bookings list.
     expect(bookings.some((b) => b.type === 'blocked')).toBe(false);
+  });
+
+  it('404s for an unknown booking id', async () => {
+    const { env } = createTestEnv();
+    const res = await app.request(
+      '/api/sunny-paws/admin/bookings/nope/status',
+      {
+        method: 'POST',
+        headers: { ...(await adminHeaders(TENANT_A)), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'confirmed' }),
+      },
+      env,
+    );
+    expect(res.status).toBe(404);
   });
 
   it('POST confirm moves pending -> confirmed, reflected on the next GET', async () => {
@@ -125,6 +140,34 @@ describe('admin booking lifecycle', () => {
     // Cancelled is terminal: even re-confirming the same row is rejected.
     const again = await setStatus('confirmed');
     expect(again.status).toBe(404);
+  });
+
+  it('cancelling a booking never calls out to Google Calendar (no event delete/update on cancel)', async () => {
+    const { env } = createTestEnv();
+    const id = await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'boarding',
+      startDate: '2030-06-01',
+      endDate: '2030-06-03',
+      optionKey: 'standard',
+      petType: 'dog',
+      petCount: 1,
+      estCost: 100,
+      status: 'confirmed',
+    });
+    const spy = vi.spyOn(globalThis, 'fetch');
+    const res = await app.request(
+      `/api/sunny-paws/admin/bookings/${id}/status`,
+      {
+        method: 'POST',
+        headers: { ...(await adminHeaders(TENANT_A)), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it('POST with a bad status value is rejected with 400', async () => {

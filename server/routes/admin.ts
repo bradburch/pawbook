@@ -4,18 +4,26 @@ import {
   addEndUserPet,
   clearProviderConnection,
   countBookingPetRefs,
+  countBookingsForService,
   countBookingsForUser,
+  createService,
+  getAnalytics,
   getBookingWithCustomer,
   getEndUserById,
+  getEndUserByEmail,
   deleteBlockedRange,
   deleteCustomer,
+  deletePayment,
+  deleteService,
   getProviderConnection,
   insertBookingRequest,
   insertInvitedCustomer,
+  insertPayment,
   listAllEndUserPetsByTenant,
   listBlockedRanges,
   listBookingsForTenant,
   listCustomers,
+  listPaymentsForBooking,
   listPetTypes,
   listProviderConnections,
   listServiceOptions,
@@ -29,12 +37,22 @@ import {
   updateTenantSettings,
 } from '../db/repo';
 import { isEmailConfigured, sendBookingStatusEmail, sendInvite } from '../lib/email';
+import { parseCsvRows } from '../lib/csv';
+import { reconcileIfStale } from '../lib/calendar-sync';
 import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { adminAuth } from '../lib/middleware';
 import { signState } from '../lib/oauth-state';
 import { calendarView } from '../lib/providers';
 import { embedSnippets } from '../lib/snippet';
-import { isPetType, isServiceType, PET_TYPES, SERVICE_CATALOG } from '../lib/services';
+import {
+  isPetType,
+  isTemplateId,
+  PET_TYPES,
+  RESERVED_SERVICE_SLUGS,
+  SERVICE_TEMPLATES,
+  slugifyServiceLabel,
+  TEMPLATE_IDS,
+} from '../lib/services';
 import { decryptToken } from '../lib/token-crypto';
 import { invalidateTenantCache } from '../lib/tenant-resolve';
 import { NONCE_KEY } from './oauth';
@@ -43,6 +61,7 @@ import {
   DEFENSIVE_MAX_PET_COUNT,
   EMAIL_RE,
   isNullableLimit,
+  isPaymentMethod,
   isRealDate,
   isValidDuration,
   isValidRate,
@@ -51,8 +70,17 @@ import {
 } from '../lib/validation';
 import type { AppEnv } from '../types';
 import type { ServiceQuestion } from '../../src/shared/index.js';
+import { getPacificDateStr } from '../../src/shared/index.js';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * Each pet-bearing row triggers several sequential D1 calls; an unbounded import can exceed
+ * Workers' subrequest/CPU ceiling mid-loop, which aborts outside the per-row try/catch and
+ * returns a bare 500 with no partial-import report. Cap row count so oversized files fail fast
+ * with an actionable error instead of a platform crash.
+ */
+const MAX_IMPORT_ROWS = 500;
 
 /** null/undefined (use default) or a timezone Intl accepts. */
 function isValidTimezone(value: unknown): value is string | null | undefined {
@@ -136,7 +164,7 @@ type ResolvedOption = {
  * Returns an error message, or the resolved rows ready to persist.
  */
 function resolveServiceOptions(
-  meta: (typeof SERVICE_CATALOG)[keyof typeof SERVICE_CATALOG],
+  meta: { hasDuration: boolean },
   serviceLabel: string,
   opts: OptionBody[],
   existingKeys: Set<string>,
@@ -306,7 +334,6 @@ export const adminRoutes = new Hono<AppEnv>()
       listBlockedRanges(c.env.PAWBOOK_DB, tenant.Id),
       listProviderConnections(c.env.PAWBOOK_DB, tenant.Id),
     ]);
-    const enabledByType = new Map(services.map((s) => [s.ServiceType, Boolean(s.Enabled)]));
     return c.json({
       displayName: tenant.DisplayName,
       accentColor: tenant.AccentColor,
@@ -320,33 +347,34 @@ export const adminRoutes = new Hono<AppEnv>()
         petType: pt,
         enabled: petTypes.some((p) => p.PetType === pt && p.Enabled),
       })),
-      services: Object.entries(SERVICE_CATALOG).map(([type, meta]) => {
-        const svc = services.find((s) => s.ServiceType === type);
-        return {
-          type,
-          label: meta.label,
-          hasDuration: meta.hasDuration,
-          rateUnit: meta.rateUnit,
-          shape: meta.shape,
-          enabled: enabledByType.get(type as keyof typeof SERVICE_CATALOG) ?? false,
-          questions: svc?.Questions ?? [],
-          minNights: svc?.MinNights ?? null,
-          maxNights: svc?.MaxNights ?? null,
-          minPetCount: svc?.MinPetCount ?? null,
-          maxPetCount: svc?.MaxPetCount ?? null,
-          options: options
-            .filter((o) => o.ServiceType === type)
-            .map((o) => ({
-              optionKey: o.OptionKey,
-              label: o.Label,
-              durationMinutes: o.DurationMinutes,
-              rate: o.Rate,
-              startTime: o.StartTime,
-              endTime: o.EndTime,
-              capacity: o.Capacity,
-            })), // optionKey round-trips back on save so resolveServiceOptions can preserve identity
-        };
-      }),
+      services: services.map((svc) => ({
+        type: svc.ServiceType,
+        label: svc.Label,
+        icon: svc.Icon,
+        hasDuration: Boolean(svc.HasDuration),
+        rateUnit: svc.RateUnit,
+        shape: svc.Shape,
+        custom: !isTemplateId(svc.ServiceType),
+        enabled: Boolean(svc.Enabled),
+        questions: svc.Questions,
+        minNights: svc.MinNights,
+        maxNights: svc.MaxNights,
+        minPetCount: svc.MinPetCount,
+        maxPetCount: svc.MaxPetCount,
+        options: options
+          .filter((o) => o.ServiceType === svc.ServiceType)
+          .map((o) => ({
+            optionKey: o.OptionKey,
+            label: o.Label,
+            durationMinutes: o.DurationMinutes,
+            rate: o.Rate,
+            startTime: o.StartTime,
+            endTime: o.EndTime,
+            capacity: o.Capacity,
+          })), // optionKey round-trips back on save so resolveServiceOptions can preserve identity
+      })),
+      // "Add service" picker: template id + display label of each built-in behavior archetype.
+      templates: TEMPLATE_IDS.map((id) => ({ id, label: SERVICE_TEMPLATES[id].label })),
       blocked: blocked.map((b) => ({ id: b.Id, startDate: b.StartDate, endDate: b.EndDate })),
       calendar: calendarView(connections),
     });
@@ -420,23 +448,24 @@ export const adminRoutes = new Hono<AppEnv>()
     }
     const resolvedOptionsByType = new Map<string, ResolvedOption[]>();
     for (const svc of services) {
-      if (!isServiceType(svc.type)) return c.json({ error: 'Unknown service type.' }, 400);
-      const meta = SERVICE_CATALOG[svc.type];
+      const meta = currentServices.find((s) => s.ServiceType === svc.type);
+      if (!meta) return c.json({ error: 'Unknown service type.' }, 400);
+      const hasDuration = Boolean(meta.HasDuration);
       const opts = svc.options ?? [];
       if (svc.enabled && opts.length === 0)
-        return c.json({ error: `${meta.label} needs at least one price option.` }, 400);
+        return c.json({ error: `${meta.Label} needs at least one price option.` }, 400);
       // Non-duration services derive every optionKey as 'standard', so more than one would collide
       // on the (TenantId, ServiceType, OptionKey) UNIQUE constraint mid-write. Reject up front.
-      if (!meta.hasDuration && opts.length > 1)
-        return c.json({ error: `${meta.label} takes a single price.` }, 400);
+      if (!hasDuration && opts.length > 1)
+        return c.json({ error: `${meta.Label} takes a single price.` }, 400);
       const resolvedOptions = resolveServiceOptions(
-        meta,
-        meta.label,
+        { hasDuration },
+        meta.Label,
         opts,
-        existingKeysByType.get(svc.type) ?? new Set(),
+        existingKeysByType.get(svc.type as string) ?? new Set(),
       );
       if ('error' in resolvedOptions) return c.json({ error: resolvedOptions.error }, 400);
-      resolvedOptionsByType.set(svc.type, resolvedOptions.resolved);
+      resolvedOptionsByType.set(svc.type as string, resolvedOptions.resolved);
       for (const q of svc.questions ?? []) {
         const qError = validateQuestionBody(q);
         if (qError) return c.json({ error: qError }, 400);
@@ -445,19 +474,19 @@ export const adminRoutes = new Hono<AppEnv>()
         !isNullableLimit(svc.minNights ?? null, DEFENSIVE_MAX_NIGHTS) ||
         !isNullableLimit(svc.maxNights ?? null, DEFENSIVE_MAX_NIGHTS)
       )
-        return c.json({ error: `${meta.label}: nights must be a positive number, or blank.` }, 400);
+        return c.json({ error: `${meta.Label}: nights must be a positive number, or blank.` }, 400);
       if (svc.minNights != null && svc.maxNights != null && svc.minNights > svc.maxNights)
-        return c.json({ error: `${meta.label}: min nights cannot exceed max nights.` }, 400);
+        return c.json({ error: `${meta.Label}: min nights cannot exceed max nights.` }, 400);
       if (
         !isNullableLimit(svc.minPetCount ?? null, DEFENSIVE_MAX_PET_COUNT) ||
         !isNullableLimit(svc.maxPetCount ?? null, DEFENSIVE_MAX_PET_COUNT)
       )
         return c.json(
-          { error: `${meta.label}: pet count must be a positive number, or blank.` },
+          { error: `${meta.Label}: pet count must be a positive number, or blank.` },
           400,
         );
       if (svc.minPetCount != null && svc.maxPetCount != null && svc.minPetCount > svc.maxPetCount)
-        return c.json({ error: `${meta.label}: min pets cannot exceed max pets.` }, 400);
+        return c.json({ error: `${meta.Label}: min pets cannot exceed max pets.` }, 400);
     }
 
     await updateTenantSettings(c.env.PAWBOOK_DB, tenant.Id, {
@@ -475,9 +504,9 @@ export const adminRoutes = new Hono<AppEnv>()
         await setPetTypeEnabled(c.env.PAWBOOK_DB, tenant.Id, pt, petTypes.includes(pt));
     }
     for (const svc of services) {
-      const svcType = svc.type as keyof typeof SERVICE_CATALOG;
-      const meta = SERVICE_CATALOG[svcType];
-      const current = currentServices.find((s) => s.ServiceType === svcType);
+      const svcType = svc.type as string;
+      // Validation above guarantees a matching row exists.
+      const current = currentServices.find((s) => s.ServiceType === svcType)!;
       const questions: ServiceQuestion[] =
         svc.questions !== undefined
           ? svc.questions.map((q) => ({
@@ -490,17 +519,19 @@ export const adminRoutes = new Hono<AppEnv>()
               ...(q.type === 'text' && q.pattern ? { pattern: q.pattern } : {}),
               ...(q.type === 'select' ? { options: q.options } : {}),
             }))
-          : (current?.Questions ?? []);
-      await setServiceConfig(c.env.PAWBOOK_DB, tenant.Id, svcType, {
+          : current.Questions;
+      const updated = await setServiceConfig(c.env.PAWBOOK_DB, tenant.Id, svcType, {
         enabled: svc.enabled ?? false,
         questions,
-        minNights: 'minNights' in svc ? (svc.minNights ?? null) : (current?.MinNights ?? null),
-        maxNights: 'maxNights' in svc ? (svc.maxNights ?? null) : (current?.MaxNights ?? null),
-        minPetCount:
-          'minPetCount' in svc ? (svc.minPetCount ?? null) : (current?.MinPetCount ?? null),
-        maxPetCount:
-          'maxPetCount' in svc ? (svc.maxPetCount ?? null) : (current?.MaxPetCount ?? null),
+        minNights: 'minNights' in svc ? (svc.minNights ?? null) : current.MinNights,
+        maxNights: 'maxNights' in svc ? (svc.maxNights ?? null) : current.MaxNights,
+        minPetCount: 'minPetCount' in svc ? (svc.minPetCount ?? null) : current.MinPetCount,
+        maxPetCount: 'maxPetCount' in svc ? (svc.maxPetCount ?? null) : current.MaxPetCount,
       });
+      // The service existed when validated above but was deleted by a concurrent request since —
+      // stop before writing options for a slug that no longer exists.
+      if (!updated)
+        return c.json({ error: `${current.Label} was deleted. Refresh and retry.` }, 409);
       await replaceServiceOptions(
         c.env.PAWBOOK_DB,
         tenant.Id,
@@ -510,7 +541,7 @@ export const adminRoutes = new Hono<AppEnv>()
           label: o.label,
           durationMinutes: o.durationMinutes,
           rate: o.rate,
-          rateUnit: meta.rateUnit,
+          rateUnit: current.RateUnit,
           startTime: o.startTime,
           endTime: o.endTime,
           capacity: o.capacity,
@@ -519,6 +550,65 @@ export const adminRoutes = new Hono<AppEnv>()
     }
 
     // The widget reads tenant config through the KV-cached resolution seam (PRD FR19).
+    await invalidateTenantCache(tenant.Slug, c.env);
+    return c.body(null, 204);
+  })
+
+  // Create a custom service from a template. The template permanently fixes behavior (shape,
+  // rate unit, duration, capacity pool); the sitter picks only the name. Created disabled with
+  // no options — priced and enabled through the normal settings PUT, same as any service.
+  .post('/:slug/admin/services', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req
+      .json<{ template?: string; label?: string }>()
+      .catch(() => ({}) as Record<string, never>);
+    if (!isTemplateId(body.template)) return c.json({ error: 'Unknown template.' }, 400);
+    const label = typeof body.label === 'string' ? body.label.trim() : '';
+    if (!label) return c.json({ error: 'Service name required.' }, 400);
+    const slug = slugifyServiceLabel(label);
+    if (!slug || RESERVED_SERVICE_SLUGS.includes(slug))
+      return c.json({ error: 'Pick a different service name.' }, 400);
+
+    const existing = await listServices(c.env.PAWBOOK_DB, tenant.Id);
+    if (existing.some((s) => s.ServiceType === slug))
+      return c.json({ error: 'A service with that name already exists.' }, 400);
+
+    const tpl = SERVICE_TEMPLATES[body.template];
+    try {
+      await createService(c.env.PAWBOOK_DB, tenant.Id, {
+        serviceType: slug,
+        label,
+        icon: tpl.icon,
+        shape: tpl.shape,
+        rateUnit: tpl.rateUnit,
+        hasDuration: tpl.hasDuration,
+        capacityKind: tpl.capacityKind,
+        sortOrder: Math.max(0, ...existing.map((s) => s.SortOrder)) + 1,
+      });
+    } catch (err) {
+      // The listServices check above can't see a concurrent insert of the same slug — fall back
+      // to the DB's UNIQUE(TenantId, ServiceType) constraint as the source of truth.
+      if (err instanceof Error && err.message.includes('UNIQUE constraint failed'))
+        return c.json({ error: 'A service with that name already exists.' }, 400);
+      throw err;
+    }
+    await invalidateTenantCache(tenant.Slug, c.env);
+    return c.json({ type: slug, label, template: body.template }, 201);
+  })
+
+  // Delete a CUSTOM service. Built-ins are disabled, never deleted; a slug any booking row
+  // references (any status — history included) can't be removed.
+  .delete('/:slug/admin/services/:type', async (c) => {
+    const tenant = c.get('tenant');
+    const type = c.req.param('type');
+    const existing = await listServices(c.env.PAWBOOK_DB, tenant.Id);
+    const service = existing.find((s) => s.ServiceType === type);
+    if (!service) return c.json({ error: 'Unknown service type.' }, 404);
+    if (isTemplateId(type))
+      return c.json({ error: 'Built-in services can be disabled, not deleted.' }, 400);
+    if ((await countBookingsForService(c.env.PAWBOOK_DB, tenant.Id, type)) > 0)
+      return c.json({ error: 'That service has bookings — disable it instead.' }, 409);
+    await deleteService(c.env.PAWBOOK_DB, tenant.Id, type);
     await invalidateTenantCache(tenant.Slug, c.env);
     return c.body(null, 204);
   })
@@ -711,9 +801,112 @@ export const adminRoutes = new Hono<AppEnv>()
     if (!removed) return c.json({ error: 'Not found.' }, 404);
     return c.body(null, 204);
   })
+  .post('/:slug/admin/customers/import', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req
+      .json<{ csv?: unknown; sendInvites?: unknown }>()
+      .catch(() => ({}) as { csv?: unknown; sendInvites?: unknown });
+    const csv = typeof body.csv === 'string' ? body.csv : '';
+    const sendInvites = body.sendInvites === true;
+
+    const rows = parseCsvRows(csv).slice(1); // row 1 is the header
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return c.json(
+        {
+          error: `This file has ${rows.length} rows; split it into files of ${MAX_IMPORT_ROWS} or fewer and import in batches.`,
+        },
+        400,
+      );
+    }
+    const petTypesEnabled = new Set(
+      (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id))
+        .filter((pt) => pt.Enabled)
+        .map((pt) => pt.PetType),
+    );
+    const existingPetNames = new Map<string, Set<string>>();
+    for (const pet of await listAllEndUserPetsByTenant(c.env.PAWBOOK_DB, tenant.Id)) {
+      const set = existingPetNames.get(pet.EndUserId) ?? new Set<string>();
+      set.add(pet.Name.toLowerCase());
+      existingPetNames.set(pet.EndUserId, set);
+    }
+
+    let importedCustomers = 0;
+    let importedPets = 0;
+    let invitesSent = 0;
+    let invitesFailed = 0;
+    const skippedRows: { row: number; reason: string }[] = [];
+    const freshCustomers: string[] = [];
+
+    for (const [i, cells] of rows.entries()) {
+      const row = i + 2; // 1-indexed against the sitter's file; +1 since the header was sliced off
+      if (cells.length === 1 && cells[0] === '') continue; // blank line — not a real row
+      if (cells.length < 4) {
+        skippedRows.push({ row, reason: 'Could not parse this row' });
+        continue;
+      }
+      const [rawEmail, rawName, rawPetName, rawPetType] = cells;
+      const email = rawEmail.trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) {
+        skippedRows.push({ row, reason: 'Invalid email address' });
+        continue;
+      }
+
+      try {
+        const existing = await getEndUserByEmail(c.env.PAWBOOK_DB, tenant.Id, email);
+        const name = rawName.trim() || null;
+        const customer = await insertInvitedCustomer(c.env.PAWBOOK_DB, tenant.Id, email, name);
+        if (!existing) {
+          importedCustomers++;
+          freshCustomers.push(email);
+        }
+
+        const petName = rawPetName.trim();
+        const petType = rawPetType.trim().toLowerCase();
+        if (!petName && !petType) continue; // client-only row
+        if (petName && !petType) {
+          skippedRows.push({ row, reason: 'Pet name given without a pet type' });
+          continue;
+        }
+        if (!petName && petType) {
+          skippedRows.push({ row, reason: 'Pet type given without a pet name' });
+          continue;
+        }
+        if (!isPetType(petType) || !petTypesEnabled.has(petType)) {
+          skippedRows.push({ row, reason: `'${rawPetType.trim()}' is not an enabled pet type` });
+          continue;
+        }
+        const petSet = existingPetNames.get(customer.Id) ?? new Set<string>();
+        if (petSet.has(petName.toLowerCase())) {
+          skippedRows.push({ row, reason: 'Pet already exists for this client' });
+          continue;
+        }
+        await addEndUserPet(c.env.PAWBOOK_DB, tenant.Id, customer.Id, petName, petType);
+        petSet.add(petName.toLowerCase());
+        existingPetNames.set(customer.Id, petSet);
+        importedPets++;
+      } catch {
+        skippedRows.push({ row, reason: 'Could not import this row' });
+      }
+    }
+
+    if (sendInvites && isEmailConfigured(c.env)) {
+      const widgetUrl = new URL(`/embed/${tenant.Slug}`, c.req.url).toString();
+      for (const email of freshCustomers) {
+        try {
+          await sendInvite(c.env, email, tenant.DisplayName, widgetUrl);
+          invitesSent++;
+        } catch {
+          invitesFailed++;
+        }
+      }
+    }
+
+    return c.json({ importedCustomers, importedPets, invitesSent, invitesFailed, skippedRows });
+  })
 
   .get('/:slug/admin/bookings', async (c) => {
     const tenant = c.get('tenant');
+    await reconcileIfStale(c.env, tenant);
     const rows = await listBookingsForTenant(c.env.PAWBOOK_DB, tenant.Id);
     return c.json({
       bookings: rows.map((r) => ({
@@ -727,6 +920,7 @@ export const adminRoutes = new Hono<AppEnv>()
         optionKey: r.OptionKey,
         petCount: r.PetCount,
         estCost: r.EstCost,
+        paidTotal: r.PaidTotal ?? 0,
         status: r.Declined ? 'declined' : r.Status,
         createdAt: r.CreatedAt,
       })),
@@ -766,4 +960,115 @@ export const adminRoutes = new Hono<AppEnv>()
       }
     }
     return c.json({ status, notified });
+  })
+
+  .post('/:slug/admin/bookings/:id/payments', async (c) => {
+    const tenant = c.get('tenant');
+    const bookingId = c.req.param('id');
+    const body = await c.req
+      .json<{ amount?: unknown; method?: unknown; paidDate?: unknown; note?: unknown }>()
+      .catch(() => ({}) as Record<string, never>);
+    if (!isValidRate(body.amount))
+      return c.json({ error: 'Amount must be whole dollars ≥ 1.' }, 400);
+    if (!isPaymentMethod(body.method)) return c.json({ error: 'Unknown payment method.' }, 400);
+    if (typeof body.paidDate !== 'string' || !isRealDate(body.paidDate))
+      return c.json({ error: 'Invalid payment date.' }, 400);
+    const note = typeof body.note === 'string' && body.note.trim() !== '' ? body.note.trim() : null;
+    const paymentId = await insertPayment(c.env.PAWBOOK_DB, tenant.Id, {
+      bookingRequestId: bookingId,
+      amount: body.amount,
+      method: body.method,
+      paidDate: body.paidDate,
+      note,
+    });
+    // Guard refused: foreign, blocked, or cancelled booking (pending is deliberately allowed).
+    if (!paymentId) return c.json({ error: 'Not found.' }, 404);
+    const payments = await listPaymentsForBooking(c.env.PAWBOOK_DB, tenant.Id, bookingId);
+    const created = payments.find((p) => p.Id === paymentId);
+    if (!created) return c.json({ error: 'Not found.' }, 404);
+    return c.json(
+      {
+        payment: {
+          id: created.Id,
+          amount: created.Amount,
+          method: created.Method,
+          paidDate: created.PaidDate,
+          note: created.Note,
+        },
+        paidTotal: payments.reduce((sum, p) => sum + p.Amount, 0),
+      },
+      201,
+    );
+  })
+
+  .get('/:slug/admin/bookings/:id/payments', async (c) => {
+    const tenant = c.get('tenant');
+    const bookingId = c.req.param('id');
+    // Same existence guard as POST/DELETE: foreign booking or the 'blocked' sentinel 404s. Unlike
+    // POST, a cancelled booking is still viewable here — DELETE is the correction mechanism for it.
+    const booking = await getBookingWithCustomer(c.env.PAWBOOK_DB, tenant.Id, bookingId);
+    if (!booking || booking.ServiceType === 'blocked') return c.json({ error: 'Not found.' }, 404);
+    const rows = await listPaymentsForBooking(c.env.PAWBOOK_DB, tenant.Id, bookingId);
+    return c.json({
+      payments: rows.map((p) => ({
+        id: p.Id,
+        amount: p.Amount,
+        method: p.Method,
+        paidDate: p.PaidDate,
+        note: p.Note,
+      })),
+    });
+  })
+
+  .delete('/:slug/admin/bookings/:id/payments/:paymentId', async (c) => {
+    const tenant = c.get('tenant');
+    const deleted = await deletePayment(
+      c.env.PAWBOOK_DB,
+      tenant.Id,
+      c.req.param('id'),
+      c.req.param('paymentId'),
+    );
+    if (!deleted) return c.json({ error: 'Not found.' }, 404);
+    return c.body(null, 204);
+  })
+
+  // Earnings dashboard payload. All aggregation is SQL (getAnalytics); the tiles are derived
+  // here in JS from the aggregates — no extra queries, no KV caching (prototype-scale D1).
+  .get('/:slug/admin/analytics', async (c) => {
+    const tenant = c.get('tenant');
+    await reconcileIfStale(c.env, tenant);
+    const today = getPacificDateStr(undefined, tenant.Timezone ?? undefined);
+    const data = await getAnalytics(c.env.PAWBOOK_DB, tenant.Id, today);
+    const outstanding = data.outstanding.map((o) => ({
+      bookingId: o.BookingId,
+      name: o.Name,
+      email: o.Email,
+      serviceType: o.ServiceType,
+      startDate: o.StartDate,
+      estCost: o.EstCost,
+      paidTotal: o.PaidTotal,
+      balance: o.EstCost - o.PaidTotal,
+    }));
+    return c.json({
+      tiles: {
+        thisMonth: data.monthly.at(-1)?.Total ?? 0,
+        lastMonth: data.monthly.at(-2)?.Total ?? 0,
+        outstandingTotal: outstanding.reduce((sum, o) => sum + o.balance, 0),
+        outstandingCount: outstanding.length,
+      },
+      monthly: data.monthly.map((m) => ({ month: m.Month, total: m.Total })),
+      byService: data.byService.map((s) => ({
+        serviceType: s.ServiceType,
+        label: s.Label,
+        total: s.Total,
+      })),
+      topClients: data.topClients.map((t) => ({
+        endUserId: t.EndUserId,
+        name: t.Name,
+        email: t.Email,
+        total: t.Total,
+        bookings: t.Bookings,
+      })),
+      outstanding,
+    });
   });

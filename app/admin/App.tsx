@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useState } fro
 import { adminApi, isAuthExpired, type Customer } from '../shared-ui/api.js';
 import {
   IconCalendar,
+  IconChartBar,
   IconClipboardCheck,
   IconCode,
   IconPaw,
@@ -14,6 +15,7 @@ import { AppsSection } from './sections/AppsSection';
 import { BookingsSection } from './sections/BookingsSection';
 import { BusinessSection } from './sections/BusinessSection';
 import { ClientsSection } from './sections/ClientsSection';
+import { EarningsSection } from './sections/EarningsSection';
 import { EmbedSection } from './sections/EmbedSection';
 import { PetsSection } from './sections/PetsSection';
 import { ServicesSection } from './sections/ServicesSection';
@@ -124,10 +126,19 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
 }
 
 type SectionKey =
-  'bookings' | 'business' | 'pets' | 'services' | 'timeoff' | 'clients' | 'apps' | 'embed';
+  | 'bookings'
+  | 'earnings'
+  | 'business'
+  | 'pets'
+  | 'services'
+  | 'timeoff'
+  | 'clients'
+  | 'apps'
+  | 'embed';
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof IconStore }[] = [
   { key: 'bookings', label: 'Bookings', icon: IconClipboardCheck },
+  { key: 'earnings', label: 'Earnings', icon: IconChartBar },
   { key: 'business', label: 'Business', icon: IconStore },
   { key: 'pets', label: 'Pet types', icon: IconPaw },
   { key: 'services', label: 'Services & rates', icon: IconTag },
@@ -277,6 +288,21 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       setPreviewKey((k) => k + 1);
     });
 
+  const addService = (template: string, label: string) =>
+    run(async () => {
+      await adminFetch(token, `/api/${slug}/admin/services`, {
+        method: 'POST',
+        body: JSON.stringify({ template, label }),
+      });
+      await refresh();
+    });
+
+  const removeService = (type: string) =>
+    run(async () => {
+      await adminFetch(token, `/api/${slug}/admin/services/${type}`, { method: 'DELETE' });
+      await refresh();
+    });
+
   const connectCalendar = () =>
     run(async () => {
       const { url } = await adminApi.calendar.start(slug, token);
@@ -330,9 +356,19 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     bookings: (
       <BookingsSection session={session} handleError={handle} clearError={() => setError('')} />
     ),
+    earnings: (
+      <EarningsSection session={session} handleError={handle} clearError={() => setError('')} />
+    ),
     business: <BusinessSection settings={settings} setSettings={setSettings} />,
     pets: <PetsSection settings={settings} setSettings={setSettings} />,
-    services: <ServicesSection settings={settings} setSettings={setSettings} />,
+    services: (
+      <ServicesSection
+        settings={settings}
+        setSettings={setSettings}
+        addService={addService}
+        removeService={removeService}
+      />
+    ),
     timeoff: (
       <TimeOffSection
         blocked={settings.blocked}

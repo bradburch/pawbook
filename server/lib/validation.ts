@@ -1,4 +1,13 @@
-import { DATE_RE, getPacificDateStr, nightsBetween } from '../../src/shared/index.js';
+import {
+  DATE_RE,
+  getPacificDateStr,
+  nightsBetween,
+  PAYMENT_METHODS,
+  isPaymentMethod,
+  type PaymentMethod,
+} from '../../src/shared/index.js';
+
+export { PAYMENT_METHODS, isPaymentMethod, type PaymentMethod };
 
 /**
  * Shared request-validation guards. `DATE_RE` alone accepts impossible dates ("2026-02-30"),

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 
 /**
  * Pawbook's icon set: small inline SVGs on one consistent system — 24px grid,
@@ -147,6 +147,17 @@ export function IconStore({ size }: IconProps) {
   );
 }
 
+export function IconChartBar({ size }: IconProps) {
+  return (
+    <Svg size={size}>
+      <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+      <path d="M7 16v-3" />
+      <path d="M12 16v-6" />
+      <path d="M17 16v-9" />
+    </Svg>
+  );
+}
+
 export function IconChevronLeft({ size }: IconProps) {
   return (
     <Svg size={size}>
@@ -170,3 +181,12 @@ export function IconCheck({ size }: IconProps) {
     </Svg>
   );
 }
+
+/** Service display icons, keyed by a service's `icon` field. Shared by the widget and admin UI. */
+export const SERVICE_ICONS: Record<string, ComponentType<IconProps>> = {
+  bed: IconBed,
+  home: IconHome,
+  sun: IconSun,
+  paw: IconPaw,
+  clipboard: IconClipboardCheck,
+};

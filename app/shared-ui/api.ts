@@ -1,5 +1,6 @@
 /** Tiny same-origin API client for the widget + admin pages. */
 
+export { PAYMENT_METHODS } from '../../src/shared/index.js';
 import type { ServiceConstraints, ServiceOption, ServiceQuestion } from '../../src/shared/index.js';
 
 // Re-exported as-is: the widget/admin config wire format is field-for-field the shared shape —
@@ -9,6 +10,7 @@ export type { ServiceOption, ServiceQuestion };
 export type ServiceConfig = ServiceConstraints & {
   type: string;
   label: string;
+  icon: string; // widget icon key: bed|home|sun|paw|clipboard
   shape: 'range' | 'single';
   rateUnit: 'night' | 'day' | 'visit';
   hasDuration: boolean;
@@ -62,6 +64,14 @@ export type Customer = {
   pets: Pet[];
 };
 
+export type ImportResult = {
+  importedCustomers: number;
+  importedPets: number;
+  invitesSent: number;
+  invitesFailed: number;
+  skippedRows: { row: number; reason: string }[];
+};
+
 export type AdminBooking = {
   id: string;
   customerEmail: string | null;
@@ -73,8 +83,45 @@ export type AdminBooking = {
   optionKey: string | null;
   petCount: number;
   estCost: number | null;
+  paidTotal: number;
   status: string;
   createdAt: string;
+};
+
+export type Payment = {
+  id: string;
+  amount: number;
+  method: string;
+  paidDate: string;
+  note: string | null;
+};
+
+export type AnalyticsPayload = {
+  tiles: {
+    thisMonth: number;
+    lastMonth: number;
+    outstandingTotal: number;
+    outstandingCount: number;
+  };
+  monthly: { month: string; total: number }[];
+  byService: { serviceType: string; label: string; total: number }[];
+  topClients: {
+    endUserId: string;
+    name: string | null;
+    email: string | null;
+    total: number;
+    bookings: number;
+  }[];
+  outstanding: {
+    bookingId: string;
+    name: string | null;
+    email: string | null;
+    serviceType: string;
+    startDate: string;
+    estCost: number;
+    paidTotal: number;
+    balance: number;
+  }[];
 };
 
 export class ApiError extends Error {
@@ -203,6 +250,41 @@ export const adminApi = {
         method: 'DELETE',
         headers: authHeaders(token),
       }),
+    import: (slug: string, token: string, csv: string, sendInvites: boolean) =>
+      request<ImportResult>(`/api/${slug}/admin/customers/import`, {
+        method: 'POST',
+        headers: { ...jsonHeaders, ...authHeaders(token) },
+        body: JSON.stringify({ csv, sendInvites }),
+      }),
+  },
+  payments: {
+    list: (slug: string, token: string, bookingId: string) =>
+      request<{ payments: Payment[] }>(`/api/${slug}/admin/bookings/${bookingId}/payments`, {
+        headers: authHeaders(token),
+      }),
+    record: (
+      slug: string,
+      token: string,
+      bookingId: string,
+      body: { amount: number; method: string; paidDate: string; note?: string },
+    ) =>
+      request<{ payment: Payment; paidTotal: number }>(
+        `/api/${slug}/admin/bookings/${bookingId}/payments`,
+        {
+          method: 'POST',
+          headers: { ...jsonHeaders, ...authHeaders(token) },
+          body: JSON.stringify(body),
+        },
+      ),
+    remove: (slug: string, token: string, bookingId: string, paymentId: string) =>
+      request<unknown>(`/api/${slug}/admin/bookings/${bookingId}/payments/${paymentId}`, {
+        method: 'DELETE',
+        headers: authHeaders(token),
+      }),
+  },
+  analytics: {
+    get: (slug: string, token: string) =>
+      request<AnalyticsPayload>(`/api/${slug}/admin/analytics`, { headers: authHeaders(token) }),
   },
   bookings: {
     list: (slug: string, token: string) =>

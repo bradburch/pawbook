@@ -10,13 +10,16 @@ export type QuestionForm = Omit<ServiceQuestion, 'id'> & { id?: string };
 export type ServiceForm = ServiceConstraints & {
   type: string;
   label: string;
+  icon: string;
   hasDuration: boolean;
   rateUnit: string;
   shape: 'range' | 'single';
+  custom: boolean;
   enabled: boolean;
   options: ServiceOptionForm[];
   questions: QuestionForm[];
 };
+export type ServiceTemplate = { id: string; label: string };
 export type Settings = {
   displayName: string;
   accentColor: string;
@@ -28,6 +31,7 @@ export type Settings = {
   contactPhone: string | null;
   petTypes: { petType: string; enabled: boolean }[];
   services: ServiceForm[];
+  templates: ServiceTemplate[];
   blocked: { id: string; startDate: string; endDate: string | null }[];
   calendar: {
     status: string;

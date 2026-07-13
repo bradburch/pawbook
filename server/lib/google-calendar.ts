@@ -133,6 +133,13 @@ type EventResource = {
   extendedProperties?: { private: Record<string, string> };
 };
 
+export type CalendarEvent = {
+  summary: string;
+  start: string; // 'YYYY-MM-DD' (all-day) or the date part of a dateTime
+  end: string; // exclusive end date, same normalization
+  private: Record<string, string>; // extendedProperties.private, or {}
+};
+
 function addMinutesToLocal(date: string, time: string, minutes: number): string {
   // Treat the wall-clock value as UTC purely for arithmetic; the timeZone field carries the real
   // zone, so adding minutes here yields the correct local end time (even across an hour/day roll).
@@ -175,4 +182,44 @@ export function buildEventResource(b: CalendarBooking): EventResource {
     end: { date: endDate },
     extendedProperties,
   };
+}
+export async function listCalendarEvents(
+  accessToken: string,
+  calendarId: string,
+  timeMinISO: string,
+  timeMaxISO: string,
+): Promise<CalendarEvent[]> {
+  const params = new URLSearchParams({
+    timeMin: timeMinISO,
+    timeMax: timeMaxISO,
+    singleEvents: 'true',
+    maxResults: '2500',
+    orderBy: 'startTime',
+  });
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) throw new Error(`Google listCalendarEvents failed (${res.status})`);
+  const j = (await res.json()) as {
+    items: Array<{
+      summary?: string;
+      start: { date?: string; dateTime?: string };
+      end: { date?: string; dateTime?: string };
+      extendedProperties?: { private?: Record<string, string> };
+    }>;
+    nextPageToken?: string;
+  };
+  // We don't paginate (see module comment / caller docs) — a truncated result must never be
+  // treated as "these events don't exist," since callers use absence to infer deletion. Fail
+  // loudly instead so callers' existing best-effort error handling skips the operation.
+  if (j.nextPageToken) {
+    throw new Error('Google listCalendarEvents: result truncated (more than 2500 events in range)');
+  }
+  return (j.items ?? []).map((item) => ({
+    summary: item.summary ?? '',
+    start: item.start.date ?? item.start.dateTime?.slice(0, 10) ?? '',
+    end: item.end.date ?? item.end.dateTime?.slice(0, 10) ?? '',
+    private: item.extendedProperties?.private ?? {},
+  }));
 }

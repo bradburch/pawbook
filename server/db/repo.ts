@@ -1,7 +1,9 @@
 import type {
+  AnalyticsData,
   BookingRow,
   EndUser,
   EndUserPet,
+  PaymentRow,
   PetType,
   ProviderConnection,
   ProviderConnectionWithTokens,
@@ -11,7 +13,8 @@ import type {
   TenantServiceOption,
   TenantUser,
 } from '../types';
-import type { ServiceType } from '../lib/services';
+import type { CapacityKind, RateUnit, ServiceShape, ServiceType } from '../lib/services';
+import type { PaymentMethod } from '../lib/validation';
 import type { ServiceQuestion } from '../../src/shared/index.js';
 import { constantTimeEqual } from '../lib/timing';
 
@@ -26,7 +29,7 @@ const TENANT_COLS =
   'Id, Slug, DisplayName, AccentColor, MaxBoardingPets, MaxHouseSitsPerDay, MaxStayNights, Timezone, ContactEmail, ContactPhone';
 
 const BOOKING_COLS =
-  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, CreatedAt';
+  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, Declined, CreatedAt';
 
 /** BOOKING_COLS, table-qualified — needed once a query joins BookingRequests against another
  * table (EndUsers) that shares column names like Id/TenantId, which would otherwise be ambiguous. */
@@ -62,12 +65,77 @@ export async function getTenantUserByEmail(
 export async function listServices(db: D1Database, tenantId: string): Promise<TenantService[]> {
   const { results } = await db
     .prepare(
-      `SELECT TenantId, ServiceType, Enabled, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount
-       FROM TenantServices WHERE TenantId = ?`,
+      `SELECT TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind,
+              SortOrder, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount
+       FROM TenantServices WHERE TenantId = ? ORDER BY SortOrder, Label`,
     )
     .bind(tenantId)
     .all<Omit<TenantService, 'Questions'> & { Questions: string }>();
   return results.map((r) => ({ ...r, Questions: JSON.parse(r.Questions) as ServiceQuestion[] }));
+}
+
+/** Create a service from template-derived behavior. Callers validate slug/template beforehand. */
+export async function createService(
+  db: D1Database,
+  tenantId: string,
+  svc: {
+    serviceType: string;
+    label: string;
+    icon: string;
+    shape: ServiceShape;
+    rateUnit: RateUnit;
+    hasDuration: boolean;
+    capacityKind: CapacityKind;
+    sortOrder: number;
+  },
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO TenantServices
+         (TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind, SortOrder)
+       VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      tenantId,
+      svc.serviceType,
+      svc.label,
+      svc.icon,
+      svc.shape,
+      svc.rateUnit,
+      svc.hasDuration ? 1 : 0,
+      svc.capacityKind,
+      svc.sortOrder,
+    )
+    .run();
+}
+
+/** Delete a service and its options in one atomic batch. Callers enforce the no-bookings guard. */
+export async function deleteService(
+  db: D1Database,
+  tenantId: string,
+  serviceType: string,
+): Promise<void> {
+  await db.batch([
+    db
+      .prepare('DELETE FROM TenantServiceOptions WHERE TenantId = ? AND ServiceType = ?')
+      .bind(tenantId, serviceType),
+    db
+      .prepare('DELETE FROM TenantServices WHERE TenantId = ? AND ServiceType = ?')
+      .bind(tenantId, serviceType),
+  ]);
+}
+
+/** Bookings of ANY status referencing the slug — history included, so deletion never orphans it. */
+export async function countBookingsForService(
+  db: D1Database,
+  tenantId: string,
+  serviceType: string,
+): Promise<number> {
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM BookingRequests WHERE TenantId = ? AND ServiceType = ?')
+    .bind(tenantId, serviceType)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
 }
 
 export async function listServiceOptions(
@@ -151,10 +219,14 @@ export async function consumeLoginCode(
   return row.EndUserId;
 }
 
+/** A booking row joined with its service's capacity pool (null for 'blocked' sentinel rows). */
+export type CapacityRow = BookingRow & { CapacityKind: Exclude<CapacityKind, 'none'> | null };
+
 /**
- * Rows that feed the capacity map: boarding + house-sitting + blocked, pending or confirmed,
- * overlapping [from, to). `excludeId` omits one row — used by the post-insert race check so a
- * just-created booking re-asks "do I still fit, ignoring myself?" against everyone else.
+ * Rows that feed the capacity map: bookings whose service draws from a capacity pool
+ * (CapacityKind boarding/housesit — custom services included) + blocked ranges, pending or
+ * confirmed, overlapping [from, to). `excludeId` omits one row — used by the post-insert race
+ * check so a just-created booking re-asks "do I still fit, ignoring myself?" against everyone else.
  */
 export async function listCapacityRows(
   db: D1Database,
@@ -162,18 +234,22 @@ export async function listCapacityRows(
   fromDate: string,
   toDateExclusive: string,
   excludeId?: string,
-): Promise<BookingRow[]> {
+): Promise<CapacityRow[]> {
+  const cols = BOOKING_COLS.split(', ')
+    .map((c) => `b.${c}`)
+    .join(', ');
   const { results } = await db
     .prepare(
-      `SELECT ${BOOKING_COLS}
-       FROM BookingRequests
-       WHERE TenantId = ? AND Status IN ('pending', 'confirmed')
-         AND ServiceType IN ('boarding', 'housesitting', 'blocked')
-         AND StartDate < ? AND COALESCE(EndDate, StartDate) >= ?
-         AND (? IS NULL OR Id != ?)`,
+      `SELECT ${cols}, s.CapacityKind
+       FROM BookingRequests b
+       LEFT JOIN TenantServices s ON s.TenantId = b.TenantId AND s.ServiceType = b.ServiceType
+       WHERE b.TenantId = ? AND b.Status IN ('pending', 'confirmed')
+         AND (b.ServiceType = 'blocked' OR s.CapacityKind IN ('boarding', 'housesit'))
+         AND b.StartDate < ? AND COALESCE(b.EndDate, b.StartDate) >= ?
+         AND (? IS NULL OR b.Id != ?)`,
     )
     .bind(tenantId, toDateExclusive, fromDate, excludeId ?? null, excludeId ?? null)
-    .all<BookingRow>();
+    .all<CapacityRow>();
   return results;
 }
 
@@ -324,24 +400,29 @@ export async function listBookingsForUser(
 /**
  * All non-blocked bookings for the sitter's admin list, newest-first, with the customer's
  * Email/Name joined in (NULL for a booking whose customer was later removed — EndUserId only
- * ever points at a row in the SAME tenant, enforced by how bookings are created).
+ * ever points at a row in the SAME tenant, enforced by how bookings are created), plus the
+ * total paid so far (0 for bookings with no payments).
  */
 export async function listBookingsForTenant(
   db: D1Database,
   tenantId: string,
-): Promise<(BookingRow & { Email: string | null; Name: string | null })[]> {
+): Promise<(BookingRow & { Email: string | null; Name: string | null; PaidTotal: number })[]> {
   const { results } = await db
     .prepare(
-      `SELECT ${BOOKING_COLS_QUALIFIED}, BookingRequests.Declined AS Declined,
-              EndUsers.Email AS Email, EndUsers.Name AS Name
+      `SELECT ${BOOKING_COLS_QUALIFIED}, EndUsers.Email AS Email, EndUsers.Name AS Name,
+              COALESCE(paid.Total, 0) AS PaidTotal
        FROM BookingRequests
        LEFT JOIN EndUsers ON EndUsers.Id = BookingRequests.EndUserId
          AND EndUsers.TenantId = BookingRequests.TenantId
+       LEFT JOIN (
+         SELECT BookingRequestId, SUM(Amount) AS Total
+         FROM Payments WHERE TenantId = ? GROUP BY BookingRequestId
+       ) paid ON paid.BookingRequestId = BookingRequests.Id
        WHERE BookingRequests.TenantId = ? AND BookingRequests.ServiceType != 'blocked'
        ORDER BY BookingRequests.StartDate DESC, BookingRequests.CreatedAt DESC`,
     )
-    .bind(tenantId)
-    .all<BookingRow & { Email: string | null; Name: string | null }>();
+    .bind(tenantId, tenantId)
+    .all<BookingRow & { Email: string | null; Name: string | null; PaidTotal: number }>();
   return results;
 }
 
@@ -396,6 +477,174 @@ export async function getBookingWithCustomer(
     )
     .bind(tenantId, id)
     .first<BookingRow & { Email: string | null; Name: string | null }>();
+}
+
+/**
+ * Record a payment iff the booking exists for THIS tenant, is not a 'blocked' sentinel, and is
+ * not cancelled — the guard lives in the SQL (INSERT ... SELECT ... WHERE) so it is atomic with
+ * the write, like updateBookingStatus's guarded UPDATE. 'pending' is deliberately allowed:
+ * deposits are commonly collected before a booking is confirmed. Returns the new payment id, or
+ * null when the guard refused (route 404s on null, the existing idiom).
+ */
+export async function insertPayment(
+  db: D1Database,
+  tenantId: string,
+  payment: {
+    bookingRequestId: string;
+    amount: number;
+    method: PaymentMethod;
+    paidDate: string;
+    note: string | null;
+  },
+): Promise<string | null> {
+  const id = crypto.randomUUID();
+  const result = await db
+    .prepare(
+      `INSERT INTO Payments (Id, TenantId, BookingRequestId, Amount, Method, PaidDate, Note)
+       SELECT ?, ?, ?, ?, ?, ?, ?
+       FROM BookingRequests
+       WHERE TenantId = ? AND Id = ? AND ServiceType != 'blocked' AND Status != 'cancelled'`,
+    )
+    .bind(
+      id,
+      tenantId,
+      payment.bookingRequestId,
+      payment.amount,
+      payment.method,
+      payment.paidDate,
+      payment.note,
+      tenantId,
+      payment.bookingRequestId,
+    )
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0 ? id : null;
+}
+
+/**
+ * Delete one payment. The WHERE includes BookingRequestId so a payment id paired with the wrong
+ * booking id in the URL reports false (route 404s) instead of silently deleting. Deliberately NO
+ * booking-status guard — deleting the record is the only correction mechanism for refunds, so it
+ * must work on cancelled bookings too (see the design's Non-goals).
+ */
+export async function deletePayment(
+  db: D1Database,
+  tenantId: string,
+  bookingRequestId: string,
+  paymentId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM Payments WHERE TenantId = ? AND BookingRequestId = ? AND Id = ?')
+    .bind(tenantId, bookingRequestId, paymentId)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+export async function listPaymentsForBooking(
+  db: D1Database,
+  tenantId: string,
+  bookingRequestId: string,
+): Promise<PaymentRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT Id, TenantId, BookingRequestId, Amount, Method, PaidDate, Note, CreatedAt
+       FROM Payments WHERE TenantId = ? AND BookingRequestId = ?
+       ORDER BY PaidDate DESC, CreatedAt DESC`,
+    )
+    .bind(tenantId, bookingRequestId)
+    .all<PaymentRow>();
+  return results;
+}
+
+/**
+ * The four earnings aggregates in one round trip (Promise.all over indexed SELECTs — no KV
+ * caching; revisit only if it measurably drags). `today` ('YYYY-MM-DD', tenant-timezone at the
+ * route) anchors the 12-month window; months with no payments are zero-filled here in JS.
+ * Revenue queries count payments regardless of the booking's later status — cash already
+ * received is real revenue; only `outstanding` filters to confirmed (and skips EstCost IS NULL:
+ * a booking with no estimate has no computable balance).
+ */
+export async function getAnalytics(
+  db: D1Database,
+  tenantId: string,
+  today: string,
+): Promise<AnalyticsData> {
+  // Last 12 calendar months ending with today's month, oldest first (e.g. '2025-08'..'2026-07').
+  const [y, m] = today.split('-').map(Number);
+  const months: string[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(y, m - 1 - i, 1));
+    months.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+  }
+  const windowStart = `${months[0]}-01`;
+  // Exclusive upper bound: first day of the month AFTER today's month. Without it, a future-dated
+  // payment (post-dated deposit, clock skew) would be summed into `Total` by SQL then discarded by
+  // the zero-fill map below since its month key isn't in `months` — silently dropping real revenue
+  // from the response instead of excluding it up front.
+  const nextMonth = new Date(Date.UTC(y, m, 1));
+  const windowEnd = `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}-01`;
+
+  const [monthlyRes, byServiceRes, topClientsRes, outstandingRes] = await Promise.all([
+    db
+      .prepare(
+        `SELECT substr(PaidDate, 1, 7) AS Month, SUM(Amount) AS Total
+         FROM Payments WHERE TenantId = ? AND PaidDate >= ? AND PaidDate < ?
+         GROUP BY Month`,
+      )
+      .bind(tenantId, windowStart, windowEnd)
+      .all<AnalyticsData['monthly'][number]>(),
+    db
+      .prepare(
+        `SELECT b.ServiceType AS ServiceType, COALESCE(s.Label, b.ServiceType) AS Label,
+                SUM(p.Amount) AS Total
+         FROM Payments p
+         JOIN BookingRequests b ON b.Id = p.BookingRequestId AND b.TenantId = p.TenantId
+         LEFT JOIN TenantServices s ON s.TenantId = p.TenantId AND s.ServiceType = b.ServiceType
+         WHERE p.TenantId = ?
+         GROUP BY b.ServiceType
+         ORDER BY Total DESC`,
+      )
+      .bind(tenantId)
+      .all<AnalyticsData['byService'][number]>(),
+    db
+      .prepare(
+        `SELECT b.EndUserId AS EndUserId, u.Name AS Name, u.Email AS Email,
+                SUM(p.Amount) AS Total, COUNT(DISTINCT p.BookingRequestId) AS Bookings
+         FROM Payments p
+         JOIN BookingRequests b ON b.Id = p.BookingRequestId AND b.TenantId = p.TenantId
+         LEFT JOIN EndUsers u ON u.Id = b.EndUserId AND u.TenantId = b.TenantId
+         WHERE p.TenantId = ? AND b.EndUserId IS NOT NULL
+         GROUP BY b.EndUserId
+         ORDER BY Total DESC
+         LIMIT 10`,
+      )
+      .bind(tenantId)
+      .all<AnalyticsData['topClients'][number]>(),
+    db
+      .prepare(
+        `SELECT b.Id AS BookingId, u.Name AS Name, u.Email AS Email,
+                b.ServiceType AS ServiceType, b.StartDate AS StartDate,
+                b.EstCost AS EstCost, COALESCE(paid.Total, 0) AS PaidTotal
+         FROM BookingRequests b
+         LEFT JOIN EndUsers u ON u.Id = b.EndUserId AND u.TenantId = b.TenantId
+         LEFT JOIN (
+           SELECT BookingRequestId, SUM(Amount) AS Total
+           FROM Payments WHERE TenantId = ? GROUP BY BookingRequestId
+         ) paid ON paid.BookingRequestId = b.Id
+         WHERE b.TenantId = ? AND b.Status = 'confirmed' AND b.ServiceType != 'blocked'
+           AND b.EstCost IS NOT NULL AND COALESCE(paid.Total, 0) < b.EstCost
+         ORDER BY b.EstCost - COALESCE(paid.Total, 0) DESC`,
+      )
+      .bind(tenantId, tenantId)
+      .all<AnalyticsData['outstanding'][number]>(),
+  ]);
+
+  const byMonth = new Map(monthlyRes.results.map((r) => [r.Month, r.Total]));
+  return {
+    monthly: months.map((month) => ({ Month: month, Total: byMonth.get(month) ?? 0 })),
+    byService: byServiceRes.results,
+    topClients: topClientsRes.results,
+    outstanding: outstandingRes.results,
+  };
 }
 
 export async function listProviderConnections(
@@ -457,6 +706,11 @@ export async function updateTenantSettings(
     .run();
 }
 
+/**
+ * UPDATE-only: service rows are created explicitly (createService / seed / migration backfill).
+ * Returns false if no row matched (e.g. the service was deleted concurrently) — callers must not
+ * treat that as success, since a matching TenantServiceOptions write right after would orphan.
+ */
 export async function setServiceConfig(
   db: D1Database,
   tenantId: string,
@@ -469,26 +723,25 @@ export async function setServiceConfig(
     minPetCount: number | null;
     maxPetCount: number | null;
   },
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const result = await db
     .prepare(
-      `INSERT INTO TenantServices (TenantId, ServiceType, Enabled, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (TenantId, ServiceType) DO UPDATE SET
-         Enabled = excluded.Enabled, Questions = excluded.Questions, MinNights = excluded.MinNights,
-         MaxNights = excluded.MaxNights, MinPetCount = excluded.MinPetCount, MaxPetCount = excluded.MaxPetCount`,
+      `UPDATE TenantServices SET
+         Enabled = ?, Questions = ?, MinNights = ?, MaxNights = ?, MinPetCount = ?, MaxPetCount = ?
+       WHERE TenantId = ? AND ServiceType = ?`,
     )
     .bind(
-      tenantId,
-      serviceType,
       config.enabled ? 1 : 0,
       JSON.stringify(config.questions),
       config.minNights,
       config.maxNights,
       config.minPetCount,
       config.maxPetCount,
+      tenantId,
+      serviceType,
     )
     .run();
+  return result.meta.changes > 0;
 }
 
 export async function replaceServiceOptions(
@@ -575,6 +828,29 @@ export async function deleteBlockedRange(
     .bind(tenantId, id)
     .run();
   return (result.meta as { changes?: number }).changes !== 0;
+}
+
+/**
+ * Ids of bookings synced to Calendar and not yet cancelled, bounded to [fromDate, toDateExclusive)
+ * — reconciliation's candidate set, restricted to the same window it queried Calendar for (a
+ * booking outside that window couldn't possibly have appeared in the Calendar response, so it must
+ * never be treated as "missing").
+ */
+export async function listSyncedBookingIds(
+  db: D1Database,
+  tenantId: string,
+  fromDate: string,
+  toDateExclusive: string,
+): Promise<string[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT Id FROM BookingRequests
+       WHERE TenantId = ? AND GCalEventId IS NOT NULL AND Status != 'cancelled'
+         AND StartDate < ? AND COALESCE(EndDate, StartDate) >= ?`,
+    )
+    .bind(tenantId, toDateExclusive, fromDate)
+    .all<{ Id: string }>();
+  return results.map((r) => r.Id);
 }
 
 export async function getProviderConnection(

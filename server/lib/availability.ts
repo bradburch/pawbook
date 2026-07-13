@@ -15,9 +15,9 @@ import {
   countSlotBookings,
   listSlotBookingCounts,
   listUserBookingDatesInRange,
+  type CapacityRow,
 } from '../db/repo';
-import { SERVICE_CATALOG, type ServiceType } from '../lib/services';
-import type { BookingRow, Tenant, TenantServiceOption } from '../types';
+import type { Tenant, TenantService, TenantServiceOption } from '../types';
 
 /**
  * Per-tenant availability built on the shared capacity engine. The tenant's nullable config
@@ -30,14 +30,14 @@ function tenantLimits(tenant: Tenant): CapacityLimits {
   };
 }
 
-export function rowsToCapacityEvents(rows: BookingRow[]): CapacityEvent[] {
+export function rowsToCapacityEvents(rows: CapacityRow[]): CapacityEvent[] {
   return rows.map((row) => ({
     start_date: row.StartDate,
     end_date: row.EndDate ?? undefined,
     type:
       row.ServiceType === 'blocked'
         ? 'blocked'
-        : row.ServiceType === 'housesitting'
+        : row.CapacityKind === 'housesit'
           ? 'house-sit'
           : 'boarding',
     petCount: row.PetCount,
@@ -54,30 +54,31 @@ export type AvailabilityResult =
  * already know the dates can price a booking without a capacity read.
  */
 export function estimateCost(
-  serviceType: ServiceType,
+  service: TenantService,
   option: TenantServiceOption,
   startDate: string,
   endDateExclusive: string,
 ): number {
-  if (SERVICE_CATALOG[serviceType].shape !== 'range') return option.Rate;
+  if (service.Shape !== 'range') return option.Rate;
   return option.Rate * billableUnits(nightsBetween(startDate, endDateExclusive), 'night');
 }
 
-function serviceTypeToCapacityType(t: string): 'boarding' | 'house-sit' {
-  return t === 'housesitting' ? 'house-sit' : 'boarding';
+/** Range services always draw from a pool (templates pin range ⇒ boarding|housesit). */
+function capacityKindToRequestType(kind: TenantService['CapacityKind']): 'boarding' | 'house-sit' {
+  return kind === 'housesit' ? 'house-sit' : 'boarding';
 }
 
 async function checkRange(
   env: Env,
   tenant: Tenant,
-  serviceType: ServiceType,
+  service: TenantService,
   option: TenantServiceOption,
   startDate: string,
   endDateExclusive: string,
   petCount: number,
   excludeBookingId?: string,
 ): Promise<AvailabilityResult> {
-  const requestType = serviceTypeToCapacityType(serviceType);
+  const requestType = capacityKindToRequestType(service.CapacityKind);
   const limits = tenantLimits(tenant);
   // The engine (rangeHasConflict) already rejects an over-cap boarding request on its own. This
   // fast path is kept purely for UX + cost: it returns a SPECIFIC "exceeds capacity" reason (vs the
@@ -104,7 +105,7 @@ async function checkRange(
   }
   return {
     available: true,
-    estCost: estimateCost(serviceType, option, startDate, endDateExclusive),
+    estCost: estimateCost(service, option, startDate, endDateExclusive),
     nights: nightsBetween(startDate, endDateExclusive),
   };
 }
@@ -112,7 +113,7 @@ async function checkRange(
 async function checkSingle(
   env: Env,
   tenant: Tenant,
-  serviceType: ServiceType,
+  service: TenantService,
   option: TenantServiceOption,
   date: string,
   excludeBookingId?: string,
@@ -132,7 +133,7 @@ async function checkSingle(
     const count = await countSlotBookings(
       env.PAWBOOK_DB,
       tenant.Id,
-      serviceType,
+      service.ServiceType,
       option.OptionKey,
       date,
       excludeBookingId,
@@ -141,31 +142,31 @@ async function checkSingle(
       return { available: false, reason: 'That session is full.' };
     }
   }
-  return { available: true, estCost: estimateCost(serviceType, option, date, date) };
+  return { available: true, estCost: estimateCost(service, option, date, date) };
 }
 
 export function checkAvailability(
   env: Env,
   tenant: Tenant,
-  serviceType: ServiceType,
+  service: TenantService,
   option: TenantServiceOption,
   startDate: string,
   endDateExclusive: string,
   petCount = 1,
   excludeBookingId?: string,
 ): Promise<AvailabilityResult> {
-  return SERVICE_CATALOG[serviceType].shape === 'range'
+  return service.Shape === 'range'
     ? checkRange(
         env,
         tenant,
-        serviceType,
+        service,
         option,
         startDate,
         endDateExclusive,
         petCount,
         excludeBookingId,
       )
-    : checkSingle(env, tenant, serviceType, option, startDate, excludeBookingId);
+    : checkSingle(env, tenant, service, option, startDate, excludeBookingId);
 }
 
 export type MonthDay = {
@@ -185,7 +186,7 @@ export type MonthDay = {
 export async function monthAvailability(
   env: Env,
   tenant: Tenant,
-  serviceType: ServiceType,
+  service: TenantService,
   month: string, // YYYY-MM
   callerEndUserId: string,
   option: TenantServiceOption | null = null,
@@ -200,9 +201,7 @@ export async function monthAvailability(
   const monthEndExclusive = addDays(lastDay, 1);
 
   const requestType: 'boarding' | 'house-sit' | null =
-    serviceType === 'housesitting' || serviceType === 'boarding'
-      ? serviceTypeToCapacityType(serviceType)
-      : null;
+    service.CapacityKind === 'none' ? null : capacityKindToRequestType(service.CapacityKind);
 
   // Slot capacity is fetched ONCE for the whole grid (not per day), matching buildCapacity's
   // "build the map once" pattern, and run concurrently with the other D1 reads since none of
@@ -213,7 +212,7 @@ export async function monthAvailability(
       ? listSlotBookingCounts(
           env.PAWBOOK_DB,
           tenant.Id,
-          serviceType,
+          service.ServiceType,
           option!.OptionKey,
           monthStart,
           monthEndExclusive,

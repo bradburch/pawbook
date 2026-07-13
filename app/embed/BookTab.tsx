@@ -14,8 +14,7 @@ import {
   type Pet,
   type TenantConfig,
 } from '../shared-ui/api';
-import { SERVICE_ICONS } from './services';
-import { IconCheck, IconPaw } from '../shared-ui/icons';
+import { IconCheck, IconPaw, SERVICE_ICONS } from '../shared-ui/icons';
 import { QuestionField } from './QuestionField';
 import { errorMsg, slug, parentOrigin } from './shared';
 
@@ -144,7 +143,7 @@ export function BookTab({
     <div className="bp-book">
       <div className="bp-service-grid">
         {config.services.map((s) => {
-          const Icon = SERVICE_ICONS[s.type] ?? IconPaw;
+          const Icon = SERVICE_ICONS[s.icon] ?? IconPaw;
           return (
             <button
               key={s.type}
