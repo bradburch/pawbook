@@ -260,28 +260,24 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         contactEmail: settings.contactEmail,
         contactPhone: settings.contactPhone,
         petTypes: settings.petTypes.filter((p) => p.enabled).map((p) => p.petType),
-        services: settings.services.map(
-          (s): ServicePayload => ({
-            type: s.type,
-            enabled: s.enabled,
-            options: s.options.map(
-              (o): ServiceOptionForm => ({
-                optionKey: o.optionKey,
-                label: o.label,
-                durationMinutes: s.hasDuration ? o.durationMinutes : null,
-                rate: o.rate,
-                startTime: o.startTime,
-                endTime: o.endTime,
-                capacity: o.capacity,
-              }),
-            ),
-            questions: s.questions,
-            minNights: s.minNights,
-            maxNights: s.maxNights,
-            minPetCount: s.minPetCount,
-            maxPetCount: s.maxPetCount,
-          }),
-        ),
+        services: settings.services.map((s): ServicePayload => ({
+          type: s.type,
+          enabled: s.enabled,
+          options: s.options.map((o): ServiceOptionForm => ({
+            optionKey: o.optionKey,
+            label: o.label,
+            durationMinutes: s.hasDuration ? o.durationMinutes : null,
+            rate: o.rate,
+            startTime: o.startTime,
+            endTime: o.endTime,
+            capacity: o.capacity,
+          })),
+          questions: s.questions,
+          minNights: s.minNights,
+          maxNights: s.maxNights,
+          minPetCount: s.minPetCount,
+          maxPetCount: s.maxPetCount,
+        })),
       };
       await adminFetch(token, `/api/${slug}/admin/settings`, {
         method: 'PUT',
