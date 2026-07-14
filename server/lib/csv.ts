@@ -1,7 +1,7 @@
 /**
  * Minimal RFC4180-ish CSV parser tailored to this codebase's only CSV use: the fixed
  * client/pet import format (see docs/superpowers/specs/2026-07-10-csv-client-import-design.md),
- * whose free-text `Notes` column may contain newlines pasted from Excel/Google Sheets.
+ * whose free-text fields (e.g. a quoted Client Name) may contain newlines pasted from a spreadsheet.
  *
  * It runs a single-pass state machine over the whole input string (not line-by-line), so a
  * quoted field spanning multiple physical lines stays in one cell / one row:
