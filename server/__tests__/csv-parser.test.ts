@@ -39,4 +39,20 @@ describe('parseCsvRows', () => {
   it('returns an empty array for an empty string', () => {
     expect(parseCsvRows('')).toEqual([]);
   });
+
+  it('keeps a newline inside a quoted field as one cell in one row', () => {
+    const text = 'Name,Notes\nJane,"line one\nline two"';
+    expect(parseCsvRows(text)).toEqual([
+      ['Name', 'Notes'],
+      ['Jane', 'line one\nline two'],
+    ]);
+  });
+
+  it('keeps a CRLF inside a quoted field as one cell in one row', () => {
+    const text = 'Name,Notes\r\nJane,"line one\r\nline two",done';
+    expect(parseCsvRows(text)).toEqual([
+      ['Name', 'Notes'],
+      ['Jane', 'line one\r\nline two', 'done'],
+    ]);
+  });
 });
