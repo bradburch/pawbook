@@ -77,9 +77,10 @@ app.get('/demo', page('demo.html'));
 /**
  * Root landing page: a self-contained capability page for prospective sitters. Static and
  * script-free (served under LOCKED_CSP, so only inline styles are allowed — NO <script>, no
- * external fonts/CSS/images), so it needs no build step. Any interactivity is native HTML/CSS
- * (the FAQ uses <details>/<summary>). The embed snippet below is shown as escaped text
- * (&lt;script&gt;…) so the served body genuinely contains no <script tag.
+ * external fonts/CSS/images), so it needs no build step. There is no interactivity at all
+ * (native HTML/CSS only; the FAQ is a static Q&A, not <details>/<summary>). The embed snippet
+ * below is shown as escaped text (&lt;script&gt;…) so the served body genuinely contains no
+ * <script tag.
  */
 const LANDING_HTML = `<!doctype html>
 <html lang="en">
@@ -536,7 +537,7 @@ const LANDING_HTML = `<!doctype html>
   <body>
     <main class="page">
       <header class="hero">
-        <div class="ledger">
+        <div class="ledger" aria-hidden="true">
           <div class="ledger-head">
             <p class="eyebrow">Pawbook<b>Day book</b>Wed &middot; Jul 2</p>
             <svg class="stamp" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
