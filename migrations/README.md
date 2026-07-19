@@ -39,6 +39,7 @@ Apply with, e.g.:
 npx wrangler d1 execute pawbook-db --local  --file=./migrations/0009_service_slots.sql
 npx wrangler d1 execute pawbook-db --local  --file=./migrations/0010_slot_index.sql
 npx wrangler d1 execute pawbook-db --local  --file=./migrations/0011_contact_and_notes.sql
+npx wrangler d1 execute pawbook-db --local  --file=./migrations/0012_weekday_only.sql
 ```
 
 ### ⚠️ `0002_tenant_config_limits.sql` is DATA-DESTRUCTIVE if ever re-run against a live DB
