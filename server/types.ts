@@ -54,6 +54,7 @@ export type TenantServiceOption = {
   StartTime: string | null; // 'HH:MM'; NULL = no fixed window
   EndTime: string | null; // 'HH:MM'; NULL = no fixed window
   Capacity: number | null; // max concurrent bookings/date; NULL = unlimited
+  WeekdaysOnly: number; // int-bool: 1 = bookable Mon–Fri only
 };
 
 export type TenantPetTypeRow = {

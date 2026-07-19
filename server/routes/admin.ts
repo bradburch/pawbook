@@ -102,6 +102,7 @@ type OptionBody = {
   startTime?: string | null;
   endTime?: string | null;
   capacity?: number | null;
+  weekdaysOnly?: boolean;
 };
 
 type QuestionBody = {
@@ -145,6 +146,7 @@ type ResolvedOption = {
   startTime: string | null;
   endTime: string | null;
   capacity: number | null;
+  weekdaysOnly: boolean;
 };
 
 /**
@@ -203,6 +205,8 @@ function resolveServiceOptions(
       return {
         error: `${serviceLabel}: capacity must be a positive number, or blank for no limit.`,
       };
+    if (o.weekdaysOnly !== undefined && typeof o.weekdaysOnly !== 'boolean')
+      return { error: `${serviceLabel}: weekdays-only must be true or false.` };
 
     const windowed = hasStart;
     const durationMinutes = windowed
@@ -240,6 +244,7 @@ function resolveServiceOptions(
       startTime: windowed ? (o.startTime as string) : null,
       endTime: windowed ? (o.endTime as string) : null,
       capacity: o.capacity ?? null,
+      weekdaysOnly: o.weekdaysOnly === true,
     });
   }
   // Backstop only: fresh keys are de-duped above, so this can fire only when two options in the
@@ -371,6 +376,7 @@ export const adminRoutes = new Hono<AppEnv>()
             startTime: o.StartTime,
             endTime: o.EndTime,
             capacity: o.Capacity,
+            weekdaysOnly: Boolean(o.WeekdaysOnly),
           })), // optionKey round-trips back on save so resolveServiceOptions can preserve identity
       })),
       // "Add service" picker: template id + display label of each built-in behavior archetype.
@@ -545,6 +551,7 @@ export const adminRoutes = new Hono<AppEnv>()
           startTime: o.startTime,
           endTime: o.endTime,
           capacity: o.capacity,
+          weekdaysOnly: o.weekdaysOnly,
         })),
       );
     }

@@ -144,7 +144,7 @@ export async function listServiceOptions(
 ): Promise<TenantServiceOption[]> {
   const { results } = await db
     .prepare(
-      `SELECT Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, StartTime, EndTime, Capacity
+      `SELECT Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, StartTime, EndTime, Capacity, WeekdaysOnly
        FROM TenantServiceOptions WHERE TenantId = ? ORDER BY ServiceType, DurationMinutes`,
     )
     .bind(tenantId)
@@ -757,14 +757,15 @@ export async function replaceServiceOptions(
     startTime: string | null;
     endTime: string | null;
     capacity: number | null;
+    weekdaysOnly: boolean;
   }[],
 ): Promise<void> {
   // DELETE-then-INSERT as ONE atomic, single-round-trip batch: a mid-write failure can no longer
   // leave the service's options half-wiped, and N options cost one trip instead of N+1.
   const insert = db.prepare(
     `INSERT INTO TenantServiceOptions
-       (Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, StartTime, EndTime, Capacity)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, StartTime, EndTime, Capacity, WeekdaysOnly)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   await db.batch([
     db
@@ -783,6 +784,7 @@ export async function replaceServiceOptions(
         o.startTime,
         o.endTime,
         o.capacity,
+        o.weekdaysOnly ? 1 : 0,
       ),
     ),
   ]);

@@ -47,6 +47,7 @@ export const publicRoutes = new Hono<AppEnv>()
               startTime: o.StartTime,
               endTime: o.EndTime,
               capacity: o.Capacity,
+              weekdaysOnly: Boolean(o.WeekdaysOnly),
             })),
         })),
     });

@@ -274,6 +274,7 @@ describe('checkAvailability', () => {
       StartTime: null,
       EndTime: null,
       Capacity: null,
+      WeekdaysOnly: 0,
       ...over,
     };
   }
