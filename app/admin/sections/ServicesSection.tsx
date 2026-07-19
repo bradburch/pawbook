@@ -330,6 +330,16 @@ export function ServicesSection({
                           value={o.capacity}
                           onChange={(capacity) => setOption({ capacity })}
                         />
+                        {windowed && (
+                          <label className="pb-inline">
+                            <input
+                              type="checkbox"
+                              checked={o.weekdaysOnly}
+                              onChange={(e) => setOption({ weekdaysOnly: e.target.checked })}
+                            />
+                            Weekdays only
+                          </label>
+                        )}
                       </div>
                     </div>
                   );
