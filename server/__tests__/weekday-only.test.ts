@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import app from '../index';
-import { adminToken, createTestEnv, TENANT_A } from './helpers';
+import { adminToken, createTestEnv, endUserToken, TENANT_A } from './helpers';
 
 /** Admin Bearer headers for a tenant, optionally with a JSON content type. */
 async function auth(tenantId: string, json = false): Promise<Record<string, string>> {
@@ -94,5 +94,74 @@ describe('weekday-only — settings round-trip', () => {
     ).json()) as SettingsWire;
     const walk = settings.services.find((s) => s.type === 'walk')!;
     expect(walk.options.map((o) => o.optionKey)).toContain('d30'); // seeded option intact
+  });
+});
+
+/** Book Sunny Paws' walk service as the seeded customer. 2028-07-22 = Sat, 2028-07-24 = Mon. */
+async function bookWalk(env: Env, optionKey: string, startDate: string): Promise<Response> {
+  const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+  return app.request(
+    '/api/sunny-paws/bookings',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'walk',
+        optionKey,
+        startDate,
+        petIds: ['pet_sp_bella'],
+        answers: {},
+      }),
+    },
+    env,
+  );
+}
+
+describe('weekday-only — booking enforcement (real schema, real routes)', () => {
+  it('rejects a Saturday and a Sunday booking for a weekday-only option', async () => {
+    const { env } = createTestEnv();
+    expect(
+      (
+        await putWalkOption(env, {
+          label: 'Pack walk',
+          rate: 25,
+          startTime: '10:00',
+          endTime: '14:00',
+          capacity: 8,
+          weekdaysOnly: true,
+        })
+      ).status,
+    ).toBe(204);
+
+    for (const weekend of ['2028-07-22', '2028-07-23']) {
+      const res = await bookWalk(env, 'pack-walk', weekend);
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toMatch(/weekday/i);
+    }
+  });
+
+  it('accepts a Monday booking for the same weekday-only option', async () => {
+    const { env } = createTestEnv();
+    await putWalkOption(env, {
+      label: 'Pack walk',
+      rate: 25,
+      startTime: '10:00',
+      endTime: '14:00',
+      capacity: 8,
+      weekdaysOnly: true,
+    });
+
+    const res = await bookWalk(env, 'pack-walk', '2028-07-24');
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { estCost: number; status: string };
+    expect(body).toMatchObject({ estCost: 25, status: 'pending' });
+  });
+
+  it('still accepts Saturday bookings for a normal (non-weekday-only) option', async () => {
+    const { env } = createTestEnv();
+    // Seeded Sunny Paws walk option 'd30' has WeekdaysOnly defaulted to 0.
+    const res = await bookWalk(env, 'd30', '2028-07-22');
+    expect(res.status).toBe(201);
   });
 });

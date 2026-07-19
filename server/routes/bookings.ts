@@ -16,6 +16,7 @@ import { syncBookingToCalendar } from '../lib/calendar-sync';
 import { endUserAuth } from '../lib/middleware';
 import { isValidPetCount, validateBoardingRange, validateSingleDate } from '../lib/validation';
 import {
+  isWeekend,
   nightsBetween,
   validateAnswers,
   validateServiceConstraints,
@@ -137,6 +138,14 @@ export const bookingRoutes = new Hono<AppEnv>()
         ? validateBoardingRange(start, end, tenant.MaxStayNights, tenant.Timezone ?? undefined)
         : validateSingleDate(start, tenant.Timezone ?? undefined);
     if (dateError) return c.json({ error: dateError.error }, dateError.status);
+
+    // Weekday-only options (set per-option in admin) are never bookable on Sat/Sun. Only the
+    // start date matters: the flag is only settable on windowed per-visit (single-day) options.
+    if (option.WeekdaysOnly && isWeekend(start))
+      return c.json(
+        { error: 'That option is only available on weekdays — pick a Monday–Friday date.' },
+        400,
+      );
     const endDate = shape === 'range' ? end : null;
 
     const nights = shape === 'range' ? nightsBetween(start, end) : null;
