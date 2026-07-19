@@ -800,3 +800,45 @@ body {
   padding: 6px 8px;
   border-bottom: 1px solid var(--line);
 }
+
+/* ── Services & rates: expanded editor (spec 2026-07-19) ───────── */
+/* grid-column spans the summary grid once Task 4 lands; harmless before. */
+.pb-svc-editor {
+  grid-column: 1 / -1;
+  padding: 4px 14px 14px;
+  background: var(--card);
+  border: 1px solid var(--sage);
+  border-radius: 10px;
+}
+
+.pb-svc-editor-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* Footer buttons are quiet ghosts (same treatment as .pb-options/.pb-questions
+   buttons above); Delete service gets a danger tint. */
+.pb-wrap .pb-svc-editor-foot button {
+  background: none;
+  color: var(--soft);
+  border: 1px solid var(--line);
+  font-family: var(--sans);
+  font-weight: 500;
+}
+.pb-wrap .pb-svc-editor-foot button:hover {
+  filter: none;
+  color: var(--ink);
+  border-color: var(--sage);
+  background: var(--sage-wash);
+}
+.pb-wrap .pb-svc-editor-foot .pb-danger {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+}
+.pb-wrap .pb-svc-editor-foot .pb-danger:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: var(--bad-wash);
+}
