@@ -130,7 +130,10 @@ export function BookingsSection({
           <br />
           {formatWhen(b)} · {b.petCount} pet{b.petCount === 1 ? '' : 's'}
           {b.estCost != null ? ` · $${b.estCost}` : ''}{' '}
-          <span className={`pb-chip${chipClass(b.status)}`}>{b.status}</span>
+          {/* Capitalized to match the client-status chips ("Active"/"Pending") in Clients. */}
+          <span className={`pb-chip${chipClass(b.status)}`}>
+            {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+          </span>
           {paid && <> · {paid}</>}
         </span>
         {actionsFor(b)}

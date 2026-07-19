@@ -214,7 +214,7 @@ export function ServicesSection({
           One-tap presets for common offerings — additive, never overwrites.
         </span>
       </p>
-      <p className="pb-hint">
+      <p className="pb-applies">
         Tick the services you offer. To create a new offering clients can book (say, a 30-minute
         &ldquo;Puppy Check-in&rdquo;), add it as an option under Walks or Check-ins with its own
         name, length, and price.

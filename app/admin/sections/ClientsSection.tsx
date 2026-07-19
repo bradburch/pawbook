@@ -185,7 +185,7 @@ export function ClientsSection({
             setImportResult(null);
           }}
         />
-        <label>
+        <label className="pb-inline">
           <input
             type="checkbox"
             checked={sendInvites}

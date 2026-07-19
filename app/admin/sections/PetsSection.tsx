@@ -7,7 +7,7 @@ export function PetsSection({ settings, setSettings }: SettingsSectionProps) {
       <h2>
         <IconPaw size={18} /> Pets you care for
       </h2>
-      <p className="pb-hint">
+      <p className="pb-applies">
         Which types of pets you accept. Your clients&apos; individual pets live under Clients.
       </p>
       {settings.petTypes.map((p, i) => (
