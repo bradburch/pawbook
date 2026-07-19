@@ -924,6 +924,13 @@ body {
   position: absolute;
   top: 12px;
   right: 12px;
+  /* Explicit z-index so the switch's own stacking context always paints above
+     .pb-svc-open — without it, disabling a card gives the button opacity < 1,
+     which forces a stacking context that (per CSS painting order, both being
+     z-index:auto positioned/stacking-context descendants painted in tree
+     order) wins over the switch since it comes later in the DOM. That made
+     the switch's hit-box unclickable by mouse on disabled cards. */
+  z-index: 1;
   appearance: none;
   -webkit-appearance: none;
   width: 34px;
