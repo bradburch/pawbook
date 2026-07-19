@@ -38,7 +38,7 @@ import {
 } from '../db/repo';
 import { isEmailConfigured, sendBookingStatusEmail, sendInvite } from '../lib/email';
 import { parseCsvRows } from '../lib/csv';
-import { reconcileIfStale } from '../lib/calendar-sync';
+import { deleteBookingCalendarEvent, reconcileIfStale } from '../lib/calendar-sync';
 import { buildAuthUrl, revokeToken } from '../lib/google-calendar';
 import { adminAuth } from '../lib/middleware';
 import { signState } from '../lib/oauth-state';
@@ -940,7 +940,6 @@ export const adminRoutes = new Hono<AppEnv>()
     const status = body.status;
     if (status !== 'confirmed' && status !== 'cancelled' && status !== 'declined')
       return c.json({ error: "Status must be 'confirmed', 'declined', or 'cancelled'." }, 400);
-    // ponytail: cancel leaves any synced GCal event in place; delete via GCalEventId if sitters complain
     const updated = await updateBookingStatus(
       c.env.PAWBOOK_DB,
       tenant.Id,
@@ -949,21 +948,39 @@ export const adminRoutes = new Hono<AppEnv>()
     );
     if (!updated) return c.json({ error: 'Not found.' }, 404);
 
+    // One unconditional fetch serves both the calendar delete hook and the customer
+    // notification below (cancel/decline are soft — the row still exists).
+    const booking = await getBookingWithCustomer(c.env.PAWBOOK_DB, tenant.Id, c.req.param('id'));
+
+    // Cancel/decline: best-effort delete of the synced Google event, mirroring the create
+    // path's never-blocks posture (waitUntil in production; awaited in tests, which have no
+    // ExecutionContext — see routes/bookings.ts). Confirm changes nothing: events are created
+    // at request time, so a confirmed booking's event already exists.
+    if (status !== 'confirmed' && booking?.GCalEventId) {
+      const cleanup = deleteBookingCalendarEvent(c.env, tenant, booking.GCalEventId).catch(
+        (err) => {
+          console.error('calendar event delete failed', err);
+        },
+      );
+      try {
+        c.executionCtx.waitUntil(cleanup);
+      } catch {
+        await cleanup;
+      }
+    }
+
     // Best-effort customer notification; `notified` lets the dashboard tell the sitter honestly
     // whether the client heard about it (false when email isn't configured or the send failed).
     let notified = false;
-    if (isEmailConfigured(c.env)) {
-      const booking = await getBookingWithCustomer(c.env.PAWBOOK_DB, tenant.Id, c.req.param('id'));
-      if (booking?.Email) {
-        const whenText = booking.EndDate
-          ? `${booking.StartDate} – ${booking.EndDate}`
-          : booking.StartDate;
-        try {
-          await sendBookingStatusEmail(c.env, booking.Email, tenant.DisplayName, status, whenText);
-          notified = true;
-        } catch {
-          /* status change stands; the dashboard reports the client was not emailed */
-        }
+    if (isEmailConfigured(c.env) && booking?.Email) {
+      const whenText = booking.EndDate
+        ? `${booking.StartDate} – ${booking.EndDate}`
+        : booking.StartDate;
+      try {
+        await sendBookingStatusEmail(c.env, booking.Email, tenant.DisplayName, status, whenText);
+        notified = true;
+      } catch {
+        /* status change stands; the dashboard reports the client was not emailed */
       }
     }
     return c.json({ status, notified });
