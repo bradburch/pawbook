@@ -20,6 +20,11 @@ export const ADMIN_EMAIL_A = 'admin@sunnypaws.example';
 export const ADMIN_EMAIL_B = 'dana@happytails.test';
 export const ADMIN_PASSWORD = 'demo1234';
 
+// Owner + allowlist fixtures: OWNER_EMAIL is wired into createTestEnv's OWNER_EMAILS;
+// ALLOWED_EMAIL is the unclaimed AllowedSitters row seeded by sql/seed.sql.
+export const OWNER_EMAIL = 'owner@pawbook.test';
+export const ALLOWED_EMAIL = 'newsitter@pawbook.test';
+
 type SqlParam = string | number | null;
 
 function makeD1(raw: DatabaseSync): D1Database {
@@ -81,6 +86,7 @@ export function createTestEnv(): { env: Env; raw: DatabaseSync } {
     PAWBOOK_CACHE: makeKV(),
     TOKEN_SECRET: TEST_SECRET,
     ENVIRONMENT: 'development', // lets /identify return prototypeCode when no email provider is set
+    OWNER_EMAILS: OWNER_EMAIL,
     ASSETS: { fetch: async () => new Response('<!doctype html>') },
   } as unknown as Env;
   return { env, raw };

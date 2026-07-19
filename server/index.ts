@@ -6,6 +6,7 @@ import { authRoutes } from './routes/auth';
 import { bookingRoutes } from './routes/bookings';
 import { oauthRoutes } from './routes/oauth';
 import { publicRoutes } from './routes/public';
+import { signupRoutes } from './routes/signup';
 import type { AppEnv } from './types';
 
 /**
@@ -60,6 +61,7 @@ app.route('/api', publicRoutes);
 app.route('/api', authRoutes);
 app.route('/api', bookingRoutes);
 app.route('/api', adminRoutes);
+app.route('/api', signupRoutes); // /api/signup/* — no slug ('signup' is a reserved slug)
 app.route('/', oauthRoutes); // global OAuth callback — no slug, no tenant middleware
 
 /** Serve a built Vite page for a worker-routed path, with mutable headers. */

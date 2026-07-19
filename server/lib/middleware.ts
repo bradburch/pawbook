@@ -4,10 +4,11 @@ import { extractBearer, verifyAdminToken, verifyToken } from './token';
 import type { AppEnv } from '../types';
 
 /**
- * Reserved first-segment words under /api that are NOT tenant slugs (e.g. /api/admin/login,
- * the non-slug-scoped sitter-login routes). Tenants can never claim these as slugs.
+ * Reserved first-segment words under /api that are NOT tenant slugs: /api/admin/* (sitter
+ * login), /api/signup/* (invite signup), /api/owner/* (owner console). Tenants can never claim
+ * these as slugs — enforced again at signup-time slug generation (routes/signup.ts).
  */
-const RESERVED_SLUGS = new Set(['admin']);
+export const RESERVED_SLUGS = new Set(['admin', 'signup', 'owner']);
 
 /** Resolves the :slug param to a tenant (404 on unknown) and stores it on the context. */
 export const tenantMiddleware = createMiddleware<AppEnv>(async (c, next) => {
