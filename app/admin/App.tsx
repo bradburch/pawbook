@@ -271,6 +271,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
             startTime: o.startTime,
             endTime: o.endTime,
             capacity: o.capacity,
+            weekdaysOnly: o.weekdaysOnly,
           })),
           questions: s.questions,
           minNights: s.minNights,

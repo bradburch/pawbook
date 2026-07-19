@@ -37,6 +37,7 @@ function emptyOption(): ServiceOptionForm {
     startTime: null,
     endTime: null,
     capacity: null,
+    weekdaysOnly: false,
   };
 }
 

@@ -2,6 +2,7 @@
 export { formatShortDate, formatBlockRange } from './util/date-format.js';
 export {
   addDays,
+  isWeekend,
   nightsBetween,
   getPacificDateStr,
   DATE_RE,

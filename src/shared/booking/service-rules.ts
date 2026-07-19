@@ -32,6 +32,7 @@ export type ServiceOption = {
   startTime: string | null; // 'HH:MM'; null = no fixed window
   endTime: string | null; // 'HH:MM'; null = no fixed window
   capacity: number | null; // max concurrent bookings/date; null = unlimited
+  weekdaysOnly: boolean; // true = bookable Mon–Fri only (server rejects Sat/Sun; widget greys weekends)
 };
 
 /** Safety rail (NOT a business rule): bounds regex-evaluation cost against a pathological
