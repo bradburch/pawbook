@@ -27,7 +27,13 @@ export type ServicePreset = {
   options: PresetOption[];
 };
 
-const anyDay = { durationMinutes: null, startTime: null, endTime: null, capacity: null, weekdaysOnly: false };
+const anyDay = {
+  durationMinutes: null,
+  startTime: null,
+  endTime: null,
+  capacity: null,
+  weekdaysOnly: false,
+};
 
 /** The 7 one-tap presets from docs/superpowers/specs/2026-07-18-onboarding-wizard-design.md.
  * The walk trio come from the docs/specs/*.md stubs (weekdays-only group/solo walks); the last
@@ -117,7 +123,7 @@ export const SERVICE_PRESETS: ServicePreset[] = [
     id: 'housesitting',
     template: 'housesitting',
     label: 'House sitting',
-    summary: 'You stay at the client\'s home · priced per night',
+    summary: "You stay at the client's home · priced per night",
     icon: 'home',
     rateUnit: 'night',
     createdSlug: 'house-sitting',

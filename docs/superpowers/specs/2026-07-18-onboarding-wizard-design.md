@@ -57,15 +57,15 @@ Added:
 Presets are a pure data constant `SERVICE_PRESETS` living in the admin app
 (`app/admin/`), each referencing a template id plus prefilled option payloads:
 
-| Preset | Template | Options | Weekdays-only |
-| --- | --- | --- | --- |
-| Pack Walks (`pack-walks`) | walk | 10:00–14:00, capacity 8 | yes |
-| Multi Pack Walks (`multi-pack-walks`) | walk | 10:00–14:00 and 14:00–17:00, capacity 8 each; one price applied to both | yes |
-| Solo Walker (`solo-walker`) | walk | 10:00–16:00, capacity 4 | yes |
-| Boarding | boarding | template defaults | no |
-| House-sitting | housesitting | template defaults | no |
-| Day care | daycare | template defaults | no |
-| Check-ins | checkin | template defaults | no |
+| Preset                                | Template     | Options                                                                 | Weekdays-only |
+| ------------------------------------- | ------------ | ----------------------------------------------------------------------- | ------------- |
+| Pack Walks (`pack-walks`)             | walk         | 10:00–14:00, capacity 8                                                 | yes           |
+| Multi Pack Walks (`multi-pack-walks`) | walk         | 10:00–14:00 and 14:00–17:00, capacity 8 each; one price applied to both | yes           |
+| Solo Walker (`solo-walker`)           | walk         | 10:00–16:00, capacity 4                                                 | yes           |
+| Boarding                              | boarding     | template defaults                                                       | no            |
+| House-sitting                         | housesitting | template defaults                                                       | no            |
+| Day care                              | daycare      | template defaults                                                       | no            |
+| Check-ins                             | checkin      | template defaults                                                       | no            |
 
 The last four simply enable the existing built-in template rows.
 `boarding.md` was an empty stub, so the boarding preset is just the template +

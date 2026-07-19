@@ -157,9 +157,7 @@ describe('weekday-only — range-shaped option (spec: reject a weekend ANYWHERE 
   it('rejects a Thu→Wed boarding span that starts and ends on weekdays but crosses a weekend', async () => {
     const { env } = createTestEnv();
     expect(
-      (
-        await putBoardingOption(env, { label: 'Standard', rate: 50, weekdaysOnly: true })
-      ).status,
+      (await putBoardingOption(env, { label: 'Standard', rate: 50, weekdaysOnly: true })).status,
     ).toBe(204);
 
     // 2028-07-20 = Thu, checkout 2028-07-26 = Wed. Occupied nights: Thu Fri Sat Sun Mon Tue —
