@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { IconPaw, SERVICE_ICONS } from '../shared-ui/icons';
-import { SERVICE_PRESETS, type ServicePreset } from './presets.js';
+import { SERVICE_PRESETS, type PresetOption, type ServicePreset } from './presets.js';
+import { NullableNumberField } from './sections/fields.js';
 import { adminFetch, type ServiceOptionForm, type Settings } from './shared.js';
 import {
   makeProfileDraft,
@@ -24,6 +25,54 @@ type PresetState = {
   /** Has options — selecting it enables it with its EXISTING options; no price input. */
   alreadyPriced: boolean;
 };
+
+/** One preset option's editable fields — time window, capacity, weekdays-only — mirroring the
+ * Services & rates option-row idioms (the weekdays checkbox only exists while windowed, exactly
+ * as there). Rendered only for per-visit presets: the server rejects time windows on
+ * non-duration services ("only per-visit services can have a time window"), and capacity for
+ * the boarding/house-sitting families is tenant-level, not per-option. */
+function PresetOptionFields({
+  option,
+  onChange,
+}: {
+  option: PresetOption;
+  onChange: (next: PresetOption) => void;
+}) {
+  const windowed = option.startTime !== null && option.endTime !== null;
+  return (
+    <div>
+      <strong>{option.label}</strong>
+      <div className="pb-inline">
+        Window (optional)
+        <input
+          type="time"
+          value={option.startTime ?? ''}
+          onChange={(e) => onChange({ ...option, startTime: e.target.value || null })}
+        />
+        <input
+          type="time"
+          value={option.endTime ?? ''}
+          onChange={(e) => onChange({ ...option, endTime: e.target.value || null })}
+        />
+        <NullableNumberField
+          label="Capacity"
+          value={option.capacity}
+          onChange={(capacity) => onChange({ ...option, capacity })}
+        />
+        {windowed && (
+          <label className="pb-inline">
+            <input
+              type="checkbox"
+              checked={option.weekdaysOnly}
+              onChange={(e) => onChange({ ...option, weekdaysOnly: e.target.checked })}
+            />
+            Weekdays only
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function SetupWizard({
   settings,
@@ -52,6 +101,16 @@ export function SetupWizard({
   const [error, setError] = useState('');
   // Presets fully applied in THIS wizard run — an in-place Retry after a failure skips them.
   const [applied, setApplied] = useState<string[]>([]);
+
+  // Opt-in customization (v2 spec): per-preset REPLACEMENT option payloads, edited via the
+  // step-3 "Customize" disclosure. Keyed by preset id; absent = the stock preset payload. These
+  // exist only in memory for THIS run — an existing service's saved options are never touched
+  // (alreadyPriced presets get no disclosure at all).
+  const [optionEdits, setOptionEdits] = useState<Record<string, PresetOption[]>>({});
+
+  /** Options the apply loop will stamp the rate onto for a preset this run. */
+  const presetOptions = (preset: ServicePreset): PresetOption[] =>
+    optionEdits[preset.id] ?? preset.options;
 
   // Escape closes the dialog (same as Skip for now), except mid-apply — matching the
   // Skip button, which is also disabled while a run is in flight.
@@ -152,7 +211,7 @@ export function SetupWizard({
         const rate = Number(prices[preset.id]);
         const options: ServiceOptionForm[] = alreadyPriced
           ? existing!.options // never overwrite existing options/prices — re-sent verbatim
-          : preset.options.map((o) => ({ ...o, rate }));
+          : presetOptions(preset).map((o) => ({ ...o, rate }));
         // Per-service PATCH semantics: only this service is touched; questions/limits absent
         // from the body keep their current values server-side.
         await adminFetch(token, `/api/${slug}/admin/settings`, {
@@ -269,6 +328,22 @@ export function SetupWizard({
                     />
                     /{ps.preset.rateUnit}
                   </label>
+                )}
+                {!ps.alreadyPriced && ps.preset.rateUnit === 'visit' && (
+                  <details className="pb-wizard-custom">
+                    <summary>Customize</summary>
+                    {presetOptions(ps.preset).map((o, oi) => (
+                      <PresetOptionFields
+                        key={oi}
+                        option={o}
+                        onChange={(next) => {
+                          const options = [...presetOptions(ps.preset)];
+                          options[oi] = next;
+                          setOptionEdits((cur) => ({ ...cur, [ps.preset.id]: options }));
+                        }}
+                      />
+                    ))}
+                  </details>
                 )}
                 {applied.includes(ps.preset.id) && <span className="pb-wizard-done">Added</span>}
               </div>

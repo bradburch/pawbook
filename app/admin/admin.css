@@ -746,6 +746,14 @@ body {
   color: var(--ok);
   font-size: 0.85em;
 }
+.pb-wizard-custom summary {
+  cursor: pointer;
+  color: var(--soft);
+  font-size: 0.85em;
+}
+.pb-wizard-custom > div {
+  margin: 8px 0 0 12px;
+}
 .pb-wizard-nav {
   display: flex;
   justify-content: flex-end;
