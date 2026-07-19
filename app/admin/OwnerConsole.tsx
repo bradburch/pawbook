@@ -14,6 +14,7 @@ type Entry = {
   addedAt: string;
   claimedAt: string | null;
   tenantSlug: string | null;
+  orphaned: boolean;
 };
 
 export function OwnerConsole({
@@ -127,7 +128,15 @@ export function OwnerConsole({
               {entries.map((e) => (
                 <tr key={e.email}>
                   <td>{e.email}</td>
-                  <td>{e.claimedAt ? `Joined → ${e.tenantSlug ?? ''}` : 'Waiting to join'}</td>
+                  <td>
+                    {e.orphaned ? (
+                      <span className="pb-chip pb-chip-warn">Joined — business deleted</span>
+                    ) : e.claimedAt ? (
+                      `Joined → ${e.tenantSlug ?? ''}`
+                    ) : (
+                      'Waiting to join'
+                    )}
+                  </td>
                   <td>
                     {!e.claimedAt && <button onClick={() => void remove(e.email)}>Remove</button>}
                   </td>

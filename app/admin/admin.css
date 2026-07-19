@@ -792,5 +792,5 @@ body {
 .pb-owner-console td {
   text-align: left;
   padding: 6px 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--line);
 }
