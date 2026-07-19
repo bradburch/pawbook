@@ -56,6 +56,8 @@ export type TenantService = {
   MaxNights: number | null;
   MinPetCount: number | null;
   MaxPetCount: number | null;
+  /** Pet-type slugs this service accepts; null = accepts every enabled type. */
+  AcceptedPetTypes: string[] | null;
 };
 
 export type TenantServiceOption = {
@@ -75,7 +77,8 @@ export type TenantServiceOption = {
 
 export type TenantPetTypeRow = {
   TenantId: string;
-  PetType: PetType;
+  PetType: string; // per-tenant slug, immutable
+  Label: string; // display name, renamable
   Enabled: number;
 };
 
@@ -94,7 +97,7 @@ export type EndUserPet = {
   TenantId: string;
   EndUserId: string;
   Name: string;
-  PetType: 'dog' | 'cat';
+  PetType: string; // tenant pet-type slug
   Notes: string | null; // sitter's care notes (feeding, meds, temperament)
   CreatedAt: string;
 };

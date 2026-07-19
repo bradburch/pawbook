@@ -68,12 +68,22 @@ export async function listServices(db: D1Database, tenantId: string): Promise<Te
   const { results } = await db
     .prepare(
       `SELECT TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind,
-              SortOrder, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount
+              SortOrder, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount, AcceptedPetTypes
        FROM TenantServices WHERE TenantId = ? ORDER BY SortOrder, Label`,
     )
     .bind(tenantId)
-    .all<Omit<TenantService, 'Questions'> & { Questions: string }>();
-  return results.map((r) => ({ ...r, Questions: JSON.parse(r.Questions) as ServiceQuestion[] }));
+    .all<
+      Omit<TenantService, 'Questions' | 'AcceptedPetTypes'> & {
+        Questions: string;
+        AcceptedPetTypes: string | null;
+      }
+    >();
+  return results.map((r) => ({
+    ...r,
+    Questions: JSON.parse(r.Questions) as ServiceQuestion[],
+    AcceptedPetTypes:
+      r.AcceptedPetTypes === null ? null : (JSON.parse(r.AcceptedPetTypes) as string[]),
+  }));
 }
 
 /** Create a service from template-derived behavior. Callers validate slug/template beforehand. */
@@ -155,11 +165,87 @@ export async function listServiceOptions(
 }
 
 export async function listPetTypes(db: D1Database, tenantId: string): Promise<TenantPetTypeRow[]> {
+  // ORDER BY PetType: deterministic with no ordering column — the admin wizard's index-wise
+  // draft compare (profilePutBody) depends on a stable order.
   const { results } = await db
-    .prepare('SELECT TenantId, PetType, Enabled FROM TenantPetTypes WHERE TenantId = ?')
+    .prepare(
+      'SELECT TenantId, PetType, Label, Enabled FROM TenantPetTypes WHERE TenantId = ? ORDER BY PetType',
+    )
     .bind(tenantId)
     .all<TenantPetTypeRow>();
   return results;
+}
+
+/** Create a pet type (enabled). Throws on UNIQUE(TenantId, PetType) — caller maps to 409. */
+export async function createPetType(
+  db: D1Database,
+  tenantId: string,
+  petType: string,
+  label: string,
+): Promise<void> {
+  await db
+    .prepare('INSERT INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES (?, ?, ?, 1)')
+    .bind(tenantId, petType, label)
+    .run();
+}
+
+/** Rename the display Label only — the slug is immutable (services' identity model). */
+export async function renamePetType(
+  db: D1Database,
+  tenantId: string,
+  petType: string,
+  label: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('UPDATE TenantPetTypes SET Label = ? WHERE TenantId = ? AND PetType = ?')
+    .bind(label, tenantId, petType)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+export async function deletePetType(
+  db: D1Database,
+  tenantId: string,
+  petType: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM TenantPetTypes WHERE TenantId = ? AND PetType = ?')
+    .bind(tenantId, petType)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+/** Customer pets + bookings of ANY status referencing the slug — history included, mirroring
+ * countBookingsForService's rule, so deletion never orphans a slug that admin lists and CSV
+ * exports would otherwise render as a bare token. */
+export async function countPetTypeReferences(
+  db: D1Database,
+  tenantId: string,
+  petType: string,
+): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM EndUserPets WHERE TenantId = ? AND PetType = ?)
+            + (SELECT COUNT(*) FROM BookingRequests WHERE TenantId = ? AND PetType = ?) AS n`,
+    )
+    .bind(tenantId, petType, tenantId, petType)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+/** Overwrite one service's acceptance list (config, not history — safe for delete-scrubbing). */
+export async function setServiceAcceptedPetTypes(
+  db: D1Database,
+  tenantId: string,
+  serviceType: string,
+  accepted: string[] | null,
+): Promise<void> {
+  await db
+    .prepare(
+      'UPDATE TenantServices SET AcceptedPetTypes = ? WHERE TenantId = ? AND ServiceType = ?',
+    )
+    .bind(accepted === null ? null : JSON.stringify(accepted), tenantId, serviceType)
+    .run();
 }
 
 export async function createLoginCode(
@@ -724,12 +810,14 @@ export async function setServiceConfig(
     maxNights: number | null;
     minPetCount: number | null;
     maxPetCount: number | null;
+    acceptedPetTypes: string[] | null;
   },
 ): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE TenantServices SET
-         Enabled = ?, Questions = ?, MinNights = ?, MaxNights = ?, MinPetCount = ?, MaxPetCount = ?
+         Enabled = ?, Questions = ?, MinNights = ?, MaxNights = ?, MinPetCount = ?, MaxPetCount = ?,
+         AcceptedPetTypes = ?
        WHERE TenantId = ? AND ServiceType = ?`,
     )
     .bind(
@@ -739,6 +827,7 @@ export async function setServiceConfig(
       config.maxNights,
       config.minPetCount,
       config.maxPetCount,
+      config.acceptedPetTypes === null ? null : JSON.stringify(config.acceptedPetTypes),
       tenantId,
       serviceType,
     )
@@ -795,15 +884,14 @@ export async function replaceServiceOptions(
 export async function setPetTypeEnabled(
   db: D1Database,
   tenantId: string,
-  petType: PetType,
+  petType: string,
   enabled: boolean,
 ): Promise<void> {
+  // UPDATE-only: rows are created explicitly (createPetType / seed / migration backfill / signup
+  // batch) — an upsert can no longer synthesize a row because Label is NOT NULL.
   await db
-    .prepare(
-      `INSERT INTO TenantPetTypes (TenantId, PetType, Enabled) VALUES (?, ?, ?)
-       ON CONFLICT (TenantId, PetType) DO UPDATE SET Enabled = excluded.Enabled`,
-    )
-    .bind(tenantId, petType, enabled ? 1 : 0)
+    .prepare('UPDATE TenantPetTypes SET Enabled = ? WHERE TenantId = ? AND PetType = ?')
+    .bind(enabled ? 1 : 0, tenantId, petType)
     .run();
 }
 
@@ -1151,7 +1239,7 @@ export async function listBookingPetsForUser(
   db: D1Database,
   tenantId: string,
   endUserId: string,
-): Promise<{ BookingRequestId: string; PetId: string; Name: string; PetType: 'dog' | 'cat' }[]> {
+): Promise<{ BookingRequestId: string; PetId: string; Name: string; PetType: string }[]> {
   const { results } = await db
     .prepare(
       `SELECT brp.BookingRequestId, brp.PetId, p.Name, p.PetType
@@ -1161,7 +1249,7 @@ export async function listBookingPetsForUser(
        WHERE br.TenantId = ? AND br.EndUserId = ?`,
     )
     .bind(tenantId, endUserId)
-    .all<{ BookingRequestId: string; PetId: string; Name: string; PetType: 'dog' | 'cat' }>();
+    .all<{ BookingRequestId: string; PetId: string; Name: string; PetType: string }>();
   return results;
 }
 
@@ -1256,6 +1344,9 @@ export async function deleteUnclaimedAllowedSitter(
  * A batch can't gate one statement's execution on another's row count, so the Tenants/
  * TenantUsers inserts land regardless. Returns false in that case so the caller can compensate
  * (see rollbackUnclaimedTenant) — a tenant must never stand without a valid claim.
+ *
+ * Dog + cat pet-type rows ARE seeded enabled (spec F1): without them a sitter who skips the
+ * wizard could never take a booking.
  */
 export async function createTenantFromSignup(
   db: D1Database,
@@ -1282,6 +1373,16 @@ export async function createTenantFromSignup(
         'UPDATE AllowedSitters SET ClaimedAt = ?, TenantId = ? WHERE Email = ? AND ClaimedAt IS NULL',
       )
       .bind(claimedAt, args.tenantId, args.email),
+    db
+      .prepare(
+        "INSERT INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES (?, 'dog', 'Dogs', 1)",
+      )
+      .bind(args.tenantId),
+    db
+      .prepare(
+        "INSERT INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES (?, 'cat', 'Cats', 1)",
+      )
+      .bind(args.tenantId),
   ]);
   const claimResult = results[2] as { meta: { changes?: number } };
   return (claimResult.meta.changes ?? 0) > 0;
@@ -1289,7 +1390,7 @@ export async function createTenantFromSignup(
 
 /**
  * Best-effort compensation for createTenantFromSignup returning false: removes the tenant/
- * login rows it just inserted so an unclaimed invite can never leave a tenant standing.
+ * login/pet-type rows it just inserted so an unclaimed invite can never leave a tenant standing.
  */
 export async function rollbackUnclaimedTenant(
   db: D1Database,
@@ -1297,6 +1398,7 @@ export async function rollbackUnclaimedTenant(
   userId: string,
 ): Promise<void> {
   await db.batch([
+    db.prepare('DELETE FROM TenantPetTypes WHERE TenantId = ?').bind(tenantId),
     db.prepare('DELETE FROM TenantUsers WHERE Id = ?').bind(userId),
     db.prepare('DELETE FROM Tenants WHERE Id = ?').bind(tenantId),
   ]);

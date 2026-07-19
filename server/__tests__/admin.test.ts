@@ -266,7 +266,7 @@ describe('tenant admin', () => {
       petTypes: string[];
       services: { type: string; options: { durationMinutes: number | null; rate: number }[] }[];
     };
-    expect(cfg.petTypes).toEqual(['cat']);
+    expect(cfg.petTypes).toEqual(['cat', 'rabbit']);
     const walk = cfg.services.find((s) => s.type === 'walk')!;
     expect(walk.options).toHaveLength(2);
     expect(walk.options.find((o) => o.durationMinutes === 40)?.rate).toBe(19);

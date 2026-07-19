@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS TenantServices (
   MaxNights INTEGER,
   MinPetCount INTEGER,
   MaxPetCount INTEGER,
+  -- JSON array of pet-type slugs this service accepts; NULL = accepts all enabled types
+  -- (null-is-unlimited convention). An empty array is invalid for an enabled service.
+  AcceptedPetTypes TEXT,
   UNIQUE (TenantId, ServiceType)
 );
 
@@ -79,10 +82,12 @@ CREATE TABLE IF NOT EXISTS TenantServiceOptions (
   UNIQUE (TenantId, ServiceType, OptionKey)
 );
 
--- Accepted species the sitter cares for. Mirrors TenantServices on/off pattern.
+-- Accepted species the sitter cares for — per-tenant rows (slug + renamable Label), mirroring
+-- the TenantServices rows-not-code model. Slug is immutable; rename changes Label only.
 CREATE TABLE IF NOT EXISTS TenantPetTypes (
   TenantId TEXT NOT NULL REFERENCES Tenants(Id),
-  PetType TEXT NOT NULL CHECK (PetType IN ('dog', 'cat')),
+  PetType TEXT NOT NULL,            -- per-tenant slug ('dog', 'rabbit', ...), immutable
+  Label TEXT NOT NULL,              -- display name ('Dogs', 'Rabbits'), renamable
   Enabled INTEGER NOT NULL DEFAULT 1,
   UNIQUE (TenantId, PetType)
 );
@@ -120,7 +125,7 @@ CREATE TABLE IF NOT EXISTS BookingRequests (
   StartDate TEXT NOT NULL,
   EndDate TEXT, -- exclusive checkout for boarding/blocked ranges; NULL for single-day walks
   OptionKey TEXT, -- which TenantServiceOptions row the customer picked; NULL for blocked
-  PetType TEXT, -- booked species ('dog'|'cat'); NULL for blocked. No pricing/capacity effect.
+  PetType TEXT, -- tenant pet-type slug (first selected pet); NULL for blocked. No pricing/capacity effect.
   PetCount INTEGER NOT NULL DEFAULT 1 CHECK (PetCount >= 1), -- fresh-install only; existing DBs enforce this in app code (validation.ts)
   StartTime TEXT, -- 'HH:MM' wall-clock for timed bookings (walk/check-in); NULL = all-day event
   GCalEventId TEXT, -- Google Calendar event id created for this booking; NULL if none/unsynced
@@ -143,7 +148,7 @@ CREATE TABLE IF NOT EXISTS EndUserPets (
   TenantId TEXT NOT NULL REFERENCES Tenants(Id),
   EndUserId TEXT NOT NULL REFERENCES EndUsers(Id),
   Name TEXT NOT NULL,
-  PetType TEXT NOT NULL CHECK (PetType IN ('dog', 'cat')),
+  PetType TEXT NOT NULL, -- tenant pet-type slug
   Notes TEXT, -- care notes the sitter keeps (feeding, meds, temperament)
   CreatedAt TEXT NOT NULL DEFAULT (datetime('now'))
 );

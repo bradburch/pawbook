@@ -533,6 +533,7 @@ export const adminRoutes = new Hono<AppEnv>()
         maxNights: 'maxNights' in svc ? (svc.maxNights ?? null) : current.MaxNights,
         minPetCount: 'minPetCount' in svc ? (svc.minPetCount ?? null) : current.MinPetCount,
         maxPetCount: 'maxPetCount' in svc ? (svc.maxPetCount ?? null) : current.MaxPetCount,
+        acceptedPetTypes: current.AcceptedPetTypes,
       });
       // The service existed when validated above but was deleted by a concurrent request since —
       // stop before writing options for a slug that no longer exists.

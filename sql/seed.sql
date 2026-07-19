@@ -70,13 +70,17 @@ INSERT OR REPLACE INTO TenantServiceOptions
   (Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, StartTime, EndTime, Capacity) VALUES
   ('opt_ht_group_walk', 'tnt_happytails', 'walk', 'group-8-9', 'Group walk 8:00-9:00am', 60, 18, 'visit', '08:00', '09:00', 3);
 
--- Accepted species: Sunny Paws takes dogs + cats; Happy Tails dogs only; Paws & Relax dogs + cats.
-INSERT OR REPLACE INTO TenantPetTypes (TenantId, PetType, Enabled) VALUES
-  ('tnt_sunnypaws', 'dog', 1),
-  ('tnt_sunnypaws', 'cat', 1),
-  ('tnt_happytails', 'dog', 1),
-  ('tnt_pawsandrelax', 'dog', 1),
-  ('tnt_pawsandrelax', 'cat', 1);
+-- Accepted species: Sunny Paws takes dogs + cats + rabbits (rabbit demos custom types end to
+-- end); Happy Tails dogs only (cat row present but disabled, matching the 0014 backfill);
+-- Paws & Relax dogs + cats.
+INSERT OR REPLACE INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES
+  ('tnt_sunnypaws', 'dog', 'Dogs', 1),
+  ('tnt_sunnypaws', 'cat', 'Cats', 1),
+  ('tnt_sunnypaws', 'rabbit', 'Rabbits', 1),
+  ('tnt_happytails', 'dog', 'Dogs', 1),
+  ('tnt_happytails', 'cat', 'Cats', 0),
+  ('tnt_pawsandrelax', 'dog', 'Dogs', 1),
+  ('tnt_pawsandrelax', 'cat', 'Cats', 1);
 
 -- Demo customers. Invite-only gating means /identify only succeeds for known customers, so the
 -- demo widget (and the existing identify/booking tests) need a seeded, already-active customer.

@@ -25,6 +25,7 @@ function svc(type: TemplateId, over: Partial<TenantService> = {}): TenantService
     MaxNights: null,
     MinPetCount: null,
     MaxPetCount: null,
+    AcceptedPetTypes: null,
     ...over,
   };
 }
