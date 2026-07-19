@@ -609,7 +609,7 @@ const LANDING_HTML = `<!doctype html>
             <div class="book-group">
               <h4>Your rules</h4>
               <dl>
-                <div class="line"><dt>Services &amp; rates</dt><dd>Boarding, house-sitting, day care, walks, check-ins &mdash; each with your price and length.</dd></div>
+                <div class="line"><dt>Services &amp; rates</dt><dd>Boarding, house-sitting, day care, walks, check-ins &mdash; or a service you invent &mdash; each with your price and length.</dd></div>
                 <div class="line"><dt>Walk windows</dt><dd>Timed slots like 8&ndash;9am, each with its own capacity.</dd></div>
                 <div class="line"><dt>Limits &amp; intake</dt><dd>Min/max nights, pet counts, and your own questions per service.</dd></div>
                 <div class="line"><dt>Daily caps</dt><dd>Boarding cap, house-sits cap, longest stay, time off, timezone. A full day won&rsquo;t be offered.</dd></div>
