@@ -42,6 +42,7 @@ export function BookTab({
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
 
+  const selectedOption = service?.options.find((o) => o.optionKey === optionKey);
   const questionsError = service ? validateAnswers(service.questions, answers) : null;
   const nights = service?.shape === 'range' && start && end ? nightsBetween(start, end) : null;
   const constraintsError = service
@@ -190,6 +191,7 @@ export function BookTab({
         token={getToken(slug) ?? ''}
         serviceType={type}
         optionKey={optionKey}
+        weekdaysOnly={selectedOption?.weekdaysOnly ?? false}
         shape={service.shape === 'range' ? 'range' : 'single'}
         month={month}
         onMonthChange={setMonth}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { api, isAuthExpired, type MonthDay } from '../shared-ui/api';
 import {
+  isWeekend,
   monthGrid,
   shiftMonth as shiftMonthFn,
   nextRangeSelection,
@@ -31,6 +32,7 @@ export function Calendar({
   token,
   serviceType,
   optionKey,
+  weekdaysOnly,
   shape,
   month,
   onMonthChange,
@@ -43,6 +45,8 @@ export function Calendar({
   token: string;
   serviceType: string;
   optionKey?: string;
+  /** Selected option is weekday-only: grey out + disable Sat/Sun (server enforces the same). */
+  weekdaysOnly?: boolean;
   shape: 'range' | 'single';
   month: string;
   onMonthChange: (m: string) => void;
@@ -98,6 +102,7 @@ export function Calendar({
 
   const pick = (date: string, d: MonthDay | undefined) => {
     if (!d || d.status === 'unavailable' || (today && date < today)) return;
+    if (weekdaysOnly && isWeekend(date)) return;
     onChange(nextRangeSelection(value, date, shape));
   };
 
@@ -150,9 +155,10 @@ export function Calendar({
           if (!date) return <span key={i} className="bp-cal-empty" />;
           const d = days.get(date);
           const past = !!(today && date < today);
+          const weekend = !!weekdaysOnly && isWeekend(date);
           const cls = ['bp-cal-day'];
           if (past) cls.push('bp-past');
-          else if (d?.status === 'unavailable') cls.push('bp-unavail');
+          else if (weekend || d?.status === 'unavailable') cls.push('bp-unavail');
           else if (d?.status === 'partial') cls.push('bp-partial');
           if (d?.mine) cls.push('bp-mine');
           const pos = rangePosition(value, date, shape);
@@ -162,8 +168,8 @@ export function Calendar({
               type="button"
               key={i}
               className={cls.join(' ')}
-              disabled={past || d?.status === 'unavailable'}
-              aria-label={`${date}${past ? ', past' : d ? ', ' + d.status : ''}${d?.mine ? ', your booking' : ''}`}
+              disabled={past || weekend || d?.status === 'unavailable'}
+              aria-label={`${date}${past ? ', past' : weekend ? ', weekdays only' : d ? ', ' + d.status : ''}${d?.mine ? ', your booking' : ''}`}
               onClick={() => pick(date, d)}
             >
               {Number(date.slice(-2))}
