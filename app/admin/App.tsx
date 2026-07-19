@@ -23,6 +23,7 @@ import { SetupWizard } from './SetupWizard';
 import { TimeOffSection } from './sections/TimeOffSection';
 import {
   adminFetch,
+  type AnySession,
   type ServiceOptionForm,
   type ServicePayload,
   type Session,
@@ -31,6 +32,7 @@ import {
 } from './shared.js';
 import './admin.css';
 import { useAsync } from '../shared-ui/useAsync';
+import { OwnerConsole } from './OwnerConsole';
 
 /**
  * Sitter dashboard. Auth is email + password → an admin session token, held in localStorage
@@ -56,11 +58,18 @@ function storeToken(token: string | null): void {
   }
 }
 
-function Login({ onLogin }: { onLogin: (s: Session) => void }) {
+function Login({ onLogin }: { onLogin: (s: AnySession) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // "New here?" — invite-signup kickoff. Always answers with the same neutral copy
+  // (the server is enumeration-neutral; don't undo that in the UI).
+  const [signupOpen, setSignupOpen] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupSent, setSignupSent] = useState(false);
+  const [prototypeLink, setPrototypeLink] = useState('');
+  const [signupBusy, setSignupBusy] = useState(false);
 
   const submit = async () => {
     if (busy) return;
@@ -74,24 +83,61 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
       });
       const body = (await res.json().catch(() => ({}))) as {
         token?: string;
+        role?: 'admin' | 'owner';
         slug?: string;
         displayName?: string;
+        email?: string;
         error?: string;
       };
-      if (!res.ok || !body.token || !body.slug) {
+      if (!res.ok || !body.token) {
         setError(body.error ?? 'Invalid email or password.');
         return;
       }
       storeToken(body.token);
-      onLogin({
-        token: body.token,
-        slug: body.slug,
-        displayName: body.displayName ?? body.slug,
-      });
+      if (body.role === 'owner') {
+        onLogin({ token: body.token, role: 'owner', email: body.email ?? email });
+      } else if (body.slug) {
+        onLogin({
+          token: body.token,
+          role: 'admin',
+          slug: body.slug,
+          displayName: body.displayName ?? body.slug,
+        });
+      } else {
+        setError('Invalid email or password.');
+      }
     } catch {
       setError('Could not reach the server.');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const startSignup = async () => {
+    if (signupBusy) return;
+    setError('');
+    setSignupBusy(true);
+    try {
+      const res = await fetch('/api/signup/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signupEmail }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        prototypeLink?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(body.error ?? 'Try again.');
+        return;
+      }
+      setSignupSent(true);
+      setPrototypeLink(body.prototypeLink ?? '');
+    } catch {
+      setError('Could not reach the server.');
+    } finally {
+      setSignupBusy(false);
     }
   };
 
@@ -121,6 +167,40 @@ function Login({ onLogin }: { onLogin: (s: Session) => void }) {
       <button onClick={submit} disabled={busy}>
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
+      <div className="pb-login-signup">
+        {!signupOpen ? (
+          <button type="button" className="pb-linklike" onClick={() => setSignupOpen(true)}>
+            New here? Enter your email to get set up
+          </button>
+        ) : signupSent ? (
+          <>
+            <p>Check your email — if you&rsquo;ve been invited, a setup link is on its way.</p>
+            {prototypeLink && (
+              <p>
+                {/* Dev only: the server includes prototypeLink when no email provider is
+                    configured (mirrors the widget's prototypeCode). */}
+                <a href={prototypeLink}>Open your setup link (dev)</a>
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <label>
+              Your email
+              <input
+                type="email"
+                value={signupEmail}
+                autoComplete="email"
+                onChange={(e) => setSignupEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && void startSignup()}
+              />
+            </label>
+            <button type="button" onClick={startSignup} disabled={signupBusy}>
+              {signupBusy ? 'Sending…' : 'Get set up'}
+            </button>
+          </>
+        )}
+      </div>
       {error && <p className="pb-error">{error}</p>}
     </div>
   );
@@ -486,7 +566,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AnySession | null>(null);
   // Seed from token presence so the no-token path needs no synchronous setState in the effect.
   const [restoring, setRestoring] = useState(() => getStoredToken() !== null);
 
@@ -508,10 +588,23 @@ export default function App() {
         if (!active) return;
         if (res.ok) {
           const body = (await res.json()) as {
-            slug: string;
-            displayName: string;
+            role?: 'admin' | 'owner';
+            slug?: string;
+            displayName?: string;
+            email?: string;
           };
-          setSession({ token, slug: body.slug, displayName: body.displayName });
+          if (body.role === 'owner' && body.email) {
+            setSession({ token, role: 'owner', email: body.email });
+          } else if (body.slug) {
+            setSession({
+              token,
+              role: 'admin',
+              slug: body.slug,
+              displayName: body.displayName ?? body.slug,
+            });
+          } else {
+            storeToken(null);
+          }
         } else {
           storeToken(null);
         }
@@ -525,5 +618,6 @@ export default function App() {
 
   if (restoring) return <p className="pb-wrap">Loading…</p>;
   if (!session) return <Login onLogin={setSession} />;
+  if (session.role === 'owner') return <OwnerConsole session={session} onSignOut={signOut} />;
   return <Dashboard session={session} onSignOut={signOut} />;
 }

@@ -769,3 +769,28 @@ body {
   cursor: pointer;
   font: inherit;
 }
+
+/* ── Login "New here?" + owner console ─────────────────────────────────────── */
+.pb-login-signup {
+  margin-top: 16px;
+}
+.pb-linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.pb-owner-console table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+.pb-owner-console th,
+.pb-owner-console td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+}

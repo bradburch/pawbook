@@ -1,7 +1,11 @@
 import type { ServiceConstraints, ServiceOption, ServiceQuestion } from '../../src/shared/index.js';
 import { request } from '../shared-ui/api.js';
 
-export type Session = { token: string; slug: string; displayName: string };
+/** Sitter-dashboard session. `role` mirrors the server's login/session responses. */
+export type Session = { token: string; role: 'admin'; slug: string; displayName: string };
+/** Platform-owner session — no slug: owners are instance-level (see server/lib/token.ts). */
+export type OwnerSession = { token: string; role: 'owner'; email: string };
+export type AnySession = Session | OwnerSession;
 
 // `optionKey`/`id` are omitted-until-first-save on the client (the server derives/assigns them),
 // so both forms widen that one field to optional relative to the shared, field-complete shape.
