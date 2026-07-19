@@ -476,6 +476,17 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         reloadBookings={reloadBookings}
         onOpenBooking={(id) => {
           setFocusBookingId(id);
+          // Switch synchronously (same event handler, so React batches this with the
+          // setFocusBookingId above into one render/commit) instead of waiting on the
+          // 'hashchange' listener below, which fires as a separate later task. React
+          // applies DOM mutations (here, clearing the Bookings panel's `hidden` attribute)
+          // during the commit phase, strictly before any effect for that commit runs — so
+          // by the time BookingsSection's focus effect (which also fired from this same
+          // commit, since focusId changed) reads the DOM, the panel is already unhidden and
+          // scrollIntoView works. Setting the hash too preserves back/forward + refresh
+          // deep-linking; the hashchange handler will re-set the same 'bookings' value,
+          // which React no-ops as an unchanged state update.
+          setActiveSection('bookings');
           window.location.hash = 'bookings';
         }}
         handleError={handle}
