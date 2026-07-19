@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { adminApi, isAuthExpired, type Customer } from '../shared-ui/api.js';
 import {
   IconCalendar,
@@ -19,6 +19,7 @@ import { EarningsSection } from './sections/EarningsSection';
 import { EmbedSection } from './sections/EmbedSection';
 import { PetsSection } from './sections/PetsSection';
 import { ServicesSection } from './sections/ServicesSection';
+import { SetupWizard } from './SetupWizard';
 import { TimeOffSection } from './sections/TimeOffSection';
 import {
   adminFetch,
@@ -169,6 +170,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   // Bumped after a successful save so the embed preview remounts and pulls the fresh config.
   const [previewKey, setPreviewKey] = useState(0);
   const [activeSection, setActiveSection] = useState<SectionKey>(sectionFromHash);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  // Auto-open at most once per dashboard mount, so skipping it doesn't re-trigger on refresh().
+  const wizardAutoOpened = useRef(false);
 
   const dirty = settings !== null && JSON.stringify(settings) !== savedSnapshot;
 
@@ -342,7 +346,14 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   useEffect(() => {
     let active = true;
     loadSettings()
-      .then((s) => active && applyLoaded(s))
+      .then((s) => {
+        if (!active) return;
+        applyLoaded(s);
+        if (!wizardAutoOpened.current && s.services.every((sv) => !sv.enabled)) {
+          wizardAutoOpened.current = true;
+          setWizardOpen(true);
+        }
+      })
       .catch((e) => active && handle(e));
     return () => {
       active = false;
@@ -368,6 +379,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         setSettings={setSettings}
         addService={addService}
         removeService={removeService}
+        openWizard={() => setWizardOpen(true)}
       />
     ),
     timeoff: (
@@ -456,6 +468,18 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           )}
           {dirty && <button onClick={save}>Save settings</button>}
         </div>
+      )}
+
+      {wizardOpen && (
+        <SetupWizard
+          settings={settings}
+          slug={slug}
+          token={token}
+          onClose={() => setWizardOpen(false)}
+          onApplied={async () => {
+            await refresh();
+          }}
+        />
       )}
     </div>
   );

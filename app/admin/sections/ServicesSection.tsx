@@ -195,15 +195,25 @@ export function ServicesSection({
   setSettings,
   addService,
   removeService,
+  openWizard,
 }: SettingsSectionProps & {
   addService: (template: string, label: string) => Promise<void>;
   removeService: (type: string) => Promise<void>;
+  openWizard: () => void;
 }) {
   return (
     <>
       <h2>
         <IconTag size={18} /> Services &amp; rates
       </h2>
+      <p>
+        <button type="button" onClick={openWizard}>
+          Quick setup
+        </button>{' '}
+        <span className="pb-hint">
+          One-tap presets for common offerings — additive, never overwrites.
+        </span>
+      </p>
       <p className="pb-hint">
         Tick the services you offer. To create a new offering clients can book (say, a 30-minute
         &ldquo;Puppy Check-in&rdquo;), add it as an option under Walks or Check-ins with its own

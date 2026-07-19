@@ -644,3 +644,79 @@ body {
   display: block;
   min-width: 0;
 }
+
+/* ---- Quick-setup wizard ---- */
+.pb-wizard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+.pb-wizard {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px;
+}
+.pb-wizard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+.pb-wizard-cardbtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--body);
+  font: inherit;
+}
+.pb-wizard-cardbtn.pb-on {
+  border-color: var(--sage);
+  background: var(--sage-wash);
+}
+.pb-wizard-cardbtn:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+.pb-wizard-cardbtn span {
+  color: var(--soft);
+  font-size: 0.85em;
+}
+.pb-wizard-price {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.pb-wizard-done {
+  color: var(--ok);
+  font-size: 0.85em;
+}
+.pb-wizard-nav {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.pb-wizard-nav .pb-wizard-skip {
+  margin-right: auto;
+  background: none;
+  border: none;
+  color: var(--soft);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
