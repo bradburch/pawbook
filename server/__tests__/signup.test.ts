@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import app from '../index';
+import { RATE_LIMIT_TTL_SECONDS } from '../routes/signup';
 import { ALLOWED_EMAIL, createTestEnv, OWNER_EMAIL } from './helpers';
 
 export const start = (env: Env, email: string) =>
@@ -111,5 +112,38 @@ describe('POST /api/signup/start — rate limiting', () => {
     expect(sixth.status).toBe(200);
     expect(await sixth.json()).toEqual({ ok: true }); // limiter is not an oracle
     expect(fetchSpy).toHaveBeenCalledTimes(5); // send skipped
+  });
+
+  it('is a true fixed window: a capped requester succeeds again once the window elapses', async () => {
+    // Regression test for the TTL-refresh lockout bug: the old implementation refreshed the
+    // KV key's expirationTtl on every write — including over-cap ones — so a capped user who
+    // kept retrying pushed the expiry out indefinitely and never got unblocked. A fixed window
+    // must track its own start time and reset once that start ages past the TTL, independent
+    // of how many retries happened in between.
+    const { env } = createTestEnv();
+    configureEmail(env);
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.useFakeTimers();
+    try {
+      for (let i = 0; i < 5; i++) expect((await start(env, ALLOWED_EMAIL)).status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(5);
+
+      // Over cap — same neutral body, send skipped — and (this is the bug) a retry here must
+      // NOT push the window's expiry back out.
+      const sixth = await start(env, ALLOWED_EMAIL);
+      expect(await sixth.json()).toEqual({ ok: true });
+      expect(fetchSpy).toHaveBeenCalledTimes(5);
+
+      // Advance past the 1-hour window (past, not just up to, its boundary) and retry: this must
+      // succeed and send again, proving the cap is "5 per rolling hour", not "5 total, ever".
+      vi.advanceTimersByTime(RATE_LIMIT_TTL_SECONDS * 1000 + 1);
+      const afterWindow = await start(env, ALLOWED_EMAIL);
+      expect(afterWindow.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

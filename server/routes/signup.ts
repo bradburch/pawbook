@@ -18,8 +18,33 @@ const StartBody = v.object({
 });
 
 const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_TTL_SECONDS = 3600;
+export const RATE_LIMIT_TTL_SECONDS = 3600;
 const RATE_KEY = (email: string, ip: string) => `signup:rl:${email}:${ip}`;
+
+type RateWindow = { count: number; windowStart: number };
+
+/**
+ * True fixed window, not a TTL-refresh lockout: windowStart lives IN the KV value (not just
+ * as expirationTtl) because a stale-but-unexpired window must still reset once its own age
+ * exceeds the TTL — relying on expirationTtl alone means every retry (including over-cap
+ * ones) pushes the expiry out another hour, so a capped legitimate user who keeps retrying
+ * never ages out. `expirationTtl` on the write below is pure garbage collection; windowStart
+ * is the source of truth for whether the window has rolled over. (This also matches the test
+ * KV shim, which ignores TTLs entirely — see helpers.ts.) Mirrors mintLink's Date.now() below:
+ * time is read directly, and tests advance it with vi.useFakeTimers()/vi.setSystemTime().
+ */
+async function checkAndBumpRateLimit(cache: KVNamespace, rateKey: string): Promise<boolean> {
+  const now = Date.now();
+  const raw = await cache.get(rateKey);
+  const prev = raw ? (JSON.parse(raw) as RateWindow) : null;
+  const fresh = !prev || now - prev.windowStart >= RATE_LIMIT_TTL_SECONDS * 1000;
+  const count = fresh ? 0 : prev.count;
+  const windowStart = fresh ? now : prev.windowStart;
+  await cache.put(rateKey, JSON.stringify({ count: count + 1, windowStart }), {
+    expirationTtl: RATE_LIMIT_TTL_SECONDS,
+  });
+  return count >= RATE_LIMIT_MAX;
+}
 
 /**
  * 'owner' for an OWNER_EMAILS member with no password yet, 'sitter' for an unclaimed
@@ -64,11 +89,7 @@ export const signupRoutes = new Hono<AppEnv>().post('/signup/start', async (c) =
   // Soft per-email+IP limiter (KV counter; increments aren't atomic — fine for a soft cap).
   // Over the cap → the SAME neutral 200 with the send skipped, so the limiter isn't an oracle.
   const rateKey = RATE_KEY(email, c.req.header('CF-Connecting-IP') ?? 'unknown');
-  const count = Number((await c.env.PAWBOOK_CACHE.get(rateKey)) ?? '0');
-  await c.env.PAWBOOK_CACHE.put(rateKey, String(count + 1), {
-    expirationTtl: RATE_LIMIT_TTL_SECONDS,
-  });
-  const overCap = count >= RATE_LIMIT_MAX;
+  const overCap = await checkAndBumpRateLimit(c.env.PAWBOOK_CACHE, rateKey);
 
   if (!isEmailConfigured(c.env)) {
     // No provider outside explicit local development fails CLOSED (same posture as /identify);
