@@ -14,6 +14,7 @@ import {
 import { AppsSection } from './sections/AppsSection';
 import { BookingsSection } from './sections/BookingsSection';
 import { BusinessSection } from './sections/BusinessSection';
+import { CalendarSection } from './sections/CalendarSection';
 import { ClientsSection } from './sections/ClientsSection';
 import { EarningsSection } from './sections/EarningsSection';
 import { EmbedSection } from './sections/EmbedSection';
@@ -207,6 +208,7 @@ function Login({ onLogin }: { onLogin: (s: AnySession) => void }) {
 }
 
 type SectionKey =
+  | 'calendar'
   | 'bookings'
   | 'earnings'
   | 'business'
@@ -218,6 +220,7 @@ type SectionKey =
   | 'embed';
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof IconStore }[] = [
+  { key: 'calendar', label: 'Calendar', icon: IconCalendar },
   { key: 'bookings', label: 'Bookings', icon: IconClipboardCheck },
   { key: 'earnings', label: 'Earnings', icon: IconChartBar },
   { key: 'business', label: 'Business', icon: IconStore },
@@ -233,9 +236,10 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof IconStore }[] = [
  * refreshes land on the right section, same as the old anchor-nav did. */
 function sectionFromHash(): SectionKey {
   const hash = window.location.hash.slice(1);
-  // Default to Bookings — the sitter's morning question is "what needs my reply?",
-  // not their own settings.
-  return SECTIONS.some((s) => s.key === hash) ? (hash as SectionKey) : 'bookings';
+  // Default to Calendar — the sitter's morning question is "what needs my reply?", not their
+  // own settings, and the calendar's grid + pending list answers that plus "what does my
+  // month look like?" in one view.
+  return SECTIONS.some((s) => s.key === hash) ? (hash as SectionKey) : 'calendar';
 }
 
 function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
@@ -253,6 +257,9 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const [wizardOpen, setWizardOpen] = useState(false);
   // Auto-open at most once per dashboard mount, so skipping it doesn't re-trigger on refresh().
   const wizardAutoOpened = useRef(false);
+  // Chip deep-link handoff: CalendarSection sets this and navigates to #bookings;
+  // BookingsSection scrolls the row into view, flashes it, then clears via onFocusConsumed.
+  const [focusBookingId, setFocusBookingId] = useState<string | null>(null);
 
   const dirty = settings !== null && JSON.stringify(settings) !== savedSnapshot;
 
@@ -461,6 +468,20 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const enabledPetTypes = settings.petTypes.filter((p) => p.enabled).map((p) => p.petType);
 
   const panels: Record<SectionKey, ReactNode> = {
+    calendar: (
+      <CalendarSection
+        session={session}
+        settings={settings}
+        bookings={bookings}
+        reloadBookings={reloadBookings}
+        onOpenBooking={(id) => {
+          setFocusBookingId(id);
+          window.location.hash = 'bookings';
+        }}
+        handleError={handle}
+        clearError={() => setError('')}
+      />
+    ),
     bookings: (
       <BookingsSection
         session={session}
@@ -468,6 +489,8 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
         reloadBookings={reloadBookings}
         handleError={handle}
         clearError={() => setError('')}
+        focusId={focusBookingId}
+        onFocusConsumed={() => setFocusBookingId(null)}
       />
     ),
     earnings: (

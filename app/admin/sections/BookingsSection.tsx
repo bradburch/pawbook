@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { adminApi, type AdminBooking } from '../../shared-ui/api.js';
 import { IconClipboardCheck } from '../../shared-ui/icons';
 import { PaymentsPanel } from '../PaymentsPanel';
@@ -201,11 +201,35 @@ export function BookingsSection({
   reloadBookings,
   handleError,
   clearError,
-}: ListProps & { bookings: AdminBooking[] | null }) {
+  focusId,
+  onFocusConsumed,
+}: ListProps & {
+  bookings: AdminBooking[] | null;
+  /** Chip deep-link from CalendarSection: scroll this booking's row into view and flash it. */
+  focusId?: string | null;
+  onFocusConsumed?: () => void;
+}) {
   const rest = (bookings ?? []).filter((b) => b.status !== 'pending').sort(byStartDate);
 
+  // Scoped querySelector (not getElementById): CalendarSection's PendingRequestsList renders the
+  // same rows with the same data-booking-id in its own (hidden) panel — a document-wide lookup
+  // could match that hidden copy instead of this section's row.
+  const listWrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focusId || bookings === null) return;
+    const el = listWrapRef.current?.querySelector<HTMLElement>(
+      `[data-booking-id="${CSS.escape(focusId)}"]`,
+    );
+    if (el) {
+      el.scrollIntoView({ block: 'center' });
+      el.classList.add('pb-focus-flash');
+      window.setTimeout(() => el.classList.remove('pb-focus-flash'), 2000);
+    }
+    onFocusConsumed?.();
+  }, [focusId, bookings, onFocusConsumed]);
+
   return (
-    <>
+    <div ref={listWrapRef}>
       <h2>
         <IconClipboardCheck size={18} /> Bookings
       </h2>
@@ -236,6 +260,6 @@ export function BookingsSection({
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

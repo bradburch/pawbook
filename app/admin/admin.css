@@ -1035,3 +1035,206 @@ body {
   color: var(--soft);
   text-align: center;
 }
+
+/* ── Calendar section ──────────────────────────────────────────── */
+.pb-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pb-cal-head h3 {
+  margin: 0;
+}
+
+.pb-cal-nav {
+  display: flex;
+  gap: 6px;
+}
+
+/* Always 7 tracks, minmax(0, 1fr) so long chip text can truncate instead of forcing the
+   column (and the page) wider — no horizontal scroll at any viewport. */
+.pb-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.pb-cal-dow {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--soft);
+  padding: 2px 0;
+}
+
+.pb-cal-cell {
+  min-height: 92px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Leading offset cells before the 1st. */
+.pb-cal-cell.pb-cal-blank {
+  border-color: transparent;
+  background: none;
+}
+
+.pb-cal-cell.pb-cal-weekend {
+  background: var(--page);
+}
+
+.pb-cal-cell.pb-cal-today {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+
+.pb-cal-daynum {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--soft);
+}
+
+/* Time off: muted full-width band at the top of the cell (paint order puts it first). */
+.pb-cal-timeoff {
+  background: var(--sage-wash);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--soft);
+  font-size: 0.7rem;
+  padding: 1px 4px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Booking chips: solid = confirmed, dashed hollow = pending. Two-class selectors outrank
+   the `.pb-wrap button` primary style (same specificity trick as .pb-wizard-cardbtn). */
+.pb-wrap .pb-cal-chip {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 1px 5px;
+  text-align: left;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-wrap .pb-cal-chip.pb-cal-chip-pending {
+  background: none;
+  color: var(--ink);
+  border-style: dashed;
+}
+
+.pb-wrap .pb-cal-more {
+  background: none;
+  border: none;
+  min-height: 0;
+  padding: 0 5px;
+  text-align: left;
+  color: var(--soft);
+  font-family: var(--sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pb-wrap .pb-cal-more:hover {
+  filter: none;
+  color: var(--ink);
+}
+
+.pb-cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--soft);
+}
+
+.pb-cal-key {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: 4px;
+  margin-right: 5px;
+}
+
+.pb-cal-key-confirmed {
+  background: var(--ink);
+}
+
+.pb-cal-key-pending {
+  border: 1px dashed var(--ink);
+}
+
+.pb-cal-key-timeoff {
+  background: var(--sage-wash);
+  border: 1px solid var(--line);
+}
+
+.pb-cal-sync {
+  margin-top: 6px;
+}
+
+/* Deep-link landing: brief highlight on the focused Bookings row. */
+.pb-focus-flash {
+  animation: pb-focus-fade 2s ease;
+}
+
+@keyframes pb-focus-fade {
+  0%,
+  60% {
+    background: var(--sage-wash);
+  }
+  100% {
+    background: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-focus-flash {
+    animation: none;
+    background: var(--sage-wash); /* class is removed after 2s, so this still clears */
+  }
+}
+
+/* Phone width: the month stays a scannable 7-column grid — smaller chips, shorter cells,
+   never horizontal scroll. */
+@media (max-width: 640px) {
+  .pb-cal-grid {
+    gap: 2px;
+  }
+
+  .pb-cal-cell {
+    min-height: 64px;
+    padding: 2px;
+    border-radius: 6px;
+  }
+
+  .pb-wrap .pb-cal-chip,
+  .pb-cal-timeoff,
+  .pb-wrap .pb-cal-more {
+    font-size: 0.6rem;
+    padding: 0 3px;
+  }
+}
