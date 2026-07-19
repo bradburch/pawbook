@@ -13,7 +13,14 @@ function opt(over: Partial<Opt> = {}): Opt {
 }
 
 function svc(over: Partial<ServiceSummaryInput> = {}): ServiceSummaryInput {
-  return { rateUnit: 'visit', options: [], questions: [], minNights: null, maxNights: null, ...over };
+  return {
+    rateUnit: 'visit',
+    options: [],
+    questions: [],
+    minNights: null,
+    maxNights: null,
+    ...over,
+  };
 }
 
 describe('serviceSummary price line', () => {
@@ -99,7 +106,12 @@ describe('serviceSummary facts line', () => {
   });
 
   it('nights then questions when nothing higher-priority applies', () => {
-    const s = svc({ rateUnit: 'night', minNights: 2, questions: [1, 2, 3], options: [opt({ rate: 55 })] });
+    const s = svc({
+      rateUnit: 'night',
+      minNights: 2,
+      questions: [1, 2, 3],
+      options: [opt({ rate: 55 })],
+    });
     expect(serviceSummary(s).facts).toBe('Min 2 nights · 3 questions');
   });
 });

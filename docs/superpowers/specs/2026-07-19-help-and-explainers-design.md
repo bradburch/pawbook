@@ -63,19 +63,18 @@ public docs page is the future step (noted in Not built).
 
 ```tsx
 <Hint label="Capacity">
-  Blank means no limit. Set a number and Pawbook stops offering the day
-  once it&rsquo;s full.
+  Blank means no limit. Set a number and Pawbook stops offering the day once it&rsquo;s full.
 </Hint>
 ```
 
 - **Markup:** `<span class="pb-hintwrap">` containing a
   `<button type="button" class="pb-hint-btn" aria-label={`About ${label}`}
-  aria-expanded={open} aria-controls={id}>?</button>` and, when open, a
+aria-expanded={open} aria-controls={id}>?</button>` and, when open, a
   `<span role="note" id={id} class="pb-hint-pop">{children}</span>`. Two
   sibling elements, never nested interactives — same rule as the services
   redesign cards.
-- **Interaction:** hover or keyboard focus opens a *transient* preview
-  (closes on mouseleave/blur); click or tap toggles a *pinned* open state
+- **Interaction:** hover or keyboard focus opens a _transient_ preview
+  (closes on mouseleave/blur); click or tap toggles a _pinned_ open state
   that survives mouseleave, and closes on a second activation, Escape
   (focus returns to the button), or a click anywhere outside. Tap and
   hover both work because touch taps arrive as click — no pointer-type
@@ -99,24 +98,24 @@ One `<Hint>` beside each section's `<h2>` text, plus hints on the specific
 controls below. Existing `.pb-applies` and inline `.pb-hint` lines stay —
 header hints must not repeat them; they carry the "what is this for and how
 does it behave" layer the one-liners don't. The `(blank = no limit)` note
-inside `NullableNumberField` stays as-is everywhere; the *concept* gets a
+inside `NullableNumberField` stays as-is everywhere; the _concept_ gets a
 hint only at the two places a sitter first meets it (Business daily caps,
 Services option capacity) rather than on every numeric field.
 
 Section headers — copy drafted here is the deliverable, verbatim:
 
-| Section (sidebar order) | Draft hover copy |
-| --- | --- |
-| Calendar *(spec'd — 2026-07-19-admin-scheduling-calendar-design.md; this hint ships with that section)* | Your month at a glance — confirmed bookings, requests waiting on you, and your time off. Tap any booking to open its full details under Bookings. |
-| Bookings | Every request your clients send lands here — nothing is booked until you confirm it. Confirming or declining emails the client automatically. |
-| Earnings | Built entirely from the payments you record on bookings. Record every payment and this page keeps itself accurate. |
-| Business | The basics your booking page shows clients — your name, color, and contact details — plus your daily limits. Changes wait until you press Save. |
-| Pet types | The kinds of pets you accept. Clients can only book for types ticked here. |
-| Services & rates *(written against 2026-07-19-services-rates-redesign.md)* | Each card is one thing clients can book, with its price and rules at a glance. Tap a card to edit pricing, questions, and limits; use its switch to offer or pause it. |
-| Time off | Days you don't want bookings. Blocked days disappear from clients' calendars immediately — no save needed. |
-| Clients | Only people on this list can book with you. Adding someone emails them an invite. |
-| Connected apps | Link Pawbook to tools you already use. With Google Calendar connected, bookings appear on your own calendar automatically. |
-| Your website | Your booking page, ready to drop into your own site. Copy the code, paste it into your website builder, and clients book without leaving your site. |
+| Section (sidebar order)                                                                                 | Draft hover copy                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Calendar _(spec'd — 2026-07-19-admin-scheduling-calendar-design.md; this hint ships with that section)_ | Your month at a glance — confirmed bookings, requests waiting on you, and your time off. Tap any booking to open its full details under Bookings.                      |
+| Bookings                                                                                                | Every request your clients send lands here — nothing is booked until you confirm it. Confirming or declining emails the client automatically.                          |
+| Earnings                                                                                                | Built entirely from the payments you record on bookings. Record every payment and this page keeps itself accurate.                                                     |
+| Business                                                                                                | The basics your booking page shows clients — your name, color, and contact details — plus your daily limits. Changes wait until you press Save.                        |
+| Pet types                                                                                               | The kinds of pets you accept. Clients can only book for types ticked here.                                                                                             |
+| Services & rates _(written against 2026-07-19-services-rates-redesign.md)_                              | Each card is one thing clients can book, with its price and rules at a glance. Tap a card to edit pricing, questions, and limits; use its switch to offer or pause it. |
+| Time off                                                                                                | Days you don't want bookings. Blocked days disappear from clients' calendars immediately — no save needed.                                                             |
+| Clients                                                                                                 | Only people on this list can book with you. Adding someone emails them an invite.                                                                                      |
+| Connected apps                                                                                          | Link Pawbook to tools you already use. With Google Calendar connected, bookings appear on your own calendar automatically.                                             |
+| Your website                                                                                            | Your booking page, ready to drop into your own site. Copy the code, paste it into your website builder, and clients book without leaving your site.                    |
 
 If the Services & rates redesign has not merged when this lands, ship the
 same copy minus the card-specific second sentence ("Tap a card…" becomes
@@ -125,14 +124,14 @@ to offer it.") — the first sentence is layout-independent.
 
 Non-obvious controls:
 
-| Control | Where | Draft hover copy |
-| --- | --- | --- |
-| Capacity = blank (daily caps) | Business, beside "Boarding spots per day" | Blank means no limit. Set a number and Pawbook stops offering new bookings once that day is full. |
-| Per-option capacity | Services & rates, option row (editor's "Pricing & options" group post-redesign) | How many pets this option can take at once — a full slot stops being offered. Blank means no limit. |
-| Weekdays only | Services & rates, beside the checkbox | Clients will only see this option on Mondays through Fridays. It appears once the option has a time window. |
-| Recording payments | Bookings/Earnings, beside the PaymentsPanel "Record payment" form (`PaymentsPanel.tsx`) | Pawbook doesn't take payments — you collect money however you like (cash, Venmo, Zelle…). Record what you received here so Earnings stays right; deposits and partial payments are fine. |
-| Embed snippets | Your website, above the two `CopyableSnippet`s | Both codes show the same booking page. Try the first; if your website builder refuses it, the second works everywhere. |
-| Allowlist states | Owner console, beside the Status column header | "Waiting to join" means they haven't signed up yet and can still be removed. Once they've joined, their business exists and can't be removed here. |
+| Control                       | Where                                                                                   | Draft hover copy                                                                                                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Capacity = blank (daily caps) | Business, beside "Boarding spots per day"                                               | Blank means no limit. Set a number and Pawbook stops offering new bookings once that day is full.                                                                                        |
+| Per-option capacity           | Services & rates, option row (editor's "Pricing & options" group post-redesign)         | How many pets this option can take at once — a full slot stops being offered. Blank means no limit.                                                                                      |
+| Weekdays only                 | Services & rates, beside the checkbox                                                   | Clients will only see this option on Mondays through Fridays. It appears once the option has a time window.                                                                              |
+| Recording payments            | Bookings/Earnings, beside the PaymentsPanel "Record payment" form (`PaymentsPanel.tsx`) | Pawbook doesn't take payments — you collect money however you like (cash, Venmo, Zelle…). Record what you received here so Earnings stays right; deposits and partial payments are fine. |
+| Embed snippets                | Your website, above the two `CopyableSnippet`s                                          | Both codes show the same booking page. Try the first; if your website builder refuses it, the second works everywhere.                                                                   |
+| Allowlist states              | Owner console, beside the Status column header                                          | "Waiting to join" means they haven't signed up yet and can still be removed. Once they've joined, their business exists and can't be removed here.                                       |
 
 Covered without a `<Hint>`, deliberately:
 
@@ -220,8 +219,8 @@ link styling.
   also script-free under `LOCKED_CSP`, so any interactive help there is
   off the table by construction. Nothing to add.
 - **`docs/index.md`:** one line added under "Try it": `- In-app help: the
-  dashboard's Help section covers setup, bookings, getting paid, and
-  embedding.` Nothing else.
+dashboard's Help section covers setup, bookings, getting paid, and
+embedding.` Nothing else.
 - **No separate docs site** — YAGNI now; revisit only if Help outgrows six
   topics (noted below).
 
