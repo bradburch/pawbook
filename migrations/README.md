@@ -29,11 +29,10 @@ State as of this merge:
 - **Local dev DB**: wiped and reseeded from `sql/schema.sql` (the Fresh installs path above),
   which already carries everything through `0015_service_level_attributes.sql` — so the local DB
   needs **no** migrations applied; it isn't on the incremental-apply path below at all.
-- **Remote DB**: has `0001`–`0006` applied. Needs the full `0007`–`0015` run, in order,
-  **before the new worker is deployed (i.e. before merging to `main`, which auto-deploys)** —
-  none of the booking-lifecycle, payments, service-slots, slot-index, contact/notes,
-  weekday-only, invite-signup/owner-console, custom-pet-types, or service-level-attributes
-  migrations have reached it yet.
+- **Remote DB**: fully migrated through `0015` (applied by hand 2026-07-20; verified via
+  read-only schema probes). Note `0011_contact_and_notes.sql` errors with "duplicate column"
+  on this DB — its columns were applied out of band before the renumbering — and that
+  error is safe: D1 rolls the whole file back, and the end state is already present.
 
 **Order: migrate first, then deploy.** The new worker unconditionally `SELECT`s
 `AcceptedPetTypes`, `MaxConcurrentPets`, `MaxPerDay`, and `Label` (added by `0014`/`0015`) and
