@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { IconPaw } from '../../shared-ui/icons';
-import type { SettingsSectionProps } from '../shared.js';
+import type { Settings } from '../shared.js';
 
 /**
- * Pet-type management home. The enable checkbox edits the staged settings draft (save bar),
- * exactly as before; add/rename/delete are IMMEDIATE calls + settings refresh — the services
- * add/delete pattern. Delete is confirm-guarded; a referenced type surfaces the server's
- * 409 "disable it instead" copy via the dashboard error banner.
+ * Pet-type registry management (0015): the list is pure slug + label — no on/off switch here.
+ * Whether a type is bookable derives entirely from each service's Accepted pets list (the chips
+ * on every service card under Services). Add/rename/delete are IMMEDIATE calls + settings
+ * refresh — the services add/delete pattern. Delete is confirm-guarded; a referenced type
+ * surfaces the server's 409 "uncheck it under each service's Accepted pets" copy via the
+ * dashboard error banner.
  */
 export function PetsSection({
   settings,
-  setSettings,
   addPetType,
   renamePetType,
   removePetType,
-}: SettingsSectionProps & {
+}: {
+  settings: Settings;
   addPetType: (label: string) => Promise<void>;
   renamePetType: (petType: string, label: string) => Promise<void>;
   removePetType: (petType: string) => Promise<void>;
@@ -52,24 +54,13 @@ export function PetsSection({
         <IconPaw size={18} /> Pets you care for
       </h2>
       <p className="pb-applies">
-        Which types of pets you accept — add your own (rabbits, birds, reptiles…). The checkbox
-        turns a type on or off everywhere; per-service exceptions live on each service&apos;s card
-        under Services. Your clients&apos; individual pets live under Clients.
+        The list of pet types your business knows about — add your own (rabbits, birds, reptiles…).
+        Which types each service takes is set per service: use the Accepted pets checkboxes on each
+        service&apos;s card under Services. Your clients&apos; individual pets live under Clients.
       </p>
-      {settings.petTypes.map((p, i) => (
+      {settings.petTypes.map((p) => (
         <div className="pb-inline" key={p.petType}>
-          <label className="pb-inline">
-            <input
-              type="checkbox"
-              checked={p.enabled}
-              onChange={(e) => {
-                const petTypes = [...settings.petTypes];
-                petTypes[i] = { ...p, enabled: e.target.checked };
-                setSettings({ ...settings, petTypes });
-              }}
-            />
-            {p.label}
-          </label>
+          <span>{p.label}</span>
           {editing === p.petType ? (
             <>
               <input

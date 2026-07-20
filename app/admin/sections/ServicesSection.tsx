@@ -34,9 +34,6 @@ export function ServicesSection({
   };
 
   const labelBySlug = new Map(settings.petTypes.map((p) => [p.petType, p.label]));
-  const enabledTypes = settings.petTypes
-    .filter((p) => p.enabled)
-    .map((p) => ({ petType: p.petType, label: p.label }));
 
   return (
     <>
@@ -83,7 +80,7 @@ export function ServicesSection({
                   setService={setService}
                   id={editorId}
                   labelledBy={titleId}
-                  petTypes={enabledTypes}
+                  petTypes={settings.petTypes}
                   onDone={() => collapse(s.type)}
                   onDelete={
                     s.custom

@@ -344,16 +344,14 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       const payload: SettingsPayload = {
         displayName: settings.displayName,
         accentColor: settings.accentColor,
-        maxBoardingPets: settings.maxBoardingPets,
-        maxHouseSitsPerDay: settings.maxHouseSitsPerDay,
-        maxStayNights: settings.maxStayNights,
         timezone: settings.timezone,
         contactEmail: settings.contactEmail,
         contactPhone: settings.contactPhone,
-        petTypes: settings.petTypes.filter((p) => p.enabled).map((p) => p.petType),
         services: settings.services.map((s): ServicePayload => ({
           type: s.type,
           enabled: s.enabled,
+          maxConcurrentPets: s.maxConcurrentPets,
+          maxPerDay: s.maxPerDay,
           options: s.options.map((o): ServiceOptionForm => ({
             optionKey: o.optionKey,
             label: o.label,
@@ -490,7 +488,8 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
   if (!settings) return <p className="pb-wrap">Loading…</p>;
 
-  const enabledPetTypes = settings.petTypes.filter((p) => p.enabled).map((p) => p.petType);
+  // Full registry — pet creation is gated by registry membership, not per-service acceptance.
+  const petTypeSlugs = settings.petTypes.map((p) => p.petType);
 
   const panels: Record<SectionKey, ReactNode> = {
     calendar: (
@@ -536,7 +535,6 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     pets: (
       <PetsSection
         settings={settings}
-        setSettings={setSettings}
         addPetType={addPetType}
         renamePetType={renamePetType}
         removePetType={removePetType}
@@ -564,7 +562,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     clients: (
       <ClientsSection
         customers={customers ?? []}
-        enabledPetTypes={enabledPetTypes}
+        petTypes={petTypeSlugs}
         slug={slug}
         token={token}
         onCustomersChanged={reloadCustomers}

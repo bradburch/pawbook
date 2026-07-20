@@ -154,7 +154,7 @@ export function ServiceEditor({
   labelledBy?: string;
   onDone?: () => void;
   onDelete?: () => void;
-  petTypes: { petType: string; label: string }[]; // the tenant's ENABLED types
+  petTypes: { petType: string; label: string }[]; // the tenant's pet-type registry
 }) {
   return (
     <div
@@ -334,6 +334,20 @@ export function ServiceEditor({
 
       <div className="pb-limits">
         <h3>Booking limits</h3>
+        {s.capacityKind === 'boarding' && (
+          <NullableNumberField
+            label="Boarding spots per day (pets)"
+            value={s.maxConcurrentPets}
+            onChange={(maxConcurrentPets) => setService({ ...s, maxConcurrentPets })}
+          />
+        )}
+        {s.capacityKind === 'housesit' && (
+          <NullableNumberField
+            label="House-sits per day"
+            value={s.maxPerDay}
+            onChange={(maxPerDay) => setService({ ...s, maxPerDay })}
+          />
+        )}
         {s.shape === 'range' && (
           <>
             <NullableNumberField

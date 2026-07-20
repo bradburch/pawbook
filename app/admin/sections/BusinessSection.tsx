@@ -1,7 +1,6 @@
 import { DEFAULT_TIMEZONE } from '../../../src/shared/index.js';
 import { IconStore } from '../../shared-ui/icons';
 import type { SettingsSectionProps } from '../shared.js';
-import { NullableNumberField } from './fields.js';
 import { TIMEZONES } from '../timezones.js';
 
 export function BusinessSection({ settings, setSettings }: SettingsSectionProps) {
@@ -44,21 +43,6 @@ export function BusinessSection({ settings, setSettings }: SettingsSectionProps)
         />
       </label>
       <p className="pb-hint">Shown to your clients on the booking page so they can reach you.</p>
-      <NullableNumberField
-        label="Boarding spots per day"
-        value={settings.maxBoardingPets}
-        onChange={(maxBoardingPets) => setSettings({ ...settings, maxBoardingPets })}
-      />
-      <NullableNumberField
-        label="House-sits per day"
-        value={settings.maxHouseSitsPerDay}
-        onChange={(maxHouseSitsPerDay) => setSettings({ ...settings, maxHouseSitsPerDay })}
-      />
-      <NullableNumberField
-        label="Longest stay (nights)"
-        value={settings.maxStayNights}
-        onChange={(maxStayNights) => setSettings({ ...settings, maxStayNights })}
-      />
       <label>
         Your time zone
         <select

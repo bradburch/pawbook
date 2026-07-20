@@ -20,6 +20,9 @@ export type ServiceForm = ServiceConstraints & {
   shape: 'range' | 'single';
   custom: boolean;
   enabled: boolean;
+  capacityKind: 'boarding' | 'housesit' | 'none';
+  maxConcurrentPets: number | null;
+  maxPerDay: number | null;
   options: ServiceOptionForm[];
   questions: QuestionForm[];
   acceptedPetTypes: string[] | null;
@@ -28,13 +31,10 @@ export type ServiceTemplate = { id: string; label: string };
 export type Settings = {
   displayName: string;
   accentColor: string;
-  maxBoardingPets: number | null;
-  maxHouseSitsPerDay: number | null;
-  maxStayNights: number | null;
   timezone: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
-  petTypes: { petType: string; label: string; enabled: boolean }[];
+  petTypes: { petType: string; label: string }[];
   services: ServiceForm[];
   templates: ServiceTemplate[];
   blocked: { id: string; startDate: string; endDate: string | null }[];
@@ -61,6 +61,8 @@ export type SettingsSectionProps = {
 export type ServicePayload = ServiceConstraints & {
   type: string;
   enabled: boolean;
+  maxConcurrentPets: number | null;
+  maxPerDay: number | null;
   options: ServiceOptionForm[];
   questions: QuestionForm[];
   acceptedPetTypes: string[] | null;
@@ -68,13 +70,9 @@ export type ServicePayload = ServiceConstraints & {
 export type SettingsPayload = {
   displayName: string;
   accentColor: string;
-  maxBoardingPets: number | null;
-  maxHouseSitsPerDay: number | null;
-  maxStayNights: number | null;
   timezone: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
-  petTypes: string[];
   services: ServicePayload[];
 };
 

@@ -30,7 +30,7 @@ type PresetState = {
  * Services & rates option-row idioms (the weekdays checkbox only exists while windowed, exactly
  * as there). Rendered only for per-visit presets: the server rejects time windows on
  * non-duration services ("only per-visit services can have a time window"), and capacity for
- * the boarding/house-sitting families is tenant-level, not per-option. */
+ * boarding/house-sitting capacity is a per-service setting (Services & rates), not per-option. */
 function PresetOptionFields({
   option,
   onChange,

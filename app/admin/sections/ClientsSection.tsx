@@ -5,7 +5,7 @@ import { IconUsers } from '../../shared-ui/icons';
 
 function PetAdder({
   customer,
-  enabledPetTypes,
+  petTypes,
   slug,
   token,
   onAdded,
@@ -13,7 +13,7 @@ function PetAdder({
   clearError,
 }: {
   customer: Customer;
-  enabledPetTypes: string[];
+  petTypes: string[];
   slug: string;
   token: string;
   onAdded: () => void;
@@ -21,7 +21,7 @@ function PetAdder({
   clearError: () => void;
 }) {
   const [name, setName] = useState('');
-  const [petType, setPetType] = useState(enabledPetTypes[0]);
+  const [petType, setPetType] = useState(petTypes[0]);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -45,7 +45,7 @@ function PetAdder({
     <div className="pb-row pb-add-pet">
       <input placeholder="Pet name" value={name} onChange={(e) => setName(e.target.value)} />
       <select value={petType} onChange={(e) => setPetType(e.target.value)}>
-        {enabledPetTypes.map((pt) => (
+        {petTypes.map((pt) => (
           <option key={pt} value={pt}>
             {pt === 'dog' ? 'Dog' : 'Cat'}
           </option>
@@ -65,7 +65,7 @@ function PetAdder({
 
 export function ClientsSection({
   customers,
-  enabledPetTypes,
+  petTypes,
   slug,
   token,
   onCustomersChanged,
@@ -73,7 +73,7 @@ export function ClientsSection({
   clearError,
 }: {
   customers: Customer[];
-  enabledPetTypes: string[];
+  petTypes: string[];
   slug: string;
   token: string;
   onCustomersChanged: () => void;
@@ -251,10 +251,10 @@ export function ClientsSection({
                 </li>
               ))}
             </ul>
-            {enabledPetTypes.length > 0 && (
+            {petTypes.length > 0 && (
               <PetAdder
                 customer={cust}
-                enabledPetTypes={enabledPetTypes}
+                petTypes={petTypes}
                 slug={slug}
                 token={token}
                 onAdded={onCustomersChanged}

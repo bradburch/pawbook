@@ -9,10 +9,10 @@ import { TIMEZONES } from './timezones.js';
  * Purely presentational: SetupWizard owns the draft state (so its single `applying` flag keeps
  * gating Skip/Escape/nav exactly as v1 did) and performs the diff-PUT built by `profilePutBody`
  * when the sitter advances to step 2. Field controls reuse the BusinessSection (name / color /
- * contact / timezone) and PetsSection (pet toggles) idioms verbatim.
+ * contact / timezone) idioms verbatim.
  */
 
-/** The six profile fields as controlled-input state. Nullable wire fields are held as
+/** The five profile fields as controlled-input state. Nullable wire fields are held as
  * ''-means-null strings — the same mapping BusinessSection applies on its live inputs. */
 export type ProfileDraft = {
   displayName: string;
@@ -20,7 +20,6 @@ export type ProfileDraft = {
   contactPhone: string;
   /** '' = use the instance default (wire value null). */
   timezone: string;
-  petTypes: { petType: string; label: string; enabled: boolean }[];
   accentColor: string;
 };
 
@@ -30,7 +29,6 @@ export function makeProfileDraft(settings: Settings): ProfileDraft {
     contactEmail: settings.contactEmail ?? '',
     contactPhone: settings.contactPhone ?? '',
     timezone: settings.timezone ?? '',
-    petTypes: settings.petTypes.map((p) => ({ ...p })),
     accentColor: settings.accentColor,
   };
 }
@@ -39,9 +37,6 @@ export function makeProfileDraft(settings: Settings): ProfileDraft {
  * PATCH body for PUT /admin/settings containing ONLY the fields that differ from `initial`
  * (absent fields keep their server-side values), or null when nothing changed — the caller then
  * sends no PUT at all (the common case on a wizard re-run, which just shows current values).
- *
- * Wire-shape note (spec): settings GET returns petTypes as { petType, enabled }[], but the PUT
- * body takes an array of ENABLED pet-type slugs — the same mapping the dashboard's save() uses.
  */
 export function profilePutBody(
   initial: ProfileDraft,
@@ -53,10 +48,6 @@ export function profilePutBody(
   if (draft.contactPhone !== initial.contactPhone) body.contactPhone = draft.contactPhone || null;
   if (draft.timezone !== initial.timezone) body.timezone = draft.timezone || null;
   if (draft.accentColor !== initial.accentColor) body.accentColor = draft.accentColor;
-  // GET always returns one entry per known pet type in a fixed order, so index-wise compare is
-  // safe (both drafts came from the same-shaped snapshot).
-  if (draft.petTypes.some((p, i) => p.enabled !== initial.petTypes[i]?.enabled))
-    body.petTypes = draft.petTypes.filter((p) => p.enabled).map((p) => p.petType);
   return Object.keys(body).length > 0 ? body : null;
 }
 
@@ -112,22 +103,9 @@ export function WizardProfileStep({
           ))}
         </select>
       </label>
-      <p className="pb-applies">Pets you accept</p>
-      {draft.petTypes.map((p, i) => (
-        <label className="pb-inline" key={p.petType}>
-          <input
-            type="checkbox"
-            checked={p.enabled}
-            onChange={(e) => {
-              const petTypes = [...draft.petTypes];
-              petTypes[i] = { ...p, enabled: e.target.checked };
-              setDraft({ ...draft, petTypes });
-            }}
-          />
-          {p.label}
-        </label>
-      ))}
-      <p className="pb-hint">Add more types any time under Pets.</p>
+      <p className="pb-hint">
+        Pet types you accept are managed under Pets, and per service under Services.
+      </p>
       <label>
         Brand color
         <input
