@@ -9,7 +9,7 @@ import {
   countPetTypeReferences,
   createPetType,
   createService,
-  deletePetType,
+  deletePetTypeAndScrub,
   getAnalytics,
   getBookingWithCustomer,
   getEndUserById,
@@ -36,7 +36,6 @@ import {
   replaceServiceOptions,
   setProviderCalendarId,
   setPetTypeEnabled,
-  setServiceAcceptedPetTypes,
   setServiceConfig,
   updateBookingStatus,
   updateTenantSettings,
@@ -709,18 +708,7 @@ export const adminRoutes = new Hono<AppEnv>()
         },
         409,
       );
-    await deletePetType(c.env.PAWBOOK_DB, tenant.Id, petType);
-    for (const svc of await listServices(c.env.PAWBOOK_DB, tenant.Id)) {
-      if (svc.AcceptedPetTypes?.includes(petType)) {
-        const next = svc.AcceptedPetTypes.filter((t) => t !== petType);
-        await setServiceAcceptedPetTypes(
-          c.env.PAWBOOK_DB,
-          tenant.Id,
-          svc.ServiceType,
-          next.length > 0 ? next : null,
-        );
-      }
-    }
+    await deletePetTypeAndScrub(c.env.PAWBOOK_DB, tenant.Id, petType);
     await invalidateTenantCache(tenant.Slug, c.env);
     return c.body(null, 204);
   })

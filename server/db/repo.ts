@@ -248,6 +248,35 @@ export async function setServiceAcceptedPetTypes(
     .run();
 }
 
+/** Delete a pet type and scrub it from every service's acceptance list in one atomic batch
+ * (deleteService precedent) — a mid-write failure can no longer strand the slug in a service's
+ * AcceptedPetTypes after the type row is already gone. A list emptied by the scrub becomes NULL:
+ * '[]' is an invalid stored state for an enabled service. Callers enforce the no-references guard. */
+export async function deletePetTypeAndScrub(
+  db: D1Database,
+  tenantId: string,
+  petType: string,
+): Promise<void> {
+  const services = await listServices(db, tenantId);
+  const statements = [
+    db
+      .prepare('DELETE FROM TenantPetTypes WHERE TenantId = ? AND PetType = ?')
+      .bind(tenantId, petType),
+  ];
+  for (const svc of services) {
+    if (!svc.AcceptedPetTypes?.includes(petType)) continue;
+    const next = svc.AcceptedPetTypes.filter((t) => t !== petType);
+    statements.push(
+      db
+        .prepare(
+          'UPDATE TenantServices SET AcceptedPetTypes = ? WHERE TenantId = ? AND ServiceType = ?',
+        )
+        .bind(next.length > 0 ? JSON.stringify(next) : null, tenantId, svc.ServiceType),
+    );
+  }
+  await db.batch(statements);
+}
+
 export async function createLoginCode(
   db: D1Database,
   tenantId: string,

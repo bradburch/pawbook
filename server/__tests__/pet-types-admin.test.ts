@@ -142,6 +142,49 @@ describe('pet-type CRUD endpoints', () => {
     );
     expect(unknown.status).toBe(404);
   });
+
+  it('DELETE scrubs the slug across MULTIPLE services in one call', async () => {
+    const { env } = createTestEnv();
+    const put = await app.request(
+      '/api/sunny-paws/admin/settings',
+      {
+        method: 'PUT',
+        headers: await auth(TENANT_A, true),
+        body: JSON.stringify({
+          services: [
+            {
+              type: 'walk',
+              enabled: true,
+              acceptedPetTypes: ['dog', 'rabbit'],
+              options: [{ label: '30 min', durationMinutes: 30, rate: 20 }],
+            },
+            {
+              type: 'checkin',
+              enabled: true,
+              acceptedPetTypes: ['rabbit'],
+              options: [{ label: '15 min', durationMinutes: 15, rate: 12 }],
+            },
+          ],
+        }),
+      },
+      env,
+    );
+    expect(put.status).toBe(204);
+
+    const del = await app.request(
+      '/api/sunny-paws/admin/pet-types/rabbit',
+      { method: 'DELETE', headers: await auth(TENANT_A) },
+      env,
+    );
+    expect(del.status).toBe(204);
+
+    const settings = await getSettings(env);
+    expect(settings.petTypes.some((p) => p.petType === 'rabbit')).toBe(false);
+    // Partial scrub: 'walk' keeps 'dog'.
+    expect(settings.services.find((s) => s.type === 'walk')?.acceptedPetTypes).toEqual(['dog']);
+    // Scrub-to-empty -> NULL: 'checkin' named only 'rabbit'.
+    expect(settings.services.find((s) => s.type === 'checkin')?.acceptedPetTypes).toBeNull();
+  });
 });
 
 describe('settings GET/PUT — rows drive pet types', () => {

@@ -4,6 +4,7 @@ import {
   createPetType,
   createTenantFromSignup,
   deletePetType,
+  deletePetTypeAndScrub,
   insertBookingRequest,
   listPetTypes,
   listServices,
@@ -72,6 +73,26 @@ describe('pet-type rows (repo)', () => {
       false,
     );
     expect(await deletePetType(env.PAWBOOK_DB, TENANT_A, 'rabbit')).toBe(false);
+  });
+
+  it('deletePetTypeAndScrub removes the row and scrubs EVERY referencing service in one atomic batch', async () => {
+    const { env } = createTestEnv();
+    await setServiceAcceptedPetTypes(env.PAWBOOK_DB, TENANT_A, 'walk', ['dog', 'rabbit']);
+    await setServiceAcceptedPetTypes(env.PAWBOOK_DB, TENANT_A, 'checkin', ['rabbit']);
+    await deletePetTypeAndScrub(env.PAWBOOK_DB, TENANT_A, 'rabbit');
+    expect((await listPetTypes(env.PAWBOOK_DB, TENANT_A)).some((r) => r.PetType === 'rabbit')).toBe(
+      false,
+    );
+    const services = await listServices(env.PAWBOOK_DB, TENANT_A);
+    // Partial scrub: 'walk' keeps its other accepted slug.
+    expect(services.find((s) => s.ServiceType === 'walk')?.AcceptedPetTypes).toEqual(['dog']);
+    // Scrub-to-empty -> NULL: 'checkin' named only 'rabbit'.
+    expect(services.find((s) => s.ServiceType === 'checkin')?.AcceptedPetTypes).toBeNull();
+    // A service that never named the slug is left untouched.
+    expect(services.find((s) => s.ServiceType === 'boarding')?.AcceptedPetTypes).toBeNull();
+    // The test shim's db.batch() runs the statements inside one BEGIN/COMMIT (see helpers.ts),
+    // so atomicity of the delete+scrub follows directly from using batch() here rather than
+    // needing a separate mid-write-failure simulation.
   });
 });
 
