@@ -1102,14 +1102,33 @@ export async function deleteCustomer(
   // Atomic guard: delete only when this customer has no bookings, so a booking created between
   // the route's count check and here can never orphan a live booking. The route still 409s on the
   // common path; this closes the TOCTOU with a safe no-op (0 rows -> false) on the race.
-  const result = await db
-    .prepare(
-      `DELETE FROM EndUsers WHERE TenantId = ? AND Id = ?
-         AND NOT EXISTS (SELECT 1 FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?)`,
-    )
-    .bind(tenantId, id, tenantId, id)
-    .run();
-  return (result.meta as { changes?: number }).changes !== 0;
+  //
+  // D1 enforces foreign keys, so EndUsers can't be deleted while LoginCodes/EndUserPets rows
+  // still reference it — and EndUserPets can't be deleted while BookingRequestPets rows still
+  // reference IT (possible even though this customer has no bookings of their own: addBookingPets
+  // only checks tenant match, not that a pet's owner is the booking's customer). Cascade child-first
+  // in one batch, each statement carrying the same NOT-EXISTS bookings guard so a TOCTOU race leaves
+  // every table untouched together rather than partially cascading before the guard trips.
+  const bookingGuard = `NOT EXISTS (SELECT 1 FROM BookingRequests WHERE TenantId = ? AND EndUserId = ?)`;
+  const [, , , endUsersResult] = await db.batch([
+    db
+      .prepare(
+        `DELETE FROM BookingRequestPets
+           WHERE PetId IN (SELECT Id FROM EndUserPets WHERE TenantId = ? AND EndUserId = ?)
+             AND ${bookingGuard}`,
+      )
+      .bind(tenantId, id, tenantId, id),
+    db
+      .prepare(`DELETE FROM EndUserPets WHERE TenantId = ? AND EndUserId = ? AND ${bookingGuard}`)
+      .bind(tenantId, id, tenantId, id),
+    db
+      .prepare(`DELETE FROM LoginCodes WHERE TenantId = ? AND EndUserId = ? AND ${bookingGuard}`)
+      .bind(tenantId, id, tenantId, id),
+    db
+      .prepare(`DELETE FROM EndUsers WHERE TenantId = ? AND Id = ? AND ${bookingGuard}`)
+      .bind(tenantId, id, tenantId, id),
+  ]);
+  return (endUsersResult.meta as { changes?: number }).changes !== 0;
 }
 
 export async function countBookingsForUser(
