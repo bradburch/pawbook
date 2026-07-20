@@ -15,7 +15,7 @@
 >   window boundary.
 > - **Provisioning is atomic-plus-compensation, not purely atomic.** The `db.batch()` aborts on
 >   the `TenantUsers.Email UNIQUE` replay path (as described), but the claim `UPDATE ... WHERE
->   ClaimedAt IS NULL` can match **zero rows** (invite revoked mid-flight) without aborting the
+ClaimedAt IS NULL` can match **zero rows** (invite revoked mid-flight) without aborting the
 >   batch — the Tenants/TenantUsers rows land regardless. `createTenantFromSignup` returns
 >   `false` in that case and the route calls `rollbackUnclaimedTenant` to delete the orphaned
 >   tenant (`repo.ts` + `signup.ts`). "No orphan tenant" holds only because of that rollback.
