@@ -14,7 +14,7 @@ import { Hint } from '../Hint';
 import { PendingRequestsList } from './BookingsSection';
 
 /**
- * The sitter's month at a glance: time off as muted bands, confirmed bookings as solid chips,
+ * The sitter's month at a glance: time off as red-tinted bands, confirmed bookings as solid chips,
  * pending as hollow/dashed chips, with the shared "Needs your reply" list underneath. A viewport
  * onto existing data — clicking a chip deep-links to the booking's full row in Bookings rather
  * than re-implementing the row here (see the spec's deep-link rationale).
@@ -107,8 +107,26 @@ function DayCell({
   isToday: boolean;
   onOpenBooking: (id: string) => void;
 }) {
+  // Day-state tint, one per cell by priority: time off (not available, red family)
+  // over confirmed (green family) over pending (lighter hollow). Chips/bands inside
+  // the cell keep their own shape cues (solid vs dashed vs band) for colorblind users.
+  const hasTimeoff = entries.some((e) => e.kind === 'timeoff');
+  const hasConfirmed = entries.some(
+    (e) => e.kind === 'booking' && e.booking.status === 'confirmed',
+  );
+  const hasPending = entries.some((e) => e.kind === 'booking' && e.booking.status === 'pending');
+  const state = hasTimeoff
+    ? ' pb-cal-off'
+    : hasConfirmed
+      ? ' pb-cal-booked'
+      : hasPending
+        ? ' pb-cal-pend'
+        : '';
   const cellClass =
-    'pb-cal-cell' + (isWeekend(date) ? ' pb-cal-weekend' : '') + (isToday ? ' pb-cal-today' : '');
+    'pb-cal-cell' +
+    (isWeekend(date) ? ' pb-cal-weekend' : '') +
+    state +
+    (isToday ? ' pb-cal-today' : '');
   return (
     <div className={cellClass}>
       <span className="pb-cal-daynum">{Number(date.slice(8))}</span>

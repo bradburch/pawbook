@@ -1166,6 +1166,25 @@ body {
   background: var(--page);
 }
 
+/* Day-state tints — a coordinated set, one tint per day (after the weekend rule so a
+   booked/blocked weekend shows its state, not the weekend grey). Green family = has a
+   confirmed booking; a paler half-strength wash = pending only (the hollow dashed chips
+   carry the shape cue); red family = time off / not available. */
+.pb-cal-cell.pb-cal-booked {
+  background: var(--ok-wash);
+  border-color: color-mix(in srgb, var(--ok) 28%, var(--line));
+}
+
+.pb-cal-cell.pb-cal-pend {
+  background: color-mix(in srgb, var(--ok-wash) 40%, var(--card));
+  border-color: color-mix(in srgb, var(--ok) 14%, var(--line));
+}
+
+.pb-cal-cell.pb-cal-off {
+  background: var(--bad-wash);
+  border-color: color-mix(in srgb, var(--bad) 28%, var(--line));
+}
+
 .pb-cal-cell.pb-cal-today {
   box-shadow: 0 0 0 2px var(--leaf);
 }
@@ -1176,12 +1195,14 @@ body {
   color: var(--soft);
 }
 
-/* Time off: muted full-width band at the top of the cell (paint order puts it first). */
+/* Time off: red-family full-width band at the top of the cell (paint order puts it
+   first). The band's position + label text are the non-color cues; the dark clay text
+   holds >=4.5:1 on the band and >=3:1 against the surrounding washes. */
 .pb-cal-timeoff {
-  background: var(--sage-wash);
-  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bad) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
   border-radius: 4px;
-  color: var(--soft);
+  color: var(--bad);
   font-size: 0.7rem;
   padding: 1px 4px;
   text-align: center;
@@ -1214,6 +1235,7 @@ body {
   background: none;
   color: var(--ink);
   border-style: dashed;
+  border-color: var(--leaf);
 }
 
 .pb-wrap .pb-cal-more {
@@ -1257,12 +1279,12 @@ body {
 }
 
 .pb-cal-key-pending {
-  border: 1px dashed var(--ink);
+  border: 1px dashed var(--leaf);
 }
 
 .pb-cal-key-timeoff {
-  background: var(--sage-wash);
-  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bad) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
 }
 
 .pb-cal-sync {
