@@ -250,31 +250,42 @@ export async function setServiceAcceptedPetTypes(
 
 /** Delete a pet type and scrub it from every service's acceptance list in one atomic batch
  * (deleteService precedent) — a mid-write failure can no longer strand the slug in a service's
- * AcceptedPetTypes after the type row is already gone. A list emptied by the scrub becomes NULL:
- * '[]' is an invalid stored state for an enabled service. Callers enforce the no-references guard. */
+ * AcceptedPetTypes after the type row is already gone. An emptied list is stored as '[]' — NEVER
+ * null/"accepts all" — per migration 0015 step 6's rule: a list with nothing in it accepts
+ * nothing, not everything. An enabled service whose list empties gets disabled in the same batch
+ * (also step 6) since it just went unbookable; `disabledServices` reports which services that
+ * happened to, so the caller can surface it instead of the sitter discovering a silently-off
+ * service later. Callers enforce the no-references guard. */
 export async function deletePetTypeAndScrub(
   db: D1Database,
   tenantId: string,
   petType: string,
-): Promise<void> {
+): Promise<{ disabledServices: string[] }> {
   const services = await listServices(db, tenantId);
   const statements = [
     db
       .prepare('DELETE FROM TenantPetTypes WHERE TenantId = ? AND PetType = ?')
       .bind(tenantId, petType),
   ];
+  const disabledServices: string[] = [];
   for (const svc of services) {
     if (!svc.AcceptedPetTypes?.includes(petType)) continue;
     const next = svc.AcceptedPetTypes.filter((t) => t !== petType);
+    const emptied = next.length === 0;
+    const disabling = emptied && svc.Enabled === 1;
+    if (disabling) disabledServices.push(svc.ServiceType);
     statements.push(
       db
         .prepare(
-          'UPDATE TenantServices SET AcceptedPetTypes = ? WHERE TenantId = ? AND ServiceType = ?',
+          disabling
+            ? 'UPDATE TenantServices SET AcceptedPetTypes = ?, Enabled = 0 WHERE TenantId = ? AND ServiceType = ?'
+            : 'UPDATE TenantServices SET AcceptedPetTypes = ? WHERE TenantId = ? AND ServiceType = ?',
         )
-        .bind(next.length > 0 ? JSON.stringify(next) : null, tenantId, svc.ServiceType),
+        .bind(emptied ? '[]' : JSON.stringify(next), tenantId, svc.ServiceType),
     );
   }
   await db.batch(statements);
+  return { disabledServices };
 }
 
 export async function createLoginCode(

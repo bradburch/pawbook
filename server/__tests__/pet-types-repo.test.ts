@@ -79,20 +79,56 @@ describe('pet-type rows (repo)', () => {
     const { env } = createTestEnv();
     await setServiceAcceptedPetTypes(env.PAWBOOK_DB, TENANT_A, 'walk', ['dog', 'rabbit']);
     await setServiceAcceptedPetTypes(env.PAWBOOK_DB, TENANT_A, 'checkin', ['rabbit']);
-    await deletePetTypeAndScrub(env.PAWBOOK_DB, TENANT_A, 'rabbit');
+    const result = await deletePetTypeAndScrub(env.PAWBOOK_DB, TENANT_A, 'rabbit');
     expect((await listPetTypes(env.PAWBOOK_DB, TENANT_A)).some((r) => r.PetType === 'rabbit')).toBe(
       false,
     );
     const services = await listServices(env.PAWBOOK_DB, TENANT_A);
-    // Partial scrub: 'walk' keeps its other accepted slug.
-    expect(services.find((s) => s.ServiceType === 'walk')?.AcceptedPetTypes).toEqual(['dog']);
-    // Scrub-to-empty -> NULL: 'checkin' named only 'rabbit'.
-    expect(services.find((s) => s.ServiceType === 'checkin')?.AcceptedPetTypes).toBeNull();
+    // Partial scrub: 'walk' keeps its other accepted slug and stays enabled — no widening,
+    // no disabling for a list that still has an accepted type.
+    const walk = services.find((s) => s.ServiceType === 'walk');
+    expect(walk?.AcceptedPetTypes).toEqual(['dog']);
+    expect(walk?.Enabled).toBe(1);
+    // Scrub-to-empty -> '[]' (never NULL/"accepts all" — that's the widening bug) AND the
+    // service gets disabled in the same batch, mirroring migration 0015 step 6's rule.
+    const checkin = services.find((s) => s.ServiceType === 'checkin');
+    expect(checkin?.AcceptedPetTypes).toEqual([]);
+    expect(checkin?.Enabled).toBe(0);
     // A service that never named the slug is left untouched.
-    expect(services.find((s) => s.ServiceType === 'boarding')?.AcceptedPetTypes).toBeNull();
+    const boarding = services.find((s) => s.ServiceType === 'boarding');
+    expect(boarding?.AcceptedPetTypes).toBeNull();
+    expect(boarding?.Enabled).toBe(1);
+    // Caller learns which services got silently turned off.
+    expect(result.disabledServices).toEqual(['checkin']);
     // The test shim's db.batch() runs the statements inside one BEGIN/COMMIT (see helpers.ts),
     // so atomicity of the delete+scrub follows directly from using batch() here rather than
     // needing a separate mid-write-failure simulation.
+  });
+
+  it('deletePetTypeAndScrub does not widen an already-disabled service to accepts-all, and does not re-report it as newly disabled', async () => {
+    const { env } = createTestEnv();
+    // Seeded 'checkin' on happytails is already Enabled=0 with AcceptedPetTypes ["dog"]; use a
+    // fresh tenant scenario instead by disabling sunny-paws' checkin directly, then emptying it.
+    await setServiceConfig(env.PAWBOOK_DB, TENANT_A, 'checkin', {
+      enabled: false,
+      questions: [],
+      minNights: null,
+      maxNights: null,
+      minPetCount: null,
+      maxPetCount: null,
+      acceptedPetTypes: ['rabbit'],
+      maxConcurrentPets: null,
+      maxPerDay: null,
+    });
+    const result = await deletePetTypeAndScrub(env.PAWBOOK_DB, TENANT_A, 'rabbit');
+    const checkin = (await listServices(env.PAWBOOK_DB, TENANT_A)).find(
+      (s) => s.ServiceType === 'checkin',
+    );
+    // Still stored as '[]', never NULL — no widening regardless of enabled state.
+    expect(checkin?.AcceptedPetTypes).toEqual([]);
+    expect(checkin?.Enabled).toBe(0);
+    // It was already off, so it's not a newly-disabled service worth surfacing to the caller.
+    expect(result.disabledServices).toEqual([]);
   });
 });
 

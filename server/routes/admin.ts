@@ -660,7 +660,10 @@ export const adminRoutes = new Hono<AppEnv>()
   // Blocked with 409 while ANY customer pet or booking (any status — history included, the
   // deleteService precedent) references the slug; an unreferenced delete also scrubs the slug
   // from every service's acceptance list (config, not history — safe to clean). A list emptied
-  // by the scrub becomes NULL: '[]' is an invalid stored state for an enabled service.
+  // by the scrub becomes '[]' (accepts nothing), never NULL (accepts all) — and an enabled
+  // service that just emptied out gets disabled in the same batch (migration 0015 step 6's
+  // rule; see deletePetTypeAndScrub). `disabledServices` tells the caller which ones, so the
+  // sitter finds out here instead of noticing a dead service later.
   .delete('/:slug/admin/pet-types/:petType', async (c) => {
     const tenant = c.get('tenant');
     const petType = c.req.param('petType');
@@ -675,9 +678,9 @@ export const adminRoutes = new Hono<AppEnv>()
         },
         409,
       );
-    await deletePetTypeAndScrub(c.env.PAWBOOK_DB, tenant.Id, petType);
+    const { disabledServices } = await deletePetTypeAndScrub(c.env.PAWBOOK_DB, tenant.Id, petType);
     await invalidateTenantCache(tenant.Slug, c.env);
-    return c.body(null, 204);
+    return c.json({ disabledServices }, 200);
   })
 
   .post('/:slug/admin/blocked', async (c) => {

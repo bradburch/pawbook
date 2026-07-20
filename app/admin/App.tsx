@@ -418,8 +418,26 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
   const removePetType = (petType: string) =>
     run(async () => {
-      await adminFetch(token, `/api/${slug}/admin/pet-types/${petType}`, { method: 'DELETE' });
-      await refresh();
+      const { disabledServices } = await adminFetch<{ disabledServices: string[] }>(
+        token,
+        `/api/${slug}/admin/pet-types/${petType}`,
+        { method: 'DELETE' },
+      );
+      const fresh = await loadSettings();
+      applyLoaded(fresh);
+      // Emptying a service's accepted-pets list turns it off (never silently widens it to
+      // "accepts everything") — tell the sitter which service(s) just went dark.
+      if (disabledServices.length > 0) {
+        const labels = disabledServices.map(
+          (type) => fresh.services.find((s) => s.type === type)?.label ?? type,
+        );
+        const plural = labels.length > 1;
+        setMessage(
+          `${labels.join(', ')} no longer accept${plural ? '' : 's'} any pet type, so ${
+            plural ? "they've" : "it's"
+          } been turned off.`,
+        );
+      }
     });
 
   const connectCalendar = () =>

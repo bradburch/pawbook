@@ -132,7 +132,8 @@ describe('pet-type CRUD endpoints', () => {
       { method: 'DELETE', headers: await auth(TENANT_A) },
       env,
     );
-    expect(del.status).toBe(204);
+    expect(del.status).toBe(200);
+    expect(await del.json()).toEqual({ disabledServices: [] });
     const settings = await getSettings(env);
     expect(settings.petTypes.some((p) => p.petType === 'rabbit')).toBe(false);
     expect(settings.services.find((s) => s.type === 'walk')?.acceptedPetTypes).toEqual(['dog']);
@@ -177,14 +178,19 @@ describe('pet-type CRUD endpoints', () => {
       { method: 'DELETE', headers: await auth(TENANT_A) },
       env,
     );
-    expect(del.status).toBe(204);
+    expect(del.status).toBe(200);
+    // The caller learns which services got silently turned off by the scrub.
+    expect(await del.json()).toEqual({ disabledServices: ['checkin'] });
 
     const settings = await getSettings(env);
     expect(settings.petTypes.some((p) => p.petType === 'rabbit')).toBe(false);
-    // Partial scrub: 'walk' keeps 'dog'.
+    // Partial scrub: 'walk' keeps 'dog' and stays enabled.
     expect(settings.services.find((s) => s.type === 'walk')?.acceptedPetTypes).toEqual(['dog']);
-    // Scrub-to-empty -> NULL: 'checkin' named only 'rabbit'.
-    expect(settings.services.find((s) => s.type === 'checkin')?.acceptedPetTypes).toBeNull();
+    expect(settings.services.find((s) => s.type === 'walk')?.enabled).toBe(true);
+    // Scrub-to-empty -> '[]' (never NULL/accepts-all) AND the service is disabled — 'checkin'
+    // named only 'rabbit', so emptying its list turns it off instead of silently widening it.
+    expect(settings.services.find((s) => s.type === 'checkin')?.acceptedPetTypes).toEqual([]);
+    expect(settings.services.find((s) => s.type === 'checkin')?.enabled).toBe(false);
   });
 });
 
