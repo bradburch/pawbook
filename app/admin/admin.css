@@ -1238,3 +1238,78 @@ body {
     padding: 0 3px;
   }
 }
+
+/* ── Hint toggletips: `?` buttons with explainer popovers ─────────
+   (spec 2026-07-19-help-and-explainers-design) */
+.pb-hintwrap {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+/* 20px visible circle with a 24px tap target: padding + background-clip
+   keep the wash inside the content box. The two-class selector outranks
+   the `.pb-wrap button` primary style (same trick as .pb-cal-chip). */
+.pb-wrap .pb-hint-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 2px;
+  border: none;
+  border-radius: 50%;
+  background: var(--sage-wash);
+  background-clip: content-box;
+  color: var(--soft);
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pb-wrap .pb-hint-btn:hover {
+  filter: none;
+  color: var(--ink);
+}
+
+/* Small white card under the button — the section-card shadow at reduced
+   spread. z-index sits above .pb-sidenav (15) and below .pb-savebar (30).
+   Explicit font/color/weight so the popover reads the same inside an h2,
+   a bold table header, or a soft field label. */
+.pb-hint-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 18px -14px rgba(28, 58, 74, 0.45);
+  color: var(--body);
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+}
+
+/* Opacity fade only, and only outside prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .pb-hint-pop {
+    animation: pb-hint-fade 0.12s ease;
+  }
+}
+
+@keyframes pb-hint-fade {
+  from {
+    opacity: 0;
+  }
+}
