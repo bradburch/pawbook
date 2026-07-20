@@ -16,6 +16,7 @@ export type ServiceConfig = ServiceConstraints & {
   hasDuration: boolean;
   options: ServiceOption[];
   questions: ServiceQuestion[];
+  acceptedPetTypes: string[] | null;
 };
 export type TenantConfig = {
   slug: string;
@@ -27,11 +28,11 @@ export type TenantConfig = {
   timezone: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
-  petTypes: string[];
+  petTypes: { slug: string; label: string }[]; // enabled types only
   services: ServiceConfig[];
 };
 
-export type Pet = { id: string; name: string; petType: 'dog' | 'cat'; notes?: string | null };
+export type Pet = { id: string; name: string; petType: string; notes?: string | null };
 export type MonthDay = {
   date: string;
   status: 'available' | 'partial' | 'unavailable';
