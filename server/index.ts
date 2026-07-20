@@ -684,7 +684,7 @@ const LANDING_HTML = `<!doctype html>
           </div>
           <div class="qa-item">
             <h3>Can anyone book, or just my clients?</h3>
-            <p><strong>Just your clients.</strong> You add each client&rsquo;s email (or import a CSV) before they can book. Dogs and cats only.</p>
+            <p><strong>Just your clients.</strong> You add each client&rsquo;s email (or import a CSV) before they can book. You choose which animal types you accept.</p>
           </div>
           <div class="qa-item">
             <h3>Can I charge more for a second dog?</h3>
