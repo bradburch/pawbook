@@ -263,8 +263,8 @@ export function ServiceEditor({
                     onChange={(capacity) => setOption({ capacity })}
                   />
                   <Hint label="Capacity">
-                    How many pets this option can take at once — a full slot stops being offered.
-                    Blank means no limit.
+                    How many bookings this time slot can take. A booking with three dogs still uses
+                    one spot. A full slot stops being offered; blank means no limit.
                   </Hint>
                   {windowed && (
                     <>

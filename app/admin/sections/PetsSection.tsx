@@ -54,8 +54,8 @@ export function PetsSection({
       <h2>
         <IconPaw size={18} /> Pets you care for
         <Hint label="Pet types">
-          The animal types clients can pick for their pets. Which services accept each type is set
-          per service, under Services &amp; rates.
+          The animal types your business handles, used when you add a client&apos;s pets. Which
+          services accept each type is set per service, under Services &amp; rates.
         </Hint>
       </h2>
       <p className="pb-applies">
