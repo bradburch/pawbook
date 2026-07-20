@@ -1,5 +1,6 @@
 import { Fragment, useRef, useState } from 'react';
 import { IconTag } from '../../shared-ui/icons';
+import { Hint } from '../Hint';
 import { AddServiceTile } from './AddServiceTile.js';
 import { ServiceCard } from './ServiceCard.js';
 import { ServiceEditor } from './ServiceEditor.js';
@@ -39,6 +40,10 @@ export function ServicesSection({
     <>
       <h2>
         <IconTag size={18} /> Services &amp; rates
+        <Hint label="Services & rates">
+          Each card is one thing clients can book, with its price and rules at a glance. Tap a card
+          to edit pricing, questions, and limits; use its switch to offer or pause it.
+        </Hint>
       </h2>
       <p>
         <button type="button" onClick={openWizard}>

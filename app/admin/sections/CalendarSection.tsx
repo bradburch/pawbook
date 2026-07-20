@@ -10,6 +10,7 @@ import {
 import type { AdminBooking } from '../../shared-ui/api.js';
 import { IconCalendar, IconChevronLeft, IconChevronRight } from '../../shared-ui/icons';
 import type { Session, Settings } from '../shared.js';
+import { Hint } from '../Hint';
 import { PendingRequestsList } from './BookingsSection';
 
 /**
@@ -176,6 +177,10 @@ export function CalendarSection({
     <>
       <h2>
         <IconCalendar size={18} /> Calendar
+        <Hint label="Calendar">
+          Your month at a glance — confirmed bookings, requests waiting on you, and your time off.
+          Tap any booking to open its full details under Bookings.
+        </Hint>
       </h2>
       {bookings === null ? (
         <p>Loading…</p>

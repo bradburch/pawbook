@@ -3,6 +3,7 @@ import { adminApi, type AdminBooking } from '../../shared-ui/api.js';
 import { IconClipboardCheck } from '../../shared-ui/icons';
 import { PaymentsPanel } from '../PaymentsPanel';
 import type { Session } from '../shared.js';
+import { Hint } from '../Hint';
 
 /** Renders the dates for one row: single date (+ time, for timed services) or a range. */
 function formatWhen(b: AdminBooking): string {
@@ -232,6 +233,10 @@ export function BookingsSection({
     <div ref={listWrapRef}>
       <h2>
         <IconClipboardCheck size={18} /> Bookings
+        <Hint label="Bookings">
+          Every request your clients send lands here — nothing is booked until you confirm it.
+          Confirming or declining emails the client automatically.
+        </Hint>
       </h2>
       {bookings === null ? (
         <p>Loading…</p>

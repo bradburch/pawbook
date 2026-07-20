@@ -1,6 +1,7 @@
 import { DEFAULT_TIMEZONE } from '../../../src/shared/index.js';
 import { IconStore } from '../../shared-ui/icons';
 import type { SettingsSectionProps } from '../shared.js';
+import { Hint } from '../Hint';
 import { TIMEZONES } from '../timezones.js';
 
 export function BusinessSection({ settings, setSettings }: SettingsSectionProps) {
@@ -8,6 +9,10 @@ export function BusinessSection({ settings, setSettings }: SettingsSectionProps)
     <>
       <h2>
         <IconStore size={18} /> Your business
+        <Hint label="Business">
+          The basics your booking page shows clients — your name, color, and contact details.
+          Changes wait until you press Save.
+        </Hint>
       </h2>
       <label>
         Business name

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { IconPaw } from '../../shared-ui/icons';
 import type { Settings } from '../shared.js';
+import { Hint } from '../Hint';
 
 /**
  * Pet-type registry management (0015): the list is pure slug + label — no on/off switch here.
@@ -52,6 +53,10 @@ export function PetsSection({
     <>
       <h2>
         <IconPaw size={18} /> Pets you care for
+        <Hint label="Pet types">
+          The animal types clients can pick for their pets. Which services accept each type is set
+          per service, under Services &amp; rates.
+        </Hint>
       </h2>
       <p className="pb-applies">
         The list of pet types your business knows about — add your own (rabbits, birds, reptiles…).

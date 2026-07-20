@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Customer, ImportResult } from '../../shared-ui/api.js';
 import { adminApi } from '../../shared-ui/api.js';
 import { IconUsers } from '../../shared-ui/icons';
+import { Hint } from '../Hint';
 
 function PetAdder({
   customer,
@@ -148,6 +149,9 @@ export function ClientsSection({
     <>
       <h2>
         <IconUsers size={18} /> Your clients
+        <Hint label="Clients">
+          Only people on this list can book with you. Adding someone emails them an invite.
+        </Hint>
       </h2>
       <p className="pb-applies">
         Only clients you invite can book — adding one sends them an invite by email.
