@@ -169,14 +169,14 @@ export async function listPetTypes(db: D1Database, tenantId: string): Promise<Te
   // draft compare (profilePutBody) depends on a stable order.
   const { results } = await db
     .prepare(
-      'SELECT TenantId, PetType, Label, Enabled FROM TenantPetTypes WHERE TenantId = ? ORDER BY PetType',
+      'SELECT TenantId, PetType, Label FROM TenantPetTypes WHERE TenantId = ? ORDER BY PetType',
     )
     .bind(tenantId)
     .all<TenantPetTypeRow>();
   return results;
 }
 
-/** Create a pet type (enabled). Throws on UNIQUE(TenantId, PetType) — caller maps to 409. */
+/** Create a pet-type registry row. Throws on UNIQUE(TenantId, PetType) — caller maps to 409. */
 export async function createPetType(
   db: D1Database,
   tenantId: string,
@@ -184,7 +184,7 @@ export async function createPetType(
   label: string,
 ): Promise<void> {
   await db
-    .prepare('INSERT INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES (?, ?, ?, 1)')
+    .prepare('INSERT INTO TenantPetTypes (TenantId, PetType, Label) VALUES (?, ?, ?)')
     .bind(tenantId, petType, label)
     .run();
 }
@@ -907,20 +907,6 @@ export async function replaceServiceOptions(
   ]);
 }
 
-export async function setPetTypeEnabled(
-  db: D1Database,
-  tenantId: string,
-  petType: string,
-  enabled: boolean,
-): Promise<void> {
-  // UPDATE-only: rows are created explicitly (createPetType / seed / migration backfill / signup
-  // batch) — an upsert can no longer synthesize a row because Label is NOT NULL.
-  await db
-    .prepare('UPDATE TenantPetTypes SET Enabled = ? WHERE TenantId = ? AND PetType = ?')
-    .bind(enabled ? 1 : 0, tenantId, petType)
-    .run();
-}
-
 export async function listBlockedRanges(db: D1Database, tenantId: string): Promise<BookingRow[]> {
   const { results } = await db
     .prepare(
@@ -1371,7 +1357,7 @@ export async function deleteUnclaimedAllowedSitter(
  * TenantUsers inserts land regardless. Returns false in that case so the caller can compensate
  * (see rollbackUnclaimedTenant) — a tenant must never stand without a valid claim.
  *
- * Dog + cat pet-type rows ARE seeded enabled (spec F1): without them a sitter who skips the
+ * Dog + cat pet-type REGISTRY rows are seeded (spec F1): without them a sitter who skips the
  * wizard could never take a booking.
  */
 export async function createTenantFromSignup(
@@ -1400,14 +1386,10 @@ export async function createTenantFromSignup(
       )
       .bind(claimedAt, args.tenantId, args.email),
     db
-      .prepare(
-        "INSERT INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES (?, 'dog', 'Dogs', 1)",
-      )
+      .prepare("INSERT INTO TenantPetTypes (TenantId, PetType, Label) VALUES (?, 'dog', 'Dogs')")
       .bind(args.tenantId),
     db
-      .prepare(
-        "INSERT INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES (?, 'cat', 'Cats', 1)",
-      )
+      .prepare("INSERT INTO TenantPetTypes (TenantId, PetType, Label) VALUES (?, 'cat', 'Cats')")
       .bind(args.tenantId),
   ]);
   const claimResult = results[2] as { meta: { changes?: number } };

@@ -108,12 +108,12 @@ export function validateServiceConstraints(
 }
 
 /**
- * Per-service pet-type acceptance. `accepted` null = the service accepts every enabled type
+ * Per-service pet-type acceptance. `accepted` null = the service accepts every REGISTRY type
  * (the codebase's null-is-unlimited convention); an array is an explicit allow-list of
- * pet-type slugs. Checks EVERY selected pet and returns the first error, or null.
+ * pet-type slugs. This is the single behavioral gate — the retired tenant-level enabled switch
+ * no longer exists. Checks EVERY selected pet and returns the first error, or null.
  * `labelOf` maps a slug to its tenant display label — callers fall back to the raw slug
- * (`(s) => labels.get(s) ?? s`). The tenant-level enabled gate is separate and always wins;
- * this only expresses the service's own restriction.
+ * (`(s) => labels.get(s) ?? s`).
  */
 export function validatePetTypeAcceptance(
   accepted: string[] | null,

@@ -19,18 +19,18 @@ describe('pet-type rows (repo)', () => {
   it('listPetTypes returns Label, ordered by PetType', async () => {
     const { env } = createTestEnv();
     const rows = await listPetTypes(env.PAWBOOK_DB, TENANT_A);
-    expect(rows.map((r) => ({ petType: r.PetType, label: r.Label, enabled: r.Enabled }))).toEqual([
-      { petType: 'cat', label: 'Cats', enabled: 1 },
-      { petType: 'dog', label: 'Dogs', enabled: 1 },
-      { petType: 'rabbit', label: 'Rabbits', enabled: 1 },
+    expect(rows.map((r) => ({ petType: r.PetType, label: r.Label }))).toEqual([
+      { petType: 'cat', label: 'Cats' },
+      { petType: 'dog', label: 'Dogs' },
+      { petType: 'rabbit', label: 'Rabbits' },
     ]);
   });
 
-  it('createPetType inserts enabled; duplicate slug throws UNIQUE', async () => {
+  it('createPetType inserts a registry row; duplicate slug throws UNIQUE', async () => {
     const { env } = createTestEnv();
     await createPetType(env.PAWBOOK_DB, TENANT_A, 'bird', 'Birds');
     const rows = await listPetTypes(env.PAWBOOK_DB, TENANT_A);
-    expect(rows.find((r) => r.PetType === 'bird')).toMatchObject({ Label: 'Birds', Enabled: 1 });
+    expect(rows.find((r) => r.PetType === 'bird')).toMatchObject({ Label: 'Birds' });
     await expect(createPetType(env.PAWBOOK_DB, TENANT_A, 'bird', 'Birds!')).rejects.toThrow(
       /UNIQUE constraint failed/,
     );
@@ -133,7 +133,7 @@ describe('AcceptedPetTypes round-trip (repo)', () => {
   });
 });
 
-describe('signup provisioning seeds dog + cat (spec F1)', () => {
+describe('signup provisioning seeds dog + cat registry rows (spec F1)', () => {
   it('createTenantFromSignup yields enabled dog and cat rows', async () => {
     const { env } = createTestEnv();
     const ok = await createTenantFromSignup(env.PAWBOOK_DB, {
@@ -146,9 +146,9 @@ describe('signup provisioning seeds dog + cat (spec F1)', () => {
     });
     expect(ok).toBe(true);
     const rows = await listPetTypes(env.PAWBOOK_DB, 'tnt_fresh');
-    expect(rows.map((r) => ({ petType: r.PetType, label: r.Label, enabled: r.Enabled }))).toEqual([
-      { petType: 'cat', label: 'Cats', enabled: 1 },
-      { petType: 'dog', label: 'Dogs', enabled: 1 },
+    expect(rows.map((r) => ({ petType: r.PetType, label: r.Label }))).toEqual([
+      { petType: 'cat', label: 'Cats' },
+      { petType: 'dog', label: 'Dogs' },
     ]);
   });
 

@@ -80,7 +80,6 @@ export type TenantPetTypeRow = {
   TenantId: string;
   PetType: string; // per-tenant slug, immutable
   Label: string; // display name, renamable
-  Enabled: number;
 };
 
 export type EndUser = {

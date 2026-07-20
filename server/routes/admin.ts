@@ -35,7 +35,6 @@ import {
   renamePetType,
   replaceServiceOptions,
   setProviderCalendarId,
-  setPetTypeEnabled,
   setServiceConfig,
   updateBookingStatus,
   updateTenantSettings,
@@ -306,7 +305,6 @@ type SettingsBody = {
   timezone?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
-  petTypes?: string[];
   services?: ServiceBody[];
 };
 
@@ -341,11 +339,7 @@ export const adminRoutes = new Hono<AppEnv>()
       timezone: tenant.Timezone,
       contactEmail: tenant.ContactEmail,
       contactPhone: tenant.ContactPhone,
-      petTypes: petTypes.map((p) => ({
-        petType: p.PetType,
-        label: p.Label,
-        enabled: Boolean(p.Enabled),
-      })),
+      petTypes: petTypes.map((p) => ({ petType: p.PetType, label: p.Label })),
       services: services.map((svc) => ({
         type: svc.ServiceType,
         label: svc.Label,
@@ -398,7 +392,6 @@ export const adminRoutes = new Hono<AppEnv>()
     const contactEmail = rawContactEmail?.trim() || null;
     const rawContactPhone = patchNullable<string>(body, 'contactPhone', tenant.ContactPhone);
     const contactPhone = rawContactPhone?.trim() || null;
-    const petTypes = body.petTypes;
     const services = body.services ?? [];
     // Per-service PATCH semantics for questions/constraints (mirrors patchNullable above): a field
     // included in a service's body ⇒ take it; absent ⇒ keep that service's current value. Without
@@ -424,13 +417,6 @@ export const adminRoutes = new Hono<AppEnv>()
       return c.json({ error: 'Contact email must be a valid email address.' }, 400);
     if (contactPhone !== null && contactPhone.length > 40)
       return c.json({ error: 'Contact phone is too long.' }, 400);
-    if (petTypes !== undefined) {
-      if (
-        !Array.isArray(petTypes) ||
-        !petTypes.every((pt) => typeof pt === 'string' && knownPetSlugs.has(pt))
-      )
-        return c.json({ error: 'Unknown pet type.' }, 400);
-    }
     const resolvedOptionsByType = new Map<string, ResolvedOption[]>();
     for (const svc of services) {
       const meta = currentServices.find((s) => s.ServiceType === svc.type);
@@ -521,15 +507,6 @@ export const adminRoutes = new Hono<AppEnv>()
       contactEmail,
       contactPhone,
     });
-    if (petTypes !== undefined) {
-      for (const row of tenantPetTypes)
-        await setPetTypeEnabled(
-          c.env.PAWBOOK_DB,
-          tenant.Id,
-          row.PetType,
-          petTypes.includes(row.PetType),
-        );
-    }
     for (const svc of services) {
       const svcType = svc.type as string;
       // Validation above guarantees a matching row exists.
@@ -646,9 +623,9 @@ export const adminRoutes = new Hono<AppEnv>()
     return c.body(null, 204);
   })
 
-  // Pet-type CRUD mirrors the services split: enable/disable rides the settings draft;
-  // structural changes (add/rename/delete) are immediate. Slugs are immutable — rename
-  // changes the display Label only, so history keeps resolving.
+  // Pet-type registry CRUD: add/rename/delete are immediate (the services split). Slugs are
+  // immutable — rename changes the display Label only, so history keeps resolving. On/off lives
+  // on each service's AcceptedPetTypes.
   .post('/:slug/admin/pet-types', async (c) => {
     const tenant = c.get('tenant');
     const body = await c.req.json<{ label?: unknown }>().catch(() => ({}) as { label?: unknown });
@@ -694,7 +671,7 @@ export const adminRoutes = new Hono<AppEnv>()
     if (refs > 0)
       return c.json(
         {
-          error: `That pet type is on ${refs} ${refs === 1 ? 'pet or booking' : 'pets or bookings'} — disable it instead.`,
+          error: `That pet type is on ${refs} ${refs === 1 ? 'pet or booking' : 'pets or bookings'} and can't be deleted. Uncheck it under each service's Accepted pets instead.`,
         },
         409,
       );
@@ -876,10 +853,12 @@ export const adminRoutes = new Hono<AppEnv>()
     // under it (production D1 has foreign keys OFF, so nothing else stops a cross-tenant orphan).
     if (!(await getEndUserById(c.env.PAWBOOK_DB, tenant.Id, endUserId)))
       return c.json({ error: 'Not found.' }, 404);
-    const accepted = (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id)).find(
-      (pt) => pt.PetType === petType && pt.Enabled,
+    // Registry membership only (0015): a sitter may record a pet of a type no service currently
+    // accepts — it just can't be booked until some service's Accepted pets list includes it.
+    const known = (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id)).find(
+      (pt) => pt.PetType === petType,
     );
-    if (!accepted) return c.json({ error: 'That pet type is not accepted.' }, 400);
+    if (!known) return c.json({ error: 'That pet type is not accepted.' }, 400);
     const pet = await addEndUserPet(c.env.PAWBOOK_DB, tenant.Id, endUserId, name, petType, notes);
     return c.json({ id: pet.Id, name: pet.Name, petType: pet.PetType, notes: pet.Notes }, 201);
   })
@@ -908,10 +887,8 @@ export const adminRoutes = new Hono<AppEnv>()
         400,
       );
     }
-    const petTypesEnabled = new Set(
-      (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id))
-        .filter((pt) => pt.Enabled)
-        .map((pt) => pt.PetType),
+    const knownPetTypes = new Set(
+      (await listPetTypes(c.env.PAWBOOK_DB, tenant.Id)).map((pt) => pt.PetType),
     );
     const existingPetNames = new Map<string, Set<string>>();
     for (const pet of await listAllEndUserPetsByTenant(c.env.PAWBOOK_DB, tenant.Id)) {
@@ -961,8 +938,8 @@ export const adminRoutes = new Hono<AppEnv>()
           skippedRows.push({ row, reason: 'Pet type given without a pet name' });
           continue;
         }
-        if (!petTypesEnabled.has(petType)) {
-          skippedRows.push({ row, reason: `'${rawPetType.trim()}' is not an enabled pet type` });
+        if (!knownPetTypes.has(petType)) {
+          skippedRows.push({ row, reason: `'${rawPetType.trim()}' is not one of your pet types` });
           continue;
         }
         const petSet = existingPetNames.get(customer.Id) ?? new Set<string>();

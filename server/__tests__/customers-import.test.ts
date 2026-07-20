@@ -59,10 +59,10 @@ describe('POST /:slug/admin/customers/import', () => {
     const { body } = await importCsv(env, csv);
     expect(body.importedCustomers).toBe(1);
     expect(body.importedPets).toBe(0);
-    expect(body.skippedRows).toEqual([{ row: 2, reason: "'ferret' is not an enabled pet type" }]);
+    expect(body.skippedRows).toEqual([{ row: 2, reason: "'ferret' is not one of your pet types" }]);
   });
 
-  it('imports a pet of a custom enabled type (rabbit)', async () => {
+  it('imports a pet of a custom registry type (rabbit)', async () => {
     const { env } = createTestEnv();
     const token = await adminToken('tnt_sunnypaws');
     const res = await app.request(

@@ -19,7 +19,7 @@ export const publicRoutes = new Hono<AppEnv>()
       timezone: tenant.Timezone,
       contactEmail: tenant.ContactEmail,
       contactPhone: tenant.ContactPhone,
-      petTypes: petTypes.filter((p) => p.Enabled).map((p) => ({ slug: p.PetType, label: p.Label })),
+      petTypes: petTypes.map((p) => ({ slug: p.PetType, label: p.Label })),
       services: services
         .filter((s) => s.Enabled)
         .map((svc) => ({

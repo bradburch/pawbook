@@ -10,7 +10,7 @@ async function auth(tenantId: string, json = false): Promise<Record<string, stri
 }
 
 type SettingsShape = {
-  petTypes: { petType: string; label: string; enabled: boolean }[];
+  petTypes: { petType: string; label: string }[];
   services: { type: string; enabled: boolean; acceptedPetTypes: string[] | null }[];
 };
 
@@ -37,7 +37,6 @@ describe('pet-type CRUD endpoints', () => {
     expect(settings.petTypes.find((p) => p.petType === 'guinea-pigs')).toEqual({
       petType: 'guinea-pigs',
       label: 'Guinea Pigs!',
-      enabled: true,
     });
   });
 
@@ -99,7 +98,9 @@ describe('pet-type CRUD endpoints', () => {
       env,
     );
     expect(blocked.status).toBe(409);
-    expect(((await blocked.json()) as { error: string }).error).toContain('disable it instead');
+    expect(((await blocked.json()) as { error: string }).error).toContain(
+      "Uncheck it under each service's Accepted pets instead",
+    );
 
     // Give walk an explicit list naming rabbit, remove the pet, then delete succeeds + scrubs.
     const put = await app.request(
@@ -188,44 +189,31 @@ describe('pet-type CRUD endpoints', () => {
 });
 
 describe('settings GET/PUT — rows drive pet types', () => {
-  it('GET lists rows (label + enabled), not the old enum', async () => {
+  it('GET lists registry rows (petType + label), no enabled flag', async () => {
     const { env } = createTestEnv();
     const settings = await getSettings(env);
     expect(settings.petTypes).toEqual([
-      { petType: 'cat', label: 'Cats', enabled: true },
-      { petType: 'dog', label: 'Dogs', enabled: true },
-      { petType: 'rabbit', label: 'Rabbits', enabled: true },
+      { petType: 'cat', label: 'Cats' },
+      { petType: 'dog', label: 'Dogs' },
+      { petType: 'rabbit', label: 'Rabbits' },
     ]);
   });
 
-  it('PUT petTypes toggles custom slugs and rejects unknown slugs', async () => {
+  it('top-level petTypes is no longer part of the PUT body — ignored, never written', async () => {
     const { env } = createTestEnv();
-    const ok = await app.request(
+    const res = await app.request(
       '/api/sunny-paws/admin/settings',
       {
         method: 'PUT',
         headers: await auth(TENANT_A, true),
-        body: JSON.stringify({ petTypes: ['dog', 'rabbit'] }),
+        body: JSON.stringify({ petTypes: ['dog'] }), // stale client payload
       },
       env,
     );
-    expect(ok.status).toBe(204);
+    expect(res.status).toBe(204);
     const settings = await getSettings(env);
-    expect(settings.petTypes).toEqual([
-      { petType: 'cat', label: 'Cats', enabled: false },
-      { petType: 'dog', label: 'Dogs', enabled: true },
-      { petType: 'rabbit', label: 'Rabbits', enabled: true },
-    ]);
-    const bad = await app.request(
-      '/api/sunny-paws/admin/settings',
-      {
-        method: 'PUT',
-        headers: await auth(TENANT_A, true),
-        body: JSON.stringify({ petTypes: ['dragon'] }),
-      },
-      env,
-    );
-    expect(bad.status).toBe(400);
+    // Registry untouched — behavior lives on each service's acceptance list now.
+    expect(settings.petTypes.map((p) => p.petType)).toEqual(['cat', 'dog', 'rabbit']);
   });
 
   it('per-service acceptedPetTypes: PATCH keeps current when absent; empty on enabled -> 400; unknown slug -> 400; null clears', async () => {
@@ -281,7 +269,7 @@ describe('settings GET/PUT — rows drive pet types', () => {
     expect(settings.services.find((s) => s.type === 'boarding')?.acceptedPetTypes).toBeNull();
   });
 
-  it('public config exposes enabled {slug,label} pairs and per-service acceptance', async () => {
+  it('public config exposes the FULL registry as {slug,label} pairs plus per-service acceptance', async () => {
     const { env } = createTestEnv();
     await app.request(
       '/api/sunny-paws/admin/settings',
@@ -289,7 +277,6 @@ describe('settings GET/PUT — rows drive pet types', () => {
         method: 'PUT',
         headers: await auth(TENANT_A, true),
         body: JSON.stringify({
-          petTypes: ['dog', 'rabbit'],
           services: [
             {
               type: 'boarding',
@@ -307,6 +294,7 @@ describe('settings GET/PUT — rows drive pet types', () => {
       services: { type: string; acceptedPetTypes: string[] | null }[];
     };
     expect(cfg.petTypes).toEqual([
+      { slug: 'cat', label: 'Cats' },
       { slug: 'dog', label: 'Dogs' },
       { slug: 'rabbit', label: 'Rabbits' },
     ]);
@@ -326,8 +314,8 @@ describe('settings GET/PUT — rows drive pet types', () => {
     });
     const settings = await getSettings(env, 'fresh-paws', 'tnt_fresh');
     expect(settings.petTypes).toEqual([
-      { petType: 'cat', label: 'Cats', enabled: true },
-      { petType: 'dog', label: 'Dogs', enabled: true },
+      { petType: 'cat', label: 'Cats' },
+      { petType: 'dog', label: 'Dogs' },
     ]);
   });
 });

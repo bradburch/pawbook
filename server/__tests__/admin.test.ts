@@ -60,7 +60,6 @@ describe('tenant admin', () => {
         body: JSON.stringify({
           displayName: 'Sunny Paws Deluxe',
           accentColor: '#10b981',
-          petTypes: ['dog', 'cat'],
           services: [
             {
               type: 'boarding',
@@ -244,7 +243,7 @@ describe('tenant admin', () => {
     expect(res.calendar).toEqual({ status: 'disconnected', connectedAt: null, calendarId: null });
   });
 
-  it('saves pet types and free-typed service options, reflected in config', async () => {
+  it('saves free-typed service options, reflected in config (top-level petTypes is ignored)', async () => {
     const { env } = createTestEnv();
     const put = await app.request(
       '/api/sunny-paws/admin/settings',
@@ -252,7 +251,7 @@ describe('tenant admin', () => {
         method: 'PUT',
         headers: await auth(TENANT_A, true),
         body: JSON.stringify({
-          petTypes: ['cat'],
+          petTypes: ['cat'], // stale client payload — the registry no longer takes this field
           services: [
             {
               type: 'walk',
@@ -272,15 +271,18 @@ describe('tenant admin', () => {
       petTypes: { slug: string; label: string }[];
       services: { type: string; options: { durationMinutes: number | null; rate: number }[] }[];
     };
-    // petTypes: ['cat'] drives ALL of the tenant's rows now (dog + rabbit are also
-    // seeded) — only cat stays enabled; dog and rabbit are turned off, not left untouched.
-    expect(cfg.petTypes).toEqual([{ slug: 'cat', label: 'Cats' }]);
+    // The registry is untouched by the stale petTypes field — full seeded registry stays.
+    expect(cfg.petTypes).toEqual([
+      { slug: 'cat', label: 'Cats' },
+      { slug: 'dog', label: 'Dogs' },
+      { slug: 'rabbit', label: 'Rabbits' },
+    ]);
     const walk = cfg.services.find((s) => s.type === 'walk')!;
     expect(walk.options).toHaveLength(2);
     expect(walk.options.find((o) => o.durationMinutes === 40)?.rate).toBe(19);
   });
 
-  it('rejects an unknown pet type without persisting', async () => {
+  it('an unknown top-level pet type is silently ignored, not rejected', async () => {
     const { env } = createTestEnv();
     const res = await app.request(
       '/api/sunny-paws/admin/settings',
@@ -291,7 +293,7 @@ describe('tenant admin', () => {
       },
       env,
     );
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(204);
   });
 
   it('accepts two options sharing a duration but not a name, with distinct keys', async () => {

@@ -113,14 +113,18 @@ export const bookingRoutes = new Hono<AppEnv>()
     const pets = chosen.length;
     if (!isValidPetCount(pets)) return c.json({ error: 'Too many pets.' }, 400);
     const acceptedTypes = await listPetTypes(c.env.PAWBOOK_DB, tenant.Id);
+    // Registry membership: a pet whose slug isn't a TenantPetTypes row at all is corrupt data.
+    // The BEHAVIORAL gate is the per-service acceptance check below (0015 — the tenant-level
+    // enabled switch is retired).
     for (const p of chosen) {
-      if (!acceptedTypes.find((pt) => pt.PetType === p!.PetType && pt.Enabled))
+      if (!acceptedTypes.find((pt) => pt.PetType === p!.PetType))
         return c.json({ error: 'That pet type is not accepted.' }, 400);
     }
     const petType = chosen[0]!.PetType;
 
-    // Tenant-level disable (above) always wins; this is the service's OWN restriction. Checks
-    // EVERY selected pet, not the denormalized single BookingRequests.PetType.
+    // The service's OWN restriction — the single behavioral gate. A type is bookable iff some
+    // enabled service accepts it, enforced per booking by that service's list (NULL = accepts
+    // every registry type). Checks EVERY selected pet, not the denormalized single PetType.
     const labelBySlug = new Map(acceptedTypes.map((r) => [r.PetType, r.Label]));
     const acceptanceError = validatePetTypeAcceptance(
       service.AcceptedPetTypes,
