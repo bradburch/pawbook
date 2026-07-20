@@ -55,7 +55,6 @@ INSERT OR REPLACE INTO TenantServiceOptions (Id, TenantId, ServiceType, OptionKe
   ('opt_sp_walk90', 'tnt_sunnypaws', 'walk', 'd90', '90 minutes', 90, 30, 'visit'),
   ('opt_sp_chk15', 'tnt_sunnypaws', 'checkin', 'd15', '15 minutes', 15, 12, 'visit'),
   ('opt_sp_chk30', 'tnt_sunnypaws', 'checkin', 'd30', '30 minutes', 30, 18, 'visit'),
-  ('opt_sp_mw30', 'tnt_sunnypaws', 'morning-walk', 'd30', '30 minutes', 30, 18, 'visit'),
   ('opt_ht_board', 'tnt_happytails', 'boarding', 'standard', 'Standard', NULL, 40, 'night'),
   ('opt_ht_day', 'tnt_happytails', 'daycare', 'standard', 'Standard', NULL, 35, 'day'),
   ('opt_ht_walk30', 'tnt_happytails', 'walk', 'd30', '30 minutes', 30, 25, 'visit'),
@@ -69,6 +68,13 @@ INSERT OR REPLACE INTO TenantServiceOptions (Id, TenantId, ServiceType, OptionKe
 INSERT OR REPLACE INTO TenantServiceOptions
   (Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, StartTime, EndTime, Capacity) VALUES
   ('opt_ht_group_walk', 'tnt_happytails', 'walk', 'group-8-9', 'Group walk 8:00-9:00am', 60, 18, 'visit', '08:00', '09:00', 3);
+
+-- Sunny Paws' custom morning walk is weekday-only (WeekdaysOnly=1): the widget greys Sat/Sun
+-- and the server rejects weekend bookings. Plausible sitter behavior that keeps the landing
+-- page's greyed-weekend calendar screenshot honest and demos the rule on a fresh seed.
+INSERT OR REPLACE INTO TenantServiceOptions
+  (Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, WeekdaysOnly) VALUES
+  ('opt_sp_mw30', 'tnt_sunnypaws', 'morning-walk', 'd30', '30 minutes', 30, 18, 'visit', 1);
 
 -- Accepted species: Sunny Paws takes dogs + cats + rabbits (rabbit demos custom types end to
 -- end); Happy Tails dogs only (cat row present but disabled, matching the 0014 backfill);
@@ -108,9 +114,9 @@ INSERT OR REPLACE INTO BookingRequests (Id, TenantId, EndUserId, ServiceType, St
 
 -- Pending requests so the admin "Needs your reply" list has real work in it on a fresh seed.
 INSERT OR REPLACE INTO BookingRequests (Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, OptionKey, PetType, PetCount, StartTime, EstCost, Status) VALUES
-  ('seed_sp_pend1', 'tnt_sunnypaws', 'eu_sp_jess', 'walk', '2026-07-10', NULL, 'd30', 'dog', 1, '09:00', 20, 'pending'),
-  ('seed_sp_pend2', 'tnt_sunnypaws', 'eu_sp_jess', 'boarding', '2026-07-20', '2026-07-23', NULL, 'dog', 1, NULL, 150, 'pending'),
-  ('seed_ht_pend1', 'tnt_happytails', 'eu_ht_jess', 'walk', '2026-07-12', NULL, 'd60', 'dog', 1, '15:00', 40, 'pending');
+  ('seed_sp_pend1', 'tnt_sunnypaws', 'eu_sp_jess', 'walk', '2026-08-10', NULL, 'd30', 'dog', 1, '09:00', 20, 'pending'),
+  ('seed_sp_pend2', 'tnt_sunnypaws', 'eu_sp_jess', 'boarding', '2026-08-20', '2026-08-23', NULL, 'dog', 1, NULL, 150, 'pending'),
+  ('seed_ht_pend1', 'tnt_happytails', 'eu_ht_jess', 'walk', '2026-08-12', NULL, 'd60', 'dog', 1, '15:00', 40, 'pending');
 
 INSERT OR REPLACE INTO ProviderConnections (Id, TenantId, Capability, Provider, Status) VALUES
   ('seed_sp_cal', 'tnt_sunnypaws', 'calendar', 'google-calendar', 'disconnected'),
