@@ -80,12 +80,13 @@ app.get('/demo', page('demo.html'));
 app.get('/setup', page('setup.html')); // create-password page for emailed signup links
 
 /**
- * Root landing page: a self-contained capability page for prospective sitters. Static and
- * script-free (served under LOCKED_CSP, so only inline styles are allowed — NO <script>, no
- * external fonts/CSS/images), so it needs no build step. There is no interactivity at all
- * (native HTML/CSS only; the FAQ is a static Q&A, not <details>/<summary>). The embed snippet
- * below is shown as escaped text (&lt;script&gt;…) so the served body genuinely contains no
- * <script tag.
+ * Root landing page: a marketing page for prospective pet sitters, built around real
+ * screenshots of the seeded demo (public/img/landing/*.webp). Static and script-free (served
+ * under LOCKED_CSP, so only inline styles and same-origin images are allowed — NO <script>,
+ * no external fonts/CSS/images), so it needs no build step. There is no interactivity at all.
+ * The embed snippet below is shown as escaped text (&lt;script&gt;…) so the served body
+ * genuinely contains no <script tag. Screenshot regeneration recipe (fixed 2028 seed months):
+ * docs/superpowers/specs/2026-07-19-landing-marketing-redesign.md.
  */
 const LANDING_HTML = `<!doctype html>
 <html lang="en">
@@ -134,7 +135,7 @@ const LANDING_HTML = `<!doctype html>
         padding: 40px 22px 64px;
       }
 
-      /* ── Utility type: mono eyebrows / folios / captions ─────────── */
+      /* ── Utility type: mono eyebrows / captions ─────────────────── */
       .eyebrow {
         font-family: var(--mono);
         font-size: 0.66rem;
@@ -144,21 +145,30 @@ const LANDING_HTML = `<!doctype html>
         margin: 0;
       }
 
-      /* ── Signature: the ledger card ─────────────────────────────── */
-      .hero { text-align: center; }
-      .ledger {
+      /* ── Signature: screenshots as physical objects on the paper ── */
+      .shot {
         position: relative;
-        text-align: left;
-        max-width: 460px;
-        margin: 0 auto;
         background: var(--paper-2);
         border: 1px solid var(--rule);
         border-radius: 4px;
-        padding: 18px 20px 20px;
+        padding: 10px;
         box-shadow:
           0 1px 0 #fff inset,
           0 18px 40px -26px rgba(38, 49, 46, 0.6);
         transform: rotate(-0.7deg);
+      }
+      .shot img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--rule);
+        border-radius: 2px;
+      }
+      .shot-tilt-r { transform: rotate(0.6deg); }
+      .hero-shot {
+        max-width: 440px;
+        margin: 0 auto;
+        text-align: left;
       }
       /* Penciled marginalia — a bookkeeper's aside, the page's quiet signature. */
       .marginalia {
@@ -172,60 +182,22 @@ const LANDING_HTML = `<!doctype html>
         transform: rotate(-4deg);
         pointer-events: none;
       }
-      .ledger-head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid var(--ink);
-      }
-      .ledger-head .eyebrow { line-height: 1.5; }
-      .ledger-head .eyebrow b {
-        display: block;
-        color: var(--ink);
-        font-weight: 700;
-        letter-spacing: 0.24em;
-        font-size: 0.78rem;
-      }
+      /* The red paw BOOKED stamp, spent where the promise lands: "you confirm it". */
       .stamp {
-        flex: none;
-        width: 66px;
-        height: 66px;
-        margin-top: -2px;
         color: var(--stamp);
         opacity: 0.88;
-        transform: rotate(-9deg);
       }
-      .entries {
-        margin: 0;
-        font-family: var(--mono);
-        font-size: 0.82rem;
-      }
-      .entry {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 2px 12px;
-        align-items: baseline;
-        padding: 9px 0;
-        border-bottom: 1px solid var(--rule);
-      }
-      .entry:last-child { border-bottom: 0; padding-bottom: 2px; }
-      .entry .who { font-weight: 700; color: var(--ink); }
-      .entry .when {
-        grid-column: 1;
-        color: var(--soft);
-        font-size: 0.74rem;
-      }
-      .entry .cost {
-        grid-column: 2;
-        grid-row: 1 / span 2;
-        align-self: center;
-        color: var(--accent);
-        font-weight: 700;
+      .stamp-over {
+        position: absolute;
+        top: -18px;
+        right: -12px;
+        width: 70px;
+        height: 70px;
+        transform: rotate(-11deg);
       }
 
       /* ── Wordmark + hero copy ───────────────────────────────────── */
+      .hero { text-align: center; }
       .brand {
         margin: 46px 0 8px;
         font-family: var(--serif);
@@ -243,7 +215,7 @@ const LANDING_HTML = `<!doctype html>
       }
       .sub {
         margin: 0 auto 28px;
-        max-width: 42ch;
+        max-width: 44ch;
         color: var(--soft);
         font-size: 1rem;
       }
@@ -287,7 +259,7 @@ const LANDING_HTML = `<!doctype html>
         padding-bottom: 1px;
       }
       a.quiet:hover { color: var(--ink); }
-      .deploy-note {
+      .invite-note {
         margin: 4px auto 0;
         max-width: 46ch;
         font-family: var(--mono);
@@ -296,14 +268,19 @@ const LANDING_HTML = `<!doctype html>
         letter-spacing: 0.01em;
         color: var(--soft);
       }
+      .invite-note a {
+        color: var(--ink);
+        text-decoration: underline;
+        text-decoration-color: var(--accent);
+        text-underline-offset: 2px;
+      }
 
-      /* ── Section rhythm ─────────────────────────────────────────── */
+      /* ── Section rhythm + running heads ─────────────────────────── */
       .section {
         margin-top: 60px;
         padding-top: 22px;
         border-top: 2px solid var(--ink);
       }
-      /* ── Running heads: a book's pages announce themselves, verso & recto ── */
       .runhead {
         display: flex;
         flex-wrap: wrap;
@@ -333,57 +310,46 @@ const LANDING_HTML = `<!doctype html>
         color: var(--soft);
       }
 
-      /* ── What it does: one opening entry, then a book of accounts ── */
-      .cap {
+      /* ── What your clients see: the numbered 3-step strip ───────── */
+      .steps {
+        list-style: none;
+        margin: 0;
+        padding: 0;
         display: grid;
-        gap: 34px 46px;
+        gap: 44px 26px;
       }
-      .cap-lead {
-        border-left: 3px solid var(--accent);
-        padding-left: 20px;
-      }
-      .cap-lead .kicker {
-        margin: 0 0 12px;
-        font-family: var(--mono);
-        font-size: 0.66rem;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-      .cap-lead h3 {
-        margin: 0 0 12px;
+      .step h3 {
+        margin: 0 0 6px;
         font-family: var(--serif);
+        font-size: 1.15rem;
         font-weight: 700;
-        font-size: clamp(1.5rem, 5vw, 1.95rem);
-        line-height: 1.12;
-        letter-spacing: -0.01em;
+        line-height: 1.2;
       }
-      .cap-lead p {
-        margin: 0 0 14px;
-        font-size: 1.04rem;
-        line-height: 1.5;
-        max-width: 36ch;
-      }
-      .cap-lead .fine {
-        display: block;
-        margin: 0;
+      .step .step-no {
         font-family: var(--mono);
-        font-size: 0.73rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--accent);
+        margin-right: 6px;
+      }
+      .step p {
+        margin: 0 0 16px;
+        color: var(--soft);
+        font-size: 0.92rem;
         line-height: 1.5;
-        color: var(--soft);
+        max-width: 38ch;
       }
-      .book-group + .book-group { margin-top: 24px; }
-      .book-group h4 {
-        margin: 0;
-        padding-bottom: 7px;
-        font-family: var(--mono);
-        font-size: 0.66rem;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: var(--soft);
-        border-bottom: 2px solid var(--ink);
+      @media (min-width: 720px) {
+        .steps { grid-template-columns: 1fr 1fr 1fr; }
       }
-      .book-group dl { margin: 0; }
+
+      /* ── What you control: admin shot beside the ledger lines ───── */
+      .control {
+        display: grid;
+        gap: 40px 46px;
+      }
+      .control-shot { align-self: start; }
+      .control dl { margin: 0; }
       .line {
         display: grid;
         grid-template-columns: 1fr;
@@ -391,6 +357,7 @@ const LANDING_HTML = `<!doctype html>
         padding: 10px 0;
         border-bottom: 1px solid var(--rule);
       }
+      .line:first-child { border-top: 2px solid var(--ink); }
       .line:last-child { border-bottom: 0; }
       .line dt {
         font-family: var(--mono);
@@ -409,22 +376,14 @@ const LANDING_HTML = `<!doctype html>
         .line { grid-template-columns: 8.5rem 1fr; align-items: baseline; }
       }
       @media (min-width: 760px) {
-        .cap { grid-template-columns: 0.92fr 1.08fr; align-items: start; }
+        .control { grid-template-columns: 0.95fr 1.05fr; align-items: start; }
       }
 
-      /* ── Drop it in: words to the left, the receipt to the right ── */
+      /* ── How it installs: words left, the slip right ────────────── */
       .embed-grid {
         display: grid;
         gap: 22px 46px;
         align-items: start;
-      }
-      .embed-say h2 {
-        margin: 0 0 12px;
-        font-family: var(--serif);
-        font-weight: 700;
-        font-size: clamp(1.6rem, 5.5vw, 2.1rem);
-        line-height: 1.08;
-        letter-spacing: -0.01em;
       }
       .embed-say p {
         margin: 0;
@@ -434,8 +393,6 @@ const LANDING_HTML = `<!doctype html>
       @media (min-width: 720px) {
         .embed-grid { grid-template-columns: 0.82fr 1.18fr; }
       }
-
-      /* ── Embed slip ─────────────────────────────────────────────── */
       .slip {
         background: var(--paper-2);
         border: 1px solid var(--rule);
@@ -470,7 +427,7 @@ const LANDING_HTML = `<!doctype html>
         color: var(--soft);
       }
 
-      /* ── The fine print: answers laid open in two columns, no toggles ── */
+      /* ── Common questions: answers laid open, no toggles ────────── */
       .qa {
         display: grid;
         gap: 0 46px;
@@ -495,38 +452,36 @@ const LANDING_HTML = `<!doctype html>
         max-width: 42ch;
       }
       .qa-item p strong { color: var(--ink); font-weight: 700; }
-      .qa-item a {
-        color: var(--ink);
-        text-decoration: underline;
-        text-decoration-color: var(--accent);
-        text-underline-offset: 2px;
-      }
       @media (min-width: 640px) {
         .qa { grid-template-columns: 1fr 1fr; }
       }
 
-      /* ── Footer ─────────────────────────────────────────────────── */
+      /* ── Invite band ────────────────────────────────────────────── */
+      .invite { text-align: center; }
+      .invite p {
+        margin: 0 auto 22px;
+        max-width: 44ch;
+        color: var(--soft);
+      }
+      .invite .links { margin-top: 16px; }
+
+      /* ── Footer: one OSS line for the technical reader's exit ───── */
       .foot {
         margin-top: 56px;
         padding-top: 20px;
         border-top: 2px solid var(--ink);
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px 14px;
         font-family: var(--mono);
-        font-size: 0.68rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
+        font-size: 0.72rem;
+        line-height: 1.7;
         color: var(--soft);
       }
+      .foot p { margin: 0; }
       .foot a {
         color: var(--soft);
         text-decoration: none;
         border-bottom: 1px solid var(--accent);
       }
       .foot a:hover { color: var(--ink); }
-      .foot .dot { opacity: 0.5; }
 
       :focus-visible {
         outline: 3px solid var(--accent);
@@ -542,44 +497,22 @@ const LANDING_HTML = `<!doctype html>
   <body>
     <main class="page">
       <header class="hero">
-        <div class="ledger" aria-hidden="true">
-          <div class="ledger-head">
-            <p class="eyebrow">Pawbook<b>Day book</b>Wed &middot; Jul 2</p>
-            <svg class="stamp" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
-              <circle cx="50" cy="50" r="47" fill="none" stroke="currentColor" stroke-width="2.5" />
-              <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" stroke-width="1" />
-              <ellipse cx="50" cy="44" rx="14" ry="11.5" />
-              <ellipse cx="30" cy="34" rx="6.4" ry="8.4" />
-              <ellipse cx="42" cy="26" rx="6.4" ry="8.8" />
-              <ellipse cx="58" cy="26" rx="6.4" ry="8.8" />
-              <ellipse cx="70" cy="34" rx="6.4" ry="8.4" />
-              <text x="50" y="72" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" font-weight="700" letter-spacing="1.5">BOOKED</text>
-            </svg>
-          </div>
-          <div class="entries">
-            <div class="entry">
-              <span class="who">Bella</span>
-              <span class="cost">$180</span>
-              <span class="when">boarding &middot; Jul 2&ndash;5 &middot; 3 nights</span>
-            </div>
-            <div class="entry">
-              <span class="who">Otis</span>
-              <span class="cost">$22</span>
-              <span class="when">dog walk &middot; Jul 3 &middot; 8&ndash;9am</span>
-            </div>
-            <div class="entry">
-              <span class="who">Mochi</span>
-              <span class="cost">$240</span>
-              <span class="when">house-sit &middot; Jul 6&ndash;9</span>
-            </div>
-          </div>
-          <span class="marginalia" aria-hidden="true">the day, all in one place</span>
+        <!-- Screenshots below are captured from the seeded demo (fixed 2028 months, never
+             "today"). Regenerate via the recipe in
+             docs/superpowers/specs/2026-07-19-landing-marketing-redesign.md whenever the
+             widget's look changes. -->
+        <div class="shot hero-shot">
+          <img
+            src="/img/landing/widget-hero.webp"
+            alt="The Pawbook booking widget: a June calendar with a three-night boarding stay selected and a $150 quote"
+          />
+          <span class="marginalia" aria-hidden="true">what your clients see</span>
         </div>
 
         <h1 class="brand">Pawbook</h1>
-        <p class="lede">A booking widget for your pet-sitting business.</p>
+        <p class="lede">Your own booking page, on your own website.</p>
         <p class="sub">
-          It goes on your own site, with your services and rates. Clients request bookings,
+          It lives on your site with your services and your rates. Clients request the dates,
           you confirm or decline, and Pawbook keeps track of what you&rsquo;re owed.
         </p>
 
@@ -587,64 +520,100 @@ const LANDING_HTML = `<!doctype html>
           <a class="cta" href="/demo">Try the demo &rarr;</a>
           <div class="links">
             <a class="quiet" href="/admin">Sitter sign in &rarr;</a>
-            <a class="quiet" href="https://github.com/bradburch/pawbook">View source / self-host &rarr;</a>
           </div>
-          <p class="deploy-note">
-            Pawbook is invite-only right now &mdash; sign in if you have an account. It&rsquo;s also open source, so you can deploy your own copy on Cloudflare Workers.
+          <p class="invite-note">
+            Pawbook is invite-only right now &mdash;
+            <a href="mailto:bradburch@duck.com?subject=Pawbook%20invite">ask for an invite</a>
+            or <a href="/admin">sign in</a> if you have an account.
           </p>
         </div>
       </header>
 
-      <section class="section" aria-labelledby="work">
+      <section class="section" aria-labelledby="clients">
         <div class="runhead">
-          <h2 id="work">What it does</h2>
+          <h2 id="clients">What your clients see</h2>
           <span class="rule" aria-hidden="true"></span>
-          <span class="tab">overview</span>
+          <span class="tab">booking, in three steps</span>
         </div>
-        <div class="cap">
-          <div class="cap-lead">
-            <p class="kicker">Start here</p>
-            <h3>It lives on your site, not ours.</h3>
-            <p>
-              One line of HTML puts the booking widget on your own page (Squarespace, Wix, or hand-built). It resizes to fit, and clients book without leaving your site.
-            </p>
-            <span class="fine">A plain-iframe version stands in for hosts that strip scripts.</span>
+        <ol class="steps">
+          <li class="step">
+            <h3><span class="step-no" aria-hidden="true">1</span>They pick a service</h3>
+            <p>Your services, under your names and your prices &mdash; boarding, day care, walks, or anything you invent.</p>
+            <div class="shot">
+              <img
+                src="/img/landing/step-services.webp"
+                alt="The widget's service picker: Boarding selected from a row of services including House sitting, Day care, Walks, Check-ins, and Morning walk"
+              />
+            </div>
+          </li>
+          <li class="step">
+            <h3><span class="step-no" aria-hidden="true">2</span>They pick the dates</h3>
+            <p>Days you can&rsquo;t take aren&rsquo;t offered: full days are struck out, and a weekday-only service greys the weekends.</p>
+            <div class="shot shot-tilt-r">
+              <img
+                src="/img/landing/step-calendar.webp"
+                alt="Month grid where full days are struck through and weekends are greyed out for a weekday-only service"
+              />
+            </div>
+          </li>
+          <li class="step">
+            <h3><span class="step-no" aria-hidden="true">3</span>They send the request &mdash; you confirm it</h3>
+            <p>A request arrives with dates, pets, and an estimated cost. Nothing is booked until you say so.</p>
+            <div class="shot">
+              <img
+                src="/img/landing/step-request.webp"
+                alt="Booking summary showing the selected dates, an estimated cost of $150, and a Send request button"
+              />
+              <svg class="stamp stamp-over" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+                <circle cx="50" cy="50" r="47" fill="none" stroke="currentColor" stroke-width="2.5" />
+                <circle cx="50" cy="50" r="41" fill="none" stroke="currentColor" stroke-width="1" />
+                <ellipse cx="50" cy="44" rx="14" ry="11.5" />
+                <ellipse cx="30" cy="34" rx="6.4" ry="8.4" />
+                <ellipse cx="42" cy="26" rx="6.4" ry="8.8" />
+                <ellipse cx="58" cy="26" rx="6.4" ry="8.8" />
+                <ellipse cx="70" cy="34" rx="6.4" ry="8.4" />
+                <text x="50" y="72" text-anchor="middle" font-family="ui-monospace, monospace" font-size="9" font-weight="700" letter-spacing="1.5">BOOKED</text>
+              </svg>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="section" aria-labelledby="control">
+        <div class="runhead">
+          <h2 id="control">What you control</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="tab">your dashboard</span>
+        </div>
+        <div class="control">
+          <div class="shot shot-tilt-r control-shot">
+            <img
+              src="/img/landing/admin-bookings.webp"
+              alt="The sitter dashboard's bookings list: pending requests with Confirm and Decline buttons"
+            />
+            <span class="marginalia" aria-hidden="true">nothing books itself</span>
           </div>
-          <div class="book">
-            <div class="book-group">
-              <h4>Your rules</h4>
-              <dl>
-                <div class="line"><dt>Services &amp; rates</dt><dd>Boarding, house-sitting, day care, walks, check-ins, or a custom service, each with its own price and length.</dd></div>
-                <div class="line"><dt>Walk windows</dt><dd>Timed slots like 8&ndash;9am, each with its own capacity.</dd></div>
-                <div class="line"><dt>Limits &amp; intake</dt><dd>Min/max nights, pet counts, and your own questions per service.</dd></div>
-                <div class="line"><dt>Daily caps</dt><dd>Boarding cap, house-sits cap, longest stay, time off, timezone. A full day won&rsquo;t be offered.</dd></div>
-              </dl>
-            </div>
-            <div class="book-group">
-              <h4>Every request</h4>
-              <dl>
-                <div class="line"><dt>You decide</dt><dd>Confirm, decline, or cancel. Nothing books itself.</dd></div>
-                <div class="line"><dt>Clients hear back</dt><dd>Status emails send automatically; the dashboard flags any that failed.</dd></div>
-                <div class="line"><dt>On your calendar</dt><dd>Confirmed bookings push to your Google Calendar.</dd></div>
-              </dl>
-            </div>
-            <div class="book-group">
-              <h4>The money</h4>
-              <dl>
-                <div class="line"><dt>Clients &amp; pets</dt><dd>Invite by email or CSV up to 500. Keep profiles and care notes.</dd></div>
-                <div class="line"><dt>Payments</dt><dd>Cash, Venmo, Zelle, PayPal, check &mdash; deposits and partials too.</dd></div>
-                <div class="line"><dt>Earnings</dt><dd>This month against last, what&rsquo;s outstanding, a year of revenue, your top clients.</dd></div>
-              </dl>
-            </div>
-          </div>
+          <dl>
+            <div class="line"><dt>Rates &amp; services</dt><dd>Boarding, house-sitting, day care, walks, check-ins, or your own custom service &mdash; each with its own price.</dd></div>
+            <div class="line"><dt>Caps &amp; time off</dt><dd>A boarding cap, a house-sits-per-day cap, a longest stay, your days off. A full day isn&rsquo;t offered.</dd></div>
+            <div class="line"><dt>Every request</dt><dd>Confirm, decline, or cancel &mdash; clients hear back by email automatically.</dd></div>
+            <div class="line"><dt>Clients &amp; pets</dt><dd>Invite by email or CSV up to 500. Keep profiles and care notes.</dd></div>
+            <div class="line"><dt>Payments</dt><dd>Cash, Venmo, Zelle, PayPal, check &mdash; deposits and partials too.</dd></div>
+            <div class="line"><dt>Earnings</dt><dd>This month against last, what&rsquo;s outstanding, a year of revenue.</dd></div>
+            <div class="line"><dt>Google Calendar</dt><dd>Confirmed bookings push straight to your calendar.</dd></div>
+          </dl>
         </div>
       </section>
 
-      <section class="section" aria-labelledby="embed">
+      <section class="section" aria-labelledby="install">
+        <div class="runhead">
+          <h2 id="install">How it installs</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="tab">one line</span>
+        </div>
         <div class="embed-grid">
           <div class="embed-say">
-            <h2 id="embed">Paste one line where you want it.</h2>
-            <p>Change the slug to yours and save. No plugins or theme changes needed.</p>
+            <p>Adding it is one line &mdash; paste it into Squarespace, Wix, or any page, change the slug to yours, and save. The widget sizes itself to fit.</p>
           </div>
           <div class="slip">
             <div class="slip-cap">
@@ -657,14 +626,14 @@ const LANDING_HTML = `<!doctype html>
         <span class="attr">data-height</span>=&quot;520&quot;<span class="tag">&gt;&lt;/script&gt;</span></pre>
             </div>
             <p class="slip-foot">
-              If your host strips scripts, paste the plain-iframe version instead. Same widget, no JavaScript needed.
+              If your host strips scripts, paste the plain-iframe version instead &mdash; same widget, no JavaScript needed.
             </p>
           </div>
         </div>
       </section>
 
       <section class="section" aria-labelledby="faq">
-        <div class="runhead mirror">
+        <div class="runhead">
           <span class="tab">details</span>
           <span class="rule" aria-hidden="true"></span>
           <h2 id="faq">Common questions</h2>
@@ -690,23 +659,29 @@ const LANDING_HTML = `<!doctype html>
             <h3>Can I charge more for a second dog?</h3>
             <p><strong>No.</strong> Rates are flat per service. A second pet uses a slot of your capacity, not extra money.</p>
           </div>
-          <div class="qa-item">
-            <h3>How do I get an account?</h3>
-            <p><strong>Pawbook is invite-only right now.</strong> <a href="/admin">Sign in</a> if you have an account. It&rsquo;s also open source (MIT), so you can <a href="https://github.com/bradburch/pawbook">deploy your own copy</a> on Cloudflare Workers.</p>
-          </div>
+        </div>
+      </section>
+
+      <section class="section invite" aria-labelledby="invite">
+        <div class="runhead">
+          <h2 id="invite">Want in?</h2>
+          <span class="rule" aria-hidden="true"></span>
+          <span class="tab">invite-only</span>
+        </div>
+        <p>Pawbook is invite-only while it grows. Ask, and we&rsquo;ll set up your services, rates, and booking page.</p>
+        <a class="cta" href="mailto:bradburch@duck.com?subject=Pawbook%20invite">Ask for an invite &rarr;</a>
+        <div class="links">
+          <a class="quiet" href="/admin">Already have an account? Sign in &rarr;</a>
         </div>
       </section>
 
       <footer class="foot">
-        <span>Pawbook</span>
-        <span class="dot" aria-hidden="true">&middot;</span>
-        <span>Open source</span>
-        <span class="dot" aria-hidden="true">&middot;</span>
-        <span>MIT</span>
-        <span class="dot" aria-hidden="true">&middot;</span>
-        <span>Runs on Cloudflare Workers</span>
-        <span class="dot" aria-hidden="true">&middot;</span>
-        <a href="https://github.com/bradburch/pawbook">GitHub</a>
+        <p>
+          Pawbook is open source (MIT) &mdash;
+          <a href="https://github.com/bradburch/pawbook">source &amp; technical docs on GitHub</a>
+          &middot;
+          <a href="https://github.com/bradburch/pawbook/blob/main/docs/index.md">project page</a>
+        </p>
       </footer>
     </main>
   </body>
