@@ -38,9 +38,6 @@ function tenant(over: Partial<Tenant> = {}): Tenant {
     Slug: 'sunny-paws',
     DisplayName: 'Sunny Paws',
     AccentColor: '#000000',
-    MaxBoardingPets: 2,
-    MaxHouseSitsPerDay: null,
-    MaxStayNights: null,
     Timezone: null,
     ContactEmail: null,
     ContactPhone: null,
@@ -172,6 +169,22 @@ describe('availability API — regression guards', () => {
     expect(badType.status).toBe(400);
     expect(badDate.status).toBe(400);
     expect(badRange.status).toBe(400);
+  });
+
+  it('the public quote enforces the service MaxNights (F3 fix — quote and booking now agree)', async () => {
+    const { env, raw } = createTestEnv();
+    raw
+      .prepare(
+        `UPDATE TenantServices SET MaxNights = 3 WHERE TenantId = 'tnt_sunnypaws' AND ServiceType = 'boarding'`,
+      )
+      .run();
+    const res = await app.request(
+      '/api/sunny-paws/availability?type=boarding&start=2027-06-01&end=2027-06-08&pets=1',
+      {},
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe('Stays are limited to 3 nights.');
   });
 });
 
@@ -305,7 +318,7 @@ describe('checkAvailability', () => {
 
   it('house-sit conflicts when it overlaps existing boarding by more than a day', async () => {
     const { env } = createTestEnv();
-    const t = tenant(); // MaxHouseSitsPerDay null = unlimited; conflict must come from overlap rule
+    const t = tenant(); // housesit cap null = unlimited; conflict must come from overlap rule
     const o = opt({
       ServiceType: 'housesitting',
       OptionKey: 'standard',

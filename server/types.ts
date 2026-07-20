@@ -9,9 +9,6 @@ export type Tenant = {
   Slug: string;
   DisplayName: string;
   AccentColor: string;
-  MaxBoardingPets: number | null; // null = unlimited
-  MaxHouseSitsPerDay: number | null; // null = unlimited
-  MaxStayNights: number | null; // null = unlimited
   Timezone: string | null; // null = DEFAULT_TIMEZONE
   ContactEmail: string | null; // shown to clients in the booking widget
   ContactPhone: string | null; // shown to clients in the booking widget

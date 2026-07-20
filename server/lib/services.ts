@@ -8,8 +8,8 @@
 
 export type ServiceShape = 'range' | 'single';
 export type RateUnit = 'night' | 'day' | 'visit';
-/** 'boarding' = pet-counted vs MaxBoardingPets; 'housesit' = day-counted vs MaxHouseSitsPerDay;
- * 'none' = unlimited (blocked days only). Pool names, not service names. */
+/** 'boarding' = pet-counted vs the service's own MaxConcurrentPets; 'housesit' = day-counted vs
+ * its own MaxPerDay; 'none' = unlimited (blocked days only). Capacity rules, not service names. */
 export type CapacityKind = 'boarding' | 'housesit' | 'none';
 
 /** Service identifiers are per-tenant slugs now — validated against TenantServices rows, not an enum. */

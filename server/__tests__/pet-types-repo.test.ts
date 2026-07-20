@@ -111,6 +111,8 @@ describe('AcceptedPetTypes round-trip (repo)', () => {
       minPetCount: before.MinPetCount,
       maxPetCount: before.MaxPetCount,
       acceptedPetTypes: ['dog'],
+      maxConcurrentPets: before.MaxConcurrentPets,
+      maxPerDay: before.MaxPerDay,
     });
     const after = (await listServices(env.PAWBOOK_DB, TENANT_A)).find(
       (s) => s.ServiceType === 'boarding',

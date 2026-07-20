@@ -297,13 +297,12 @@ type ServiceBody = {
   minPetCount?: number | null;
   maxPetCount?: number | null;
   acceptedPetTypes?: string[] | null;
+  maxConcurrentPets?: number | null;
+  maxPerDay?: number | null;
 };
 type SettingsBody = {
   displayName?: string;
   accentColor?: string;
-  maxBoardingPets?: number | null;
-  maxHouseSitsPerDay?: number | null;
-  maxStayNights?: number | null;
   timezone?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
@@ -318,13 +317,7 @@ type SettingsBody = {
  */
 function patchNullable<T extends number | string>(
   body: SettingsBody,
-  key:
-    | 'maxBoardingPets'
-    | 'maxHouseSitsPerDay'
-    | 'maxStayNights'
-    | 'timezone'
-    | 'contactEmail'
-    | 'contactPhone',
+  key: 'timezone' | 'contactEmail' | 'contactPhone',
   current: T | null,
 ): T | null {
   return key in body ? ((body[key] as T | null | undefined) ?? null) : current;
@@ -345,9 +338,6 @@ export const adminRoutes = new Hono<AppEnv>()
     return c.json({
       displayName: tenant.DisplayName,
       accentColor: tenant.AccentColor,
-      maxBoardingPets: tenant.MaxBoardingPets,
-      maxHouseSitsPerDay: tenant.MaxHouseSitsPerDay,
-      maxStayNights: tenant.MaxStayNights,
       timezone: tenant.Timezone,
       contactEmail: tenant.ContactEmail,
       contactPhone: tenant.ContactPhone,
@@ -371,6 +361,9 @@ export const adminRoutes = new Hono<AppEnv>()
         minPetCount: svc.MinPetCount,
         maxPetCount: svc.MaxPetCount,
         acceptedPetTypes: svc.AcceptedPetTypes,
+        capacityKind: svc.CapacityKind,
+        maxConcurrentPets: svc.MaxConcurrentPets,
+        maxPerDay: svc.MaxPerDay,
         options: options
           .filter((o) => o.ServiceType === svc.ServiceType)
           .map((o) => ({
@@ -399,13 +392,6 @@ export const adminRoutes = new Hono<AppEnv>()
       typeof body.displayName === 'string' ? body.displayName.trim() : tenant.DisplayName;
     const accentColor =
       typeof body.accentColor === 'string' ? body.accentColor : tenant.AccentColor;
-    const maxBoardingPets = patchNullable<number>(body, 'maxBoardingPets', tenant.MaxBoardingPets);
-    const maxHouseSitsPerDay = patchNullable<number>(
-      body,
-      'maxHouseSitsPerDay',
-      tenant.MaxHouseSitsPerDay,
-    );
-    const maxStayNights = patchNullable<number>(body, 'maxStayNights', tenant.MaxStayNights);
     const timezone = patchNullable<string>(body, 'timezone', tenant.Timezone);
     // Whitespace-only contact fields mean "cleared" — store NULL, not ''.
     const rawContactEmail = patchNullable<string>(body, 'contactEmail', tenant.ContactEmail);
@@ -433,23 +419,6 @@ export const adminRoutes = new Hono<AppEnv>()
 
     if (!displayName) return c.json({ error: 'Display name required.' }, 400);
     if (!COLOR_RE.test(accentColor)) return c.json({ error: 'Accent color must be #rrggbb.' }, 400);
-    if (!isNullableLimit(maxBoardingPets, DEFENSIVE_MAX_PET_COUNT))
-      return c.json(
-        { error: 'Boarding capacity must be a positive number, or blank for no limit.' },
-        400,
-      );
-    // DEFENSIVE_MAX_PET_COUNT is reused here purely as a generic "sane capacity integer" ceiling —
-    // a house-sit count isn't a pet count, but the same 1..1000 sanity bound is the right guard.
-    if (!isNullableLimit(maxHouseSitsPerDay, DEFENSIVE_MAX_PET_COUNT))
-      return c.json(
-        { error: 'House-sit capacity must be a positive number, or blank for no limit.' },
-        400,
-      );
-    if (!isNullableLimit(maxStayNights, DEFENSIVE_MAX_NIGHTS))
-      return c.json(
-        { error: 'Max stay nights must be a positive number, or blank for no limit.' },
-        400,
-      );
     if (!isValidTimezone(timezone)) return c.json({ error: 'Unknown timezone.' }, 400);
     if (contactEmail !== null && !EMAIL_RE.test(contactEmail))
       return c.json({ error: 'Contact email must be a valid email address.' }, 400);
@@ -503,6 +472,27 @@ export const adminRoutes = new Hono<AppEnv>()
         );
       if (svc.minPetCount != null && svc.maxPetCount != null && svc.minPetCount > svc.maxPetCount)
         return c.json({ error: `${meta.Label}: min pets cannot exceed max pets.` }, 400);
+      // Per-service caps (0015): same PATCH idiom, same 1..1000 sanity rail as the old tenant
+      // caps. A cap on the wrong CapacityKind is rejected explicitly — silent-ignore would hide
+      // sitter mistakes.
+      if (
+        !isNullableLimit(svc.maxConcurrentPets ?? null, DEFENSIVE_MAX_PET_COUNT) ||
+        !isNullableLimit(svc.maxPerDay ?? null, DEFENSIVE_MAX_PET_COUNT)
+      )
+        return c.json(
+          { error: `${meta.Label}: capacity must be a positive number, or blank for no limit.` },
+          400,
+        );
+      if (svc.maxConcurrentPets != null && meta.CapacityKind !== 'boarding')
+        return c.json(
+          { error: `${meta.Label}: that capacity doesn't apply to this service.` },
+          400,
+        );
+      if (svc.maxPerDay != null && meta.CapacityKind !== 'housesit')
+        return c.json(
+          { error: `${meta.Label}: that capacity doesn't apply to this service.` },
+          400,
+        );
       // Per-service acceptance list: PATCH semantics (absent = keep current). An explicit list
       // must be a subset of the tenant's slugs; the EFFECTIVE list (incoming or kept) may not be
       // empty on an enabled service — "accepts nothing" is expressed by disabling the service.
@@ -527,9 +517,6 @@ export const adminRoutes = new Hono<AppEnv>()
     await updateTenantSettings(c.env.PAWBOOK_DB, tenant.Id, {
       displayName,
       accentColor,
-      maxBoardingPets,
-      maxHouseSitsPerDay,
-      maxStayNights,
       timezone,
       contactEmail,
       contactPhone,
@@ -569,6 +556,9 @@ export const adminRoutes = new Hono<AppEnv>()
         maxPetCount: 'maxPetCount' in svc ? (svc.maxPetCount ?? null) : current.MaxPetCount,
         acceptedPetTypes:
           'acceptedPetTypes' in svc ? (svc.acceptedPetTypes ?? null) : current.AcceptedPetTypes,
+        maxConcurrentPets:
+          'maxConcurrentPets' in svc ? (svc.maxConcurrentPets ?? null) : current.MaxConcurrentPets,
+        maxPerDay: 'maxPerDay' in svc ? (svc.maxPerDay ?? null) : current.MaxPerDay,
       });
       // The service existed when validated above but was deleted by a concurrent request since —
       // stop before writing options for a slug that no longer exists.

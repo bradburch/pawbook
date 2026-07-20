@@ -6,13 +6,11 @@
 -- is intended for a throwaway demo environment; provision real tenants/logins separately.
 -- (Hashes are full-strength 600k-iteration PBKDF2 so they are at least not weak-by-iteration.)
 
-INSERT OR REPLACE INTO Tenants (Id, Slug, DisplayName, AccentColor, MaxBoardingPets) VALUES
-  ('tnt_sunnypaws', 'sunny-paws', 'Sunny Paws', '#2563eb', 2),
-  ('tnt_happytails', 'happy-tails', 'Happy Tails', '#d97706', 4);
-
--- A brand-new sitter on the NEW defaults: unlimited boarding/house-sits/stay length, default
--- timezone (all four config columns omitted → NULL). Edit its values via the admin dashboard.
+-- Tenant rows carry branding + timezone/contact only (0015): capacity and stay-length live on
+-- TenantServices. The retired Tenants cap columns are omitted (NULL — unread by code).
 INSERT OR REPLACE INTO Tenants (Id, Slug, DisplayName, AccentColor) VALUES
+  ('tnt_sunnypaws', 'sunny-paws', 'Sunny Paws', '#2563eb'),
+  ('tnt_happytails', 'happy-tails', 'Happy Tails', '#d97706'),
   ('tnt_pawsandrelax', 'paws-and-relax', 'Paws & Relax', '#059669');
 
 -- Sitter dashboard logins (DEMO password "demo1234" for both; 600k-iteration PBKDF2 hashes).
@@ -106,8 +104,8 @@ INSERT OR REPLACE INTO EndUserPets (Id, TenantId, EndUserId, Name, PetType, Note
 
 -- Existing bookings so availability looks real, tied to the demo customer so the admin list
 -- never shows an anonymous "Unknown customer" row.
--- Sunny Paws (max 2 pets): June 20-25 already has 1 pet boarding -> 1 slot left.
--- Happy Tails (max 4 pets): June 20-25 has 2 pets boarding -> 2 slots left.
+-- Sunny Paws boarding (MaxConcurrentPets=2): June 20-25 already has 1 pet boarding -> 1 slot left.
+-- Happy Tails boarding (MaxConcurrentPets=4): June 20-25 has 2 pets boarding -> 2 slots left.
 -- Both tenants blocked July 3-5 (exclusive end: blocked days are Jul 3 and Jul 4).
 INSERT OR REPLACE INTO BookingRequests (Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, PetCount, EstCost, Status) VALUES
   ('seed_sp_board1', 'tnt_sunnypaws', 'eu_sp_jess', 'boarding', '2028-06-20', '2028-06-25', 1, 250, 'confirmed'),

@@ -148,7 +148,7 @@ export const bookingRoutes = new Hono<AppEnv>()
     const shape = service.Shape;
     const dateError =
       shape === 'range'
-        ? validateBoardingRange(start, end, tenant.MaxStayNights, tenant.Timezone ?? undefined)
+        ? validateBoardingRange(start, end, service.MaxNights, tenant.Timezone ?? undefined)
         : validateSingleDate(start, tenant.Timezone ?? undefined);
     if (dateError) return c.json({ error: dateError.error }, dateError.status);
 

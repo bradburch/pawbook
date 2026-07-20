@@ -16,9 +16,6 @@ export const publicRoutes = new Hono<AppEnv>()
       slug: tenant.Slug,
       displayName: tenant.DisplayName,
       accentColor: tenant.AccentColor,
-      maxBoardingPets: tenant.MaxBoardingPets,
-      maxHouseSitsPerDay: tenant.MaxHouseSitsPerDay,
-      maxStayNights: tenant.MaxStayNights,
       timezone: tenant.Timezone,
       contactEmail: tenant.ContactEmail,
       contactPhone: tenant.ContactPhone,
@@ -82,7 +79,7 @@ export const publicRoutes = new Hono<AppEnv>()
       const rangeError = validateBoardingRange(
         start,
         end,
-        tenant.MaxStayNights,
+        service.MaxNights,
         tenant.Timezone ?? undefined,
       );
       if (rangeError) return c.json({ error: rangeError.error }, rangeError.status);

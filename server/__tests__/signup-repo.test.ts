@@ -97,10 +97,7 @@ describe('createTenantFromSignup (atomic batch)', () => {
     });
     const tenant = await getTenantBySlug(env.PAWBOOK_DB, 'x-biz');
     expect(tenant?.DisplayName).toBe('X Biz');
-    // New-tenant limits are all NULL (null = unlimited / instance-default).
-    expect(tenant?.MaxBoardingPets).toBeNull();
-    expect(tenant?.MaxHouseSitsPerDay).toBeNull();
-    expect(tenant?.MaxStayNights).toBeNull();
+    // New-tenant timezone defaults to NULL (unlimited / instance-default).
     expect(tenant?.Timezone).toBeNull();
     const user = await getTenantUserByEmail(env.PAWBOOK_DB, 'new@x.test');
     expect(user?.TenantId).toBe('tnt_x');

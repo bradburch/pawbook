@@ -27,8 +27,7 @@ import { constantTimeEqual } from '../lib/timing';
  * is a defect.
  */
 
-const TENANT_COLS =
-  'Id, Slug, DisplayName, AccentColor, MaxBoardingPets, MaxHouseSitsPerDay, MaxStayNights, Timezone, ContactEmail, ContactPhone';
+const TENANT_COLS = 'Id, Slug, DisplayName, AccentColor, Timezone, ContactEmail, ContactPhone';
 
 const BOOKING_COLS =
   'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, Declined, CreatedAt';
@@ -796,9 +795,6 @@ export async function updateTenantSettings(
   settings: {
     displayName: string;
     accentColor: string;
-    maxBoardingPets: number | null;
-    maxHouseSitsPerDay: number | null;
-    maxStayNights: number | null;
     timezone: string | null;
     contactEmail?: string | null;
     contactPhone?: string | null;
@@ -806,16 +802,12 @@ export async function updateTenantSettings(
 ): Promise<void> {
   await db
     .prepare(
-      `UPDATE Tenants SET DisplayName = ?, AccentColor = ?, MaxBoardingPets = ?,
-         MaxHouseSitsPerDay = ?, MaxStayNights = ?, Timezone = ?,
+      `UPDATE Tenants SET DisplayName = ?, AccentColor = ?, Timezone = ?,
          ContactEmail = ?, ContactPhone = ? WHERE Id = ?`,
     )
     .bind(
       settings.displayName,
       settings.accentColor,
-      settings.maxBoardingPets,
-      settings.maxHouseSitsPerDay,
-      settings.maxStayNights,
       settings.timezone,
       settings.contactEmail ?? null,
       settings.contactPhone ?? null,
@@ -841,13 +833,15 @@ export async function setServiceConfig(
     minPetCount: number | null;
     maxPetCount: number | null;
     acceptedPetTypes: string[] | null;
+    maxConcurrentPets: number | null;
+    maxPerDay: number | null;
   },
 ): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE TenantServices SET
          Enabled = ?, Questions = ?, MinNights = ?, MaxNights = ?, MinPetCount = ?, MaxPetCount = ?,
-         AcceptedPetTypes = ?
+         AcceptedPetTypes = ?, MaxConcurrentPets = ?, MaxPerDay = ?
        WHERE TenantId = ? AND ServiceType = ?`,
     )
     .bind(
@@ -858,6 +852,8 @@ export async function setServiceConfig(
       config.minPetCount,
       config.maxPetCount,
       config.acceptedPetTypes === null ? null : JSON.stringify(config.acceptedPetTypes),
+      config.maxConcurrentPets,
+      config.maxPerDay,
       tenantId,
       serviceType,
     )
