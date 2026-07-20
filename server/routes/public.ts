@@ -22,7 +22,7 @@ export const publicRoutes = new Hono<AppEnv>()
       timezone: tenant.Timezone,
       contactEmail: tenant.ContactEmail,
       contactPhone: tenant.ContactPhone,
-      petTypes: petTypes.filter((p) => p.Enabled).map((p) => p.PetType),
+      petTypes: petTypes.filter((p) => p.Enabled).map((p) => ({ slug: p.PetType, label: p.Label })),
       services: services
         .filter((s) => s.Enabled)
         .map((svc) => ({
@@ -37,6 +37,7 @@ export const publicRoutes = new Hono<AppEnv>()
           maxNights: svc.MaxNights,
           minPetCount: svc.MinPetCount,
           maxPetCount: svc.MaxPetCount,
+          acceptedPetTypes: svc.AcceptedPetTypes,
           options: options
             .filter((o) => o.ServiceType === svc.ServiceType)
             .map((o) => ({

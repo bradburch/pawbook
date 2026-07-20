@@ -20,6 +20,7 @@ import {
   isWeekend,
   nightsBetween,
   validateAnswers,
+  validatePetTypeAcceptance,
   validateServiceConstraints,
 } from '../../src/shared/index.js';
 import type { AppEnv } from '../types';
@@ -117,6 +118,17 @@ export const bookingRoutes = new Hono<AppEnv>()
         return c.json({ error: 'That pet type is not accepted.' }, 400);
     }
     const petType = chosen[0]!.PetType;
+
+    // Tenant-level disable (above) always wins; this is the service's OWN restriction. Checks
+    // EVERY selected pet, not the denormalized single BookingRequests.PetType.
+    const labelBySlug = new Map(acceptedTypes.map((r) => [r.PetType, r.Label]));
+    const acceptanceError = validatePetTypeAcceptance(
+      service.AcceptedPetTypes,
+      service.Label,
+      chosen.map((p) => ({ name: p!.Name, petType: p!.PetType })),
+      (petSlug) => labelBySlug.get(petSlug) ?? petSlug,
+    );
+    if (acceptanceError) return c.json({ error: acceptanceError }, 400);
 
     if (!service.Enabled) return c.json({ error: 'Service not offered.' }, 400);
 

@@ -225,14 +225,14 @@ describe('config + availability — service options and pet types', () => {
   it('config exposes services with options and accepted pet types', async () => {
     const { env } = createTestEnv();
     const cfg = (await (await app.request('/api/sunny-paws/config', {}, env)).json()) as {
-      petTypes: string[];
+      petTypes: { slug: string }[];
       services: {
         type: string;
         hasDuration: boolean;
         options: { optionKey: string; rate: number }[];
       }[];
     };
-    expect(cfg.petTypes).toEqual(expect.arrayContaining(['dog', 'cat']));
+    expect(cfg.petTypes.map((p) => p.slug)).toEqual(expect.arrayContaining(['dog', 'cat']));
     const walk = cfg.services.find((s) => s.type === 'walk')!;
     expect(walk.hasDuration).toBe(true);
     expect(walk.options.map((o) => o.optionKey)).toEqual(['d30', 'd60', 'd90']);

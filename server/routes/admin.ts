@@ -6,7 +6,10 @@ import {
   countBookingPetRefs,
   countBookingsForService,
   countBookingsForUser,
+  countPetTypeReferences,
+  createPetType,
   createService,
+  deletePetType,
   getAnalytics,
   getBookingWithCustomer,
   getEndUserById,
@@ -29,9 +32,11 @@ import {
   listServiceOptions,
   listServices,
   removeEndUserPet,
+  renamePetType,
   replaceServiceOptions,
   setProviderCalendarId,
   setPetTypeEnabled,
+  setServiceAcceptedPetTypes,
   setServiceConfig,
   updateBookingStatus,
   updateTenantSettings,
@@ -45,9 +50,7 @@ import { signState } from '../lib/oauth-state';
 import { calendarView } from '../lib/providers';
 import { embedSnippets } from '../lib/snippet';
 import {
-  isPetType,
   isTemplateId,
-  PET_TYPES,
   RESERVED_SERVICE_SLUGS,
   SERVICE_TEMPLATES,
   slugifyServiceLabel,
@@ -294,6 +297,7 @@ type ServiceBody = {
   maxNights?: number | null;
   minPetCount?: number | null;
   maxPetCount?: number | null;
+  acceptedPetTypes?: string[] | null;
 };
 type SettingsBody = {
   displayName?: string;
@@ -348,9 +352,10 @@ export const adminRoutes = new Hono<AppEnv>()
       timezone: tenant.Timezone,
       contactEmail: tenant.ContactEmail,
       contactPhone: tenant.ContactPhone,
-      petTypes: PET_TYPES.map((pt) => ({
-        petType: pt,
-        enabled: petTypes.some((p) => p.PetType === pt && p.Enabled),
+      petTypes: petTypes.map((p) => ({
+        petType: p.PetType,
+        label: p.Label,
+        enabled: Boolean(p.Enabled),
       })),
       services: services.map((svc) => ({
         type: svc.ServiceType,
@@ -366,6 +371,7 @@ export const adminRoutes = new Hono<AppEnv>()
         maxNights: svc.MaxNights,
         minPetCount: svc.MinPetCount,
         maxPetCount: svc.MaxPetCount,
+        acceptedPetTypes: svc.AcceptedPetTypes,
         options: options
           .filter((o) => o.ServiceType === svc.ServiceType)
           .map((o) => ({
@@ -417,6 +423,8 @@ export const adminRoutes = new Hono<AppEnv>()
       services.length > 0 ? await listServices(c.env.PAWBOOK_DB, tenant.Id) : [];
     const currentOptions =
       services.length > 0 ? await listServiceOptions(c.env.PAWBOOK_DB, tenant.Id) : [];
+    const tenantPetTypes = await listPetTypes(c.env.PAWBOOK_DB, tenant.Id);
+    const knownPetSlugs = new Set(tenantPetTypes.map((p) => p.PetType));
     const existingKeysByType = new Map<string, Set<string>>();
     for (const o of currentOptions) {
       const keys = existingKeysByType.get(o.ServiceType) ?? new Set<string>();
@@ -449,7 +457,10 @@ export const adminRoutes = new Hono<AppEnv>()
     if (contactPhone !== null && contactPhone.length > 40)
       return c.json({ error: 'Contact phone is too long.' }, 400);
     if (petTypes !== undefined) {
-      if (!Array.isArray(petTypes) || !petTypes.every(isPetType))
+      if (
+        !Array.isArray(petTypes) ||
+        !petTypes.every((pt) => typeof pt === 'string' && knownPetSlugs.has(pt))
+      )
         return c.json({ error: 'Unknown pet type.' }, 400);
     }
     const resolvedOptionsByType = new Map<string, ResolvedOption[]>();
@@ -493,6 +504,25 @@ export const adminRoutes = new Hono<AppEnv>()
         );
       if (svc.minPetCount != null && svc.maxPetCount != null && svc.minPetCount > svc.maxPetCount)
         return c.json({ error: `${meta.Label}: min pets cannot exceed max pets.` }, 400);
+      // Per-service acceptance list: PATCH semantics (absent = keep current). An explicit list
+      // must be a subset of the tenant's slugs; the EFFECTIVE list (incoming or kept) may not be
+      // empty on an enabled service — "accepts nothing" is expressed by disabling the service.
+      if ('acceptedPetTypes' in svc && svc.acceptedPetTypes != null) {
+        if (
+          !Array.isArray(svc.acceptedPetTypes) ||
+          !svc.acceptedPetTypes.every((t) => typeof t === 'string' && knownPetSlugs.has(t))
+        )
+          return c.json({ error: `${meta.Label}: unknown pet type in the accepted list.` }, 400);
+      }
+      const effectiveAccepted =
+        'acceptedPetTypes' in svc ? (svc.acceptedPetTypes ?? null) : meta.AcceptedPetTypes;
+      if (svc.enabled && effectiveAccepted !== null && effectiveAccepted.length === 0)
+        return c.json(
+          {
+            error: `${meta.Label} must accept at least one pet type — disable the service instead.`,
+          },
+          400,
+        );
     }
 
     await updateTenantSettings(c.env.PAWBOOK_DB, tenant.Id, {
@@ -506,8 +536,13 @@ export const adminRoutes = new Hono<AppEnv>()
       contactPhone,
     });
     if (petTypes !== undefined) {
-      for (const pt of PET_TYPES)
-        await setPetTypeEnabled(c.env.PAWBOOK_DB, tenant.Id, pt, petTypes.includes(pt));
+      for (const row of tenantPetTypes)
+        await setPetTypeEnabled(
+          c.env.PAWBOOK_DB,
+          tenant.Id,
+          row.PetType,
+          petTypes.includes(row.PetType),
+        );
     }
     for (const svc of services) {
       const svcType = svc.type as string;
@@ -533,7 +568,8 @@ export const adminRoutes = new Hono<AppEnv>()
         maxNights: 'maxNights' in svc ? (svc.maxNights ?? null) : current.MaxNights,
         minPetCount: 'minPetCount' in svc ? (svc.minPetCount ?? null) : current.MinPetCount,
         maxPetCount: 'maxPetCount' in svc ? (svc.maxPetCount ?? null) : current.MaxPetCount,
-        acceptedPetTypes: current.AcceptedPetTypes,
+        acceptedPetTypes:
+          'acceptedPetTypes' in svc ? (svc.acceptedPetTypes ?? null) : current.AcceptedPetTypes,
       });
       // The service existed when validated above but was deleted by a concurrent request since —
       // stop before writing options for a slug that no longer exists.
@@ -617,6 +653,74 @@ export const adminRoutes = new Hono<AppEnv>()
     if ((await countBookingsForService(c.env.PAWBOOK_DB, tenant.Id, type)) > 0)
       return c.json({ error: 'That service has bookings — disable it instead.' }, 409);
     await deleteService(c.env.PAWBOOK_DB, tenant.Id, type);
+    await invalidateTenantCache(tenant.Slug, c.env);
+    return c.body(null, 204);
+  })
+
+  // Pet-type CRUD mirrors the services split: enable/disable rides the settings draft;
+  // structural changes (add/rename/delete) are immediate. Slugs are immutable — rename
+  // changes the display Label only, so history keeps resolving.
+  .post('/:slug/admin/pet-types', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req.json<{ label?: unknown }>().catch(() => ({}) as { label?: unknown });
+    const label = typeof body.label === 'string' ? body.label.trim() : '';
+    if (!label) return c.json({ error: 'Pet type name required.' }, 400);
+    const petType = slugifyServiceLabel(label);
+    if (!petType) return c.json({ error: 'Pick a different pet type name.' }, 400);
+    try {
+      await createPetType(c.env.PAWBOOK_DB, tenant.Id, petType, label);
+    } catch (err) {
+      // UNIQUE(TenantId, PetType) is the source of truth for duplicates (concurrent adds included).
+      if (err instanceof Error && err.message.includes('UNIQUE constraint failed'))
+        return c.json({ error: 'A pet type with that name already exists.' }, 409);
+      throw err;
+    }
+    await invalidateTenantCache(tenant.Slug, c.env);
+    return c.json({ petType, label }, 201);
+  })
+
+  .put('/:slug/admin/pet-types/:petType', async (c) => {
+    const tenant = c.get('tenant');
+    const body = await c.req.json<{ label?: unknown }>().catch(() => ({}) as { label?: unknown });
+    const label = typeof body.label === 'string' ? body.label.trim() : '';
+    if (!label) return c.json({ error: 'Pet type name required.' }, 400);
+    const petType = c.req.param('petType');
+    const renamed = await renamePetType(c.env.PAWBOOK_DB, tenant.Id, petType, label);
+    if (!renamed) return c.json({ error: 'Unknown pet type.' }, 404);
+    await invalidateTenantCache(tenant.Slug, c.env);
+    return c.json({ petType, label });
+  })
+
+  // Blocked with 409 while ANY customer pet or booking (any status — history included, the
+  // deleteService precedent) references the slug; an unreferenced delete also scrubs the slug
+  // from every service's acceptance list (config, not history — safe to clean). A list emptied
+  // by the scrub becomes NULL: '[]' is an invalid stored state for an enabled service.
+  .delete('/:slug/admin/pet-types/:petType', async (c) => {
+    const tenant = c.get('tenant');
+    const petType = c.req.param('petType');
+    const rows = await listPetTypes(c.env.PAWBOOK_DB, tenant.Id);
+    if (!rows.some((p) => p.PetType === petType))
+      return c.json({ error: 'Unknown pet type.' }, 404);
+    const refs = await countPetTypeReferences(c.env.PAWBOOK_DB, tenant.Id, petType);
+    if (refs > 0)
+      return c.json(
+        {
+          error: `That pet type is on ${refs} ${refs === 1 ? 'pet or booking' : 'pets or bookings'} — disable it instead.`,
+        },
+        409,
+      );
+    await deletePetType(c.env.PAWBOOK_DB, tenant.Id, petType);
+    for (const svc of await listServices(c.env.PAWBOOK_DB, tenant.Id)) {
+      if (svc.AcceptedPetTypes?.includes(petType)) {
+        const next = svc.AcceptedPetTypes.filter((t) => t !== petType);
+        await setServiceAcceptedPetTypes(
+          c.env.PAWBOOK_DB,
+          tenant.Id,
+          svc.ServiceType,
+          next.length > 0 ? next : null,
+        );
+      }
+    }
     await invalidateTenantCache(tenant.Slug, c.env);
     return c.body(null, 204);
   })
@@ -784,11 +888,11 @@ export const adminRoutes = new Hono<AppEnv>()
       .json<{ name?: unknown; petType?: unknown; notes?: unknown }>()
       .catch(() => ({}) as { name?: unknown; petType?: unknown; notes?: unknown });
     const name = typeof body.name === 'string' ? body.name.trim() : '';
-    const petType = body.petType;
+    const petType = typeof body.petType === 'string' ? body.petType : '';
     const rawNotes = typeof body.notes === 'string' ? body.notes.trim() : '';
     const notes = rawNotes || null;
     if (!name) return c.json({ error: 'Enter a pet name.' }, 400);
-    if (!isPetType(petType)) return c.json({ error: 'Unknown pet type.' }, 400);
+    if (!petType) return c.json({ error: 'Unknown pet type.' }, 400);
     if (notes !== null && notes.length > 2000) return c.json({ error: 'Notes are too long.' }, 400);
     // The customer id comes from the URL; confirm it belongs to this tenant before writing a pet
     // under it (production D1 has foreign keys OFF, so nothing else stops a cross-tenant orphan).
@@ -879,7 +983,7 @@ export const adminRoutes = new Hono<AppEnv>()
           skippedRows.push({ row, reason: 'Pet type given without a pet name' });
           continue;
         }
-        if (!isPetType(petType) || !petTypesEnabled.has(petType)) {
+        if (!petTypesEnabled.has(petType)) {
           skippedRows.push({ row, reason: `'${rawPetType.trim()}' is not an enabled pet type` });
           continue;
         }

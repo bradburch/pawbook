@@ -90,11 +90,3 @@ export function slugifyServiceLabel(label: string): string {
 /** Pet species are per-tenant TenantPetTypes rows now (slug + Label) — validated against rows,
  * not an enum, exactly like ServiceType. */
 export type PetType = string;
-
-/** @deprecated Dying breed: routes still importing these are rewritten to row-membership checks
- * in the animal-types Task 3, which deletes both. */
-export const PET_TYPES = ['dog', 'cat'] as const;
-
-export function isPetType(value: unknown): value is PetType {
-  return typeof value === 'string' && (PET_TYPES as readonly string[]).includes(value);
-}

@@ -263,10 +263,12 @@ describe('tenant admin', () => {
     );
     expect(put.status).toBe(204);
     const cfg = (await (await app.request('/api/sunny-paws/config', {}, env)).json()) as {
-      petTypes: string[];
+      petTypes: { slug: string; label: string }[];
       services: { type: string; options: { durationMinutes: number | null; rate: number }[] }[];
     };
-    expect(cfg.petTypes).toEqual(['cat', 'rabbit']);
+    // petTypes: ['cat'] drives ALL of the tenant's rows now (dog + rabbit are also
+    // seeded) — only cat stays enabled; dog and rabbit are turned off, not left untouched.
+    expect(cfg.petTypes).toEqual([{ slug: 'cat', label: 'Cats' }]);
     const walk = cfg.services.find((s) => s.type === 'walk')!;
     expect(walk.options).toHaveLength(2);
     expect(walk.options.find((o) => o.durationMinutes === 40)?.rate).toBe(19);
