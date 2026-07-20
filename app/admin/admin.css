@@ -1,25 +1,26 @@
 /*
- * Sitter dashboard — Pawbook's warm modern identity, first-party.
- * Cream page, white section cards with icon headers, pine-navy actions.
- * Marigold appears only as highlight (focus rings, section icons); the serif
- * and mono-uppercase ledger look is gone. Mono survives only in embed snippets.
+ * Sitter dashboard — Pawbook's forest identity, first-party.
+ * Cream-parchment page, white section cards with icon headers, deep-pine actions.
+ * Leaf green appears only as highlight (focus rings, section icons); moss/sage
+ * mid-tones carry washes and quiet borders, bark-warm neutrals rule the lines.
+ * Mono survives only in embed snippets.
  */
 :root {
-  --page: #faf8f3;
+  --page: #f6f4ea;
   --card: #ffffff;
-  --ink: #1c3a4a;
-  --body: #26312e;
-  --soft: #5c6b66;
-  --line: #e7e0d2;
-  --sage: #9db8a4;
-  --sage-wash: #eef3ee;
-  --gold: #c77d0a;
-  --ok: #1f6b57;
-  --ok-wash: #eef6f0;
-  --warn: #8a5a00;
-  --warn-wash: #fdf3e0;
-  --bad: #b3403a;
-  --bad-wash: #faf0ef;
+  --ink: #22422e;
+  --body: #2a352c;
+  --soft: #59695b;
+  --line: #ddd8c5;
+  --sage: #94ae9a;
+  --sage-wash: #ebf1e7;
+  --leaf: #4a7d3c;
+  --ok: #23684a;
+  --ok-wash: #e7f2e8;
+  --warn: #7c530f;
+  --warn-wash: #f8efdb;
+  --bad: #b23a30;
+  --bad-wash: #f8ebe8;
   --display:
     ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Quicksand, system-ui, sans-serif;
   --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -84,7 +85,7 @@ body {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 10px 24px -22px rgba(28, 58, 74, 0.45);
+  box-shadow: 0 10px 24px -22px rgba(23, 42, 29, 0.45);
 }
 
 .pb-wrap h2 {
@@ -99,7 +100,7 @@ body {
 }
 
 .pb-wrap h2 svg {
-  color: var(--gold);
+  color: var(--leaf);
   flex: none;
 }
 
@@ -180,8 +181,8 @@ body {
 .pb-wrap textarea:focus,
 .pb-wrap select:focus {
   outline: none;
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 22%, transparent);
+  border-color: var(--leaf);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--leaf) 22%, transparent);
 }
 
 .pb-wrap textarea {
@@ -190,7 +191,7 @@ body {
   font-size: 0.8rem;
   line-height: 1.5;
   resize: vertical;
-  background: #fbfaf6;
+  background: #faf9f1;
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────
@@ -267,7 +268,7 @@ body {
 }
 
 .pb-sidenav svg {
-  color: var(--gold);
+  color: var(--leaf);
   flex: none;
 }
 
@@ -474,12 +475,13 @@ body {
 }
 
 /* Content links (Download example CSV, the wizard's "Your website") — ink with the
-   marigold underline, instead of browser-default blue/purple. Nav links style themselves. */
+   leaf-green underline, instead of browser-default blue/purple. Nav links style themselves. */
 .pb-panel a,
-.pb-wizard a {
+.pb-wizard a,
+.pb-login a {
   color: var(--ink);
   text-decoration: underline;
-  text-decoration-color: var(--gold);
+  text-decoration-color: var(--leaf);
   text-underline-offset: 2px;
 }
 
@@ -497,7 +499,7 @@ body {
   padding: 12px 20px;
   background: var(--ink);
   color: #fff;
-  box-shadow: 0 -8px 24px -16px rgba(28, 58, 74, 0.7);
+  box-shadow: 0 -8px 24px -16px rgba(23, 42, 29, 0.7);
 }
 
 .pb-savebar p {
@@ -506,12 +508,12 @@ body {
 }
 
 .pb-savebar-error {
-  color: #ffb9b2;
+  color: #f4b9ae;
   font-weight: 600;
 }
 
 .pb-savebar-saved {
-  color: #bfe7cd;
+  color: #bce3c6;
   font-weight: 600;
 }
 
@@ -544,7 +546,7 @@ body {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 18px 40px -28px rgba(28, 58, 74, 0.55);
+  box-shadow: 0 18px 40px -28px rgba(23, 42, 29, 0.55);
 }
 
 .pb-login h1 {
@@ -592,11 +594,11 @@ body {
   display: block;
   width: 100%;
   border: 0;
-  background: #fbfaf6;
+  background: #faf9f1;
 }
 
 :focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  outline: 3px solid color-mix(in srgb, var(--leaf) 45%, transparent);
   outline-offset: 2px;
 }
 
@@ -975,7 +977,7 @@ body {
 }
 
 .pb-svc-title svg {
-  color: var(--gold);
+  color: var(--leaf);
   flex: none;
 }
 
@@ -1165,7 +1167,7 @@ body {
 }
 
 .pb-cal-cell.pb-cal-today {
-  box-shadow: 0 0 0 2px var(--gold);
+  box-shadow: 0 0 0 2px var(--leaf);
 }
 
 .pb-cal-daynum {
@@ -1361,7 +1363,7 @@ body {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: 0 8px 18px -14px rgba(28, 58, 74, 0.45);
+  box-shadow: 0 8px 18px -14px rgba(23, 42, 29, 0.45);
   color: var(--body);
   font-family: var(--sans);
   font-size: 0.82rem;
