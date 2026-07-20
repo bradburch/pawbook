@@ -58,6 +58,10 @@ export type TenantService = {
   MaxPetCount: number | null;
   /** Pet-type slugs this service accepts; null = accepts every enabled type. */
   AcceptedPetTypes: string[] | null;
+  /** Boarding-kind only: pets in care per day for THIS service; null = unlimited (0015). */
+  MaxConcurrentPets: number | null;
+  /** Housesit-kind only: bookings of THIS service per day; null = unlimited (0015). */
+  MaxPerDay: number | null;
 };
 
 export type TenantServiceOption = {

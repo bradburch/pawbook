@@ -68,7 +68,8 @@ export async function listServices(db: D1Database, tenantId: string): Promise<Te
   const { results } = await db
     .prepare(
       `SELECT TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind,
-              SortOrder, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount, AcceptedPetTypes
+              SortOrder, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount, AcceptedPetTypes,
+              MaxConcurrentPets, MaxPerDay
        FROM TenantServices WHERE TenantId = ? ORDER BY SortOrder, Label`,
     )
     .bind(tenantId)

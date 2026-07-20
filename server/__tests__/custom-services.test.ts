@@ -121,7 +121,7 @@ describe('custom services — booking', () => {
     expect(avail).toMatchObject({ available: true, estCost: 18 });
   });
 
-  it('a custom boarding-pool service draws from the SAME pet capacity as built-in boarding', async () => {
+  it('a custom boarding-pool service draws from an INDEPENDENT pet capacity from built-in boarding (0015)', async () => {
     const { env } = createTestEnv();
     await createSvc(env, { template: 'boarding', label: 'Luxury Boarding' });
     // Price + enable it via the normal settings PUT.
@@ -140,7 +140,7 @@ describe('custom services — booking', () => {
     );
     expect(put.status).toBe(204);
 
-    // Fill Sunny Paws' 2-pet boarding pool via the CUSTOM service...
+    // Fill the CUSTOM service's occupancy with 2 pets — a different pool key than 'boarding'.
     await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
       endUserId: null,
       serviceType: 'luxury-boarding',
@@ -152,15 +152,16 @@ describe('custom services — booking', () => {
       estCost: null,
       status: 'confirmed',
     });
-    // ...and BUILT-IN boarding must see the pool as full on those dates.
-    const shared = (await (
+    // Built-in boarding (own seeded MaxConcurrentPets=2, zero existing bookings) is UNAFFECTED:
+    // each service is its own pool since the 0015 per-service rework, so a 2-pet request still fits.
+    const independent = (await (
       await app.request(
-        '/api/sunny-paws/availability?type=boarding&start=2029-01-11&end=2029-01-13&pets=1',
+        '/api/sunny-paws/availability?type=boarding&start=2029-01-11&end=2029-01-13&pets=2',
         {},
         env,
       )
     ).json()) as { available: boolean };
-    expect(shared.available).toBe(false);
+    expect(independent.available).toBe(true);
   });
 });
 

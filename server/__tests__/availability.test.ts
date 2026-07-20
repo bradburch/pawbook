@@ -26,6 +26,8 @@ function svc(type: TemplateId, over: Partial<TenantService> = {}): TenantService
     MinPetCount: null,
     MaxPetCount: null,
     AcceptedPetTypes: null,
+    MaxConcurrentPets: null,
+    MaxPerDay: null,
     ...over,
   };
 }
@@ -47,10 +49,10 @@ function tenant(over: Partial<Tenant> = {}): Tenant {
 }
 
 describe('availability API — regression guards', () => {
-  it('rejects a pet count over the tenant cap even on an empty calendar', async () => {
+  it('rejects a pet count over the service cap even on an empty calendar', async () => {
     const { env } = createTestEnv();
     // No existing rows in 2027; the range walk skips empty days, so the isolation check must catch it.
-    // 5 pets is within the absolute cap (50) but over Sunny Paws' per-tenant max of 2.
+    // 5 pets is within the absolute cap (50) but over the boarding service's MaxConcurrentPets of 2 (seeded).
     const res = (await (
       await app.request(
         '/api/sunny-paws/availability?type=boarding&start=2027-03-01&end=2027-03-04&pets=5',
@@ -214,10 +216,10 @@ describe('rowsToCapacityEvents', () => {
       },
     ]);
     expect(events[0]).toMatchObject({
-      type: 'blocked',
+      kind: 'blocked',
       start_date: '2028-08-01',
     });
-    expect(events[1]).toMatchObject({ type: 'boarding', petCount: 2 });
+    expect(events[1]).toMatchObject({ kind: 'boarding', serviceType: 'boarding', petCount: 2 });
   });
 });
 

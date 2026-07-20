@@ -19,8 +19,9 @@ export {
   rangeHasConflict,
   walkHasConflict,
   type CapacityEvent,
-  type CapacityLimits,
+  type CapacityRequest,
   type DayCapacity,
+  type PoolKind,
 } from './booking/capacity.js';
 export { billableUnits } from './pricing/booking-cost.js';
 export {
