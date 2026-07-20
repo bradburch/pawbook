@@ -79,6 +79,15 @@ app.get('/admin/:slug', page('admin.html')); // deep link still works; auth driv
 app.get('/demo', page('demo.html'));
 app.get('/setup', page('setup.html')); // create-password page for emailed signup links
 
+// Raw bundle filenames (as Vite emits them into dist/) must also be worker-routed — the admin
+// session token lives in localStorage and auto-restores, so an un-headered /admin.html would let
+// any host page iframe a live authenticated dashboard (clickjacking); same exposure for the
+// credential-setting /setup.html?t=... link. Mirrored in wrangler.jsonc's run_worker_first list —
+// a path missing from BOTH bypasses the worker entirely via the assets layer, with no CSP/DENY.
+app.get('/admin.html', page('admin.html'));
+app.get('/demo.html', page('demo.html'));
+app.get('/setup.html', page('setup.html'));
+
 /**
  * Root landing page: a marketing page for prospective pet sitters, built around real
  * screenshots of the seeded demo (public/img/landing/*.webp). Static and script-free (served
