@@ -22,6 +22,7 @@ export type ServiceForm = ServiceConstraints & {
   enabled: boolean;
   options: ServiceOptionForm[];
   questions: QuestionForm[];
+  acceptedPetTypes: string[] | null;
 };
 export type ServiceTemplate = { id: string; label: string };
 export type Settings = {
@@ -33,7 +34,7 @@ export type Settings = {
   timezone: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
-  petTypes: { petType: string; enabled: boolean }[];
+  petTypes: { petType: string; label: string; enabled: boolean }[];
   services: ServiceForm[];
   templates: ServiceTemplate[];
   blocked: { id: string; startDate: string; endDate: string | null }[];
@@ -62,6 +63,7 @@ export type ServicePayload = ServiceConstraints & {
   enabled: boolean;
   options: ServiceOptionForm[];
   questions: QuestionForm[];
+  acceptedPetTypes: string[] | null;
 };
 export type SettingsPayload = {
   displayName: string;

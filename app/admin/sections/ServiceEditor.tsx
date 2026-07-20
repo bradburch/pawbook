@@ -146,6 +146,7 @@ export function ServiceEditor({
   labelledBy,
   onDone,
   onDelete,
+  petTypes,
 }: {
   service: ServiceForm;
   setService: (next: ServiceForm) => void;
@@ -153,6 +154,7 @@ export function ServiceEditor({
   labelledBy?: string;
   onDone?: () => void;
   onDelete?: () => void;
+  petTypes: { petType: string; label: string }[]; // the tenant's ENABLED types
 }) {
   return (
     <div
@@ -356,6 +358,37 @@ export function ServiceEditor({
           value={s.maxPetCount}
           onChange={(maxPetCount) => setService({ ...s, maxPetCount })}
         />
+      </div>
+
+      <div className="pb-limits">
+        <h3>Accepted pets</h3>
+        <p className="pb-hint">
+          All checked = accepts every type, including ones you add later. Uncheck one and this
+          service locks to exactly the checked list.
+        </p>
+        {petTypes.map((pt) => {
+          const checked = s.acceptedPetTypes === null || s.acceptedPetTypes.includes(pt.petType);
+          return (
+            <label className="pb-inline" key={pt.petType}>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => {
+                  const enabledSlugs = petTypes.map((t) => t.petType);
+                  const current = s.acceptedPetTypes ?? enabledSlugs;
+                  const next = e.target.checked
+                    ? [...current, pt.petType]
+                    : current.filter((t) => t !== pt.petType);
+                  // Re-checking every enabled type normalizes back to NULL, so the service
+                  // keeps auto-accepting types the sitter adds later.
+                  const all = enabledSlugs.every((t) => next.includes(t));
+                  setService({ ...s, acceptedPetTypes: all ? null : next });
+                }}
+              />
+              {pt.label}
+            </label>
+          );
+        })}
       </div>
 
       {(onDelete !== undefined || onDone !== undefined) && (

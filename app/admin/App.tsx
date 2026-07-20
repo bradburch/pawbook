@@ -369,6 +369,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           maxNights: s.maxNights,
           minPetCount: s.minPetCount,
           maxPetCount: s.maxPetCount,
+          acceptedPetTypes: s.acceptedPetTypes,
         })),
       };
       await adminFetch(token, `/api/${slug}/admin/settings`, {
@@ -392,6 +393,30 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const removeService = (type: string) =>
     run(async () => {
       await adminFetch(token, `/api/${slug}/admin/services/${type}`, { method: 'DELETE' });
+      await refresh();
+    });
+
+  const addPetType = (label: string) =>
+    run(async () => {
+      await adminFetch(token, `/api/${slug}/admin/pet-types`, {
+        method: 'POST',
+        body: JSON.stringify({ label }),
+      });
+      await refresh();
+    });
+
+  const renamePetType = (petType: string, label: string) =>
+    run(async () => {
+      await adminFetch(token, `/api/${slug}/admin/pet-types/${petType}`, {
+        method: 'PUT',
+        body: JSON.stringify({ label }),
+      });
+      await refresh();
+    });
+
+  const removePetType = (petType: string) =>
+    run(async () => {
+      await adminFetch(token, `/api/${slug}/admin/pet-types/${petType}`, { method: 'DELETE' });
       await refresh();
     });
 
@@ -508,7 +533,15 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       <EarningsSection session={session} handleError={handle} clearError={() => setError('')} />
     ),
     business: <BusinessSection settings={settings} setSettings={setSettings} />,
-    pets: <PetsSection settings={settings} setSettings={setSettings} />,
+    pets: (
+      <PetsSection
+        settings={settings}
+        setSettings={setSettings}
+        addPetType={addPetType}
+        renamePetType={renamePetType}
+        removePetType={removePetType}
+      />
+    ),
     services: (
       <ServicesSection
         settings={settings}

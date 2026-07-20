@@ -20,7 +20,7 @@ export type ProfileDraft = {
   contactPhone: string;
   /** '' = use the instance default (wire value null). */
   timezone: string;
-  petTypes: { petType: string; enabled: boolean }[];
+  petTypes: { petType: string; label: string; enabled: boolean }[];
   accentColor: string;
 };
 
@@ -124,9 +124,10 @@ export function WizardProfileStep({
               setDraft({ ...draft, petTypes });
             }}
           />
-          {p.petType === 'dog' ? 'Dogs' : 'Cats'}
+          {p.label}
         </label>
       ))}
+      <p className="pb-hint">Add more types any time under Pets.</p>
       <label>
         Brand color
         <input

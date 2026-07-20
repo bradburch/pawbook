@@ -33,6 +33,11 @@ export function ServicesSection({
     openRefs.current.get(key)?.focus();
   };
 
+  const labelBySlug = new Map(settings.petTypes.map((p) => [p.petType, p.label]));
+  const enabledTypes = settings.petTypes
+    .filter((p) => p.enabled)
+    .map((p) => ({ petType: p.petType, label: p.label }));
+
   return (
     <>
       <h2>
@@ -70,6 +75,7 @@ export function ServicesSection({
                 onToggleEnabled={(enabled) => setService({ ...s, enabled })}
                 onToggleExpanded={() => toggle(s.type)}
                 openRef={(el) => openRefs.current.set(s.type, el)}
+                acceptedPetLabels={s.acceptedPetTypes?.map((t) => labelBySlug.get(t) ?? t) ?? null}
               />
               {expanded === s.type && (
                 <ServiceEditor
@@ -77,6 +83,7 @@ export function ServicesSection({
                   setService={setService}
                   id={editorId}
                   labelledBy={titleId}
+                  petTypes={enabledTypes}
                   onDone={() => collapse(s.type)}
                   onDelete={
                     s.custom

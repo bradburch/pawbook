@@ -115,3 +115,24 @@ describe('serviceSummary facts line', () => {
     expect(serviceSummary(s).facts).toBe('Min 2 nights · 3 questions');
   });
 });
+
+describe('serviceSummary accepted-pets fact', () => {
+  it('renders "X only" for a single accepted label, joined labels for several — lowest priority', () => {
+    const one = svc({ options: [opt({ rate: 55 })], acceptedPetLabels: ['Dogs'] });
+    expect(serviceSummary(one).facts).toBe('Dogs only');
+    const two = svc({ options: [opt({ rate: 55 })], acceptedPetLabels: ['Dogs', 'Cats'] });
+    expect(serviceSummary(two).facts).toBe('Dogs & Cats');
+  });
+
+  it('no fact when the service accepts all (null/undefined)', () => {
+    expect(serviceSummary(svc({ options: [opt()], acceptedPetLabels: null })).facts).toBe('');
+  });
+
+  it('is crowded out by two higher-priority facts (cap of two)', () => {
+    const s = svc({
+      options: [opt({ startTime: '09:00', endTime: '17:00', capacity: 8 })],
+      acceptedPetLabels: ['Dogs'],
+    });
+    expect(serviceSummary(s).facts).toBe('Daily 9–5 · up to 8');
+  });
+});

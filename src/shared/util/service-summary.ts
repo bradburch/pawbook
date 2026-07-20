@@ -20,6 +20,8 @@ export type ServiceSummaryInput = {
   questions: readonly unknown[]; // only the count is used
   minNights: number | null;
   maxNights: number | null;
+  /** Labels of an explicit accepted-pets list; null/undefined = accepts all (no fact shown). */
+  acceptedPetLabels?: string[] | null;
 };
 
 export type ServiceSummary = { price: string; facts: string };
@@ -69,6 +71,13 @@ export function serviceSummary(s: ServiceSummaryInput): ServiceSummary {
   }
   const q = s.questions.length;
   if (q > 0) facts.push(`${q} ${q === 1 ? 'question' : 'questions'}`);
+  if (s.acceptedPetLabels && s.acceptedPetLabels.length > 0) {
+    facts.push(
+      s.acceptedPetLabels.length === 1
+        ? `${s.acceptedPetLabels[0]} only`
+        : s.acceptedPetLabels.join(' & '),
+    );
+  }
 
   return { price, facts: facts.slice(0, 2).join(' · ') };
 }

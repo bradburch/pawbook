@@ -21,6 +21,7 @@ export function ServiceCard({
   onToggleEnabled,
   onToggleExpanded,
   openRef,
+  acceptedPetLabels,
 }: {
   service: ServiceForm;
   expanded: boolean;
@@ -29,8 +30,9 @@ export function ServiceCard({
   onToggleEnabled: (enabled: boolean) => void;
   onToggleExpanded: () => void;
   openRef: (el: HTMLButtonElement | null) => void;
+  acceptedPetLabels: string[] | null;
 }) {
-  const { price, facts } = serviceSummary(service);
+  const { price, facts } = serviceSummary({ ...service, acceptedPetLabels });
   const cardClass =
     'pb-tile-btn pb-svc-card' +
     (service.enabled ? ' pb-on' : '') +
