@@ -1,8 +1,26 @@
 # In-app help and explainers — design
 
 **Date:** 2026-07-19
-**Status:** Proposed
+**Status:** Shipped — copy amended, see below
 **Branch:** `custom-services`
+
+> **Amended 2026-07-20:** Five draft copy rows below describe pre-0015 wording that the shipped
+> code (`2026-07-19-service-level-attributes-design.md` / migration 0015) deliberately abandoned.
+> This is a spec-side correction only — the shipped hints are correct. Stale rows:
+>
+> - **Nav hint "Business" — "plus your daily limits."** Daily caps moved **per-service** in 0015;
+>   Business no longer owns boarding-spots / house-sits / max-stay.
+> - **Nav hint "Pet types" — "Clients can only book for types ticked here."** Clients tick
+>   nothing; pet types are a sitter-managed registry and per-service acceptance
+>   (`AcceptedPetTypes`).
+> - **Control "Capacity = blank (daily caps)" — located "Business, beside 'Boarding spots per
+>   day'."** Those caps now live per service under Services & rates.
+> - **Control "Per-option capacity" — "How many pets this option can take at once."** Per-option
+>   capacity counts **bookings/spots**, not pets (a 3-dog booking uses one spot); the shipped
+>   hint says so.
+> - **The "Getting started" prose** ("your daily limits (boarding spots, house-sits, your longest
+>   stay)" under Business, and "Pet types sets which animals you accept") reflects the pre-0015
+>   layout — those caps are per-service and pet types are a registry.
 
 ## Problem
 

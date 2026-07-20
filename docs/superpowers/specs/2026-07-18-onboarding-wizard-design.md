@@ -1,8 +1,19 @@
 # Sitter onboarding wizard + service presets — design
 
 **Date:** 2026-07-18
-**Status:** Approved (user directed; frontend-only wizard over existing endpoints)
+**Status:** Approved — amended, see below
 **Branch:** `custom-services`
+
+> **Amended 2026-07-20:** The shipped wizard (`SetupWizard.tsx`) and its v2 extension
+> (`2026-07-18-onboarding-wizard-v2-design.md`) went past this spec:
+>
+> - **The wizard is 4 steps, not 3.** A business-profile step was prepended (v2), so the flow is
+>   Profile → "What do you offer?" → "Set your prices" → Done.
+> - **"Editing capacity/windows inside the wizard" WAS built** (the "Not built" list below is
+>   wrong): the price step's per-preset "Customize" disclosure edits `startTime` / `endTime` /
+>   `capacity` / `weekdaysOnly` before apply, for per-visit presets.
+> - **The retired "up to 8 dogs" preset copy** quoted below now reads "up to 8 bookings" — the
+>   unit is bookings/spots, not pets (`app/admin/presets.ts`).
 
 ## Problem
 

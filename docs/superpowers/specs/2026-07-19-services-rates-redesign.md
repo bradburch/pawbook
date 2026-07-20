@@ -1,8 +1,15 @@
 # Services & rates redesign — summary cards with edit-on-demand
 
 **Date:** 2026-07-19
-**Status:** Proposed
+**Status:** Shipped
 **Branch:** `custom-services`
+
+> **Amended 2026-07-20:** This redesign shipped (Status was "Proposed"). Its claim under
+> **Expanded editor** that "no field is removed or renamed" no longer holds:
+> `2026-07-19-service-level-attributes-design.md` (migration 0015) added an **Accepted-pets**
+> group and **per-service capacity caps** (`MaxConcurrentPets` / `MaxPerDay`) to the editor,
+> and `serviceSummary` grew a **sixth facts fragment** (the accepted-pets fact,
+> `src/shared/util/service-summary.ts`). Treat the field inventory below as of-its-time.
 
 ## Problem
 

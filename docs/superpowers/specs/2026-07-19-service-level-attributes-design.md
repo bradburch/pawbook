@@ -1,8 +1,15 @@
 # Service-level capacity + pet-type attributes
 
 **Date:** 2026-07-19
-**Status:** Proposed
+**Status:** Shipped — one rationale amended, see below
 **Branch:** `custom-services`
+
+> **Amended 2026-07-20:** The **F4** rationale for keeping `findOpenings` ("kept because it is
+> exported shared API — external consumers mirror its semantics") no longer holds:
+> `findOpenings` is **not re-exported from the barrel** `src/shared/index.ts`. It still exists in
+> `src/shared/booking/capacity.ts` but is not part of the public shared surface, so the
+> "external mirrors" justification for keeping it is unsupported. (`isUnavailableDate` was
+> correctly deleted as stated.)
 
 ## Problem
 

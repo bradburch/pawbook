@@ -1,8 +1,28 @@
 # Configurable animal types — custom species + per-service acceptance
 
 **Date:** 2026-07-19
-**Status:** Proposed
+**Status:** Superseded in part — see amendment
 **Branch:** `custom-services`
+
+> **Amended 2026-07-20:** The `TenantPetTypes.Enabled` enable/disable model in this spec was
+> superseded by `2026-07-19-service-level-attributes-design.md` (migration 0015) and never
+> shipped as written. Corrections to the stale claims below:
+>
+> - **`TenantPetTypes.Enabled` is retired.** The column still physically exists but is dead —
+>   0015 materializes it into per-service `AcceptedPetTypes` lists and nothing reads it. Pet
+>   types are now a pure **registry** (slug + `Label`); there is no live enable/disable flag.
+> - **Settings GET/PUT carry no enabled flags.** GET returns `petTypes` as `{ petType, label }[]`
+>   (`server/routes/admin.ts`, no `enabled`); PUT has no `petTypes: string[]` enabled-slug list.
+> - **The tenant-level "enabled type" booking gate is deleted, not "stays" (§F1/§Testing).**
+>   Booking now does a registry-membership check plus per-service `validatePetTypeAcceptance`
+>   (`src/shared/booking/service-rules.ts`, called from `server/routes/bookings.ts`); there is
+>   no tenant-wide type disable left to "win".
+> - **PetsSection is a pure registry editor** (add / rename / delete rows) — no enable checkbox
+>   or staged enable draft.
+> - **The wizard has no pet-type toggles.** `WizardProfileStep.tsx` shows a pointer line ("Pet
+>   types you accept are managed under Pets, and per service under Services") instead.
+> - The delete-guard and CSV skip-reason copy referencing an "enabled pet type" no longer apply;
+>   gating is registry membership, not an enabled flag.
 
 ## Problem
 

@@ -6,6 +6,19 @@
 **Extends:** `2026-07-18-onboarding-wizard-design.md` (v1 — lifecycle, presets, apply
 mechanics, and additive semantics all carry over unchanged unless stated here)
 
+> **Amended 2026-07-20:** Later work (`2026-07-19-service-level-attributes-design.md` /
+> migration 0015 and the shipped `SetupWizard.tsx`) diverged from this spec:
+>
+> - **The "Accepted pet types" toggle row is gone.** The profile step renders no Dogs/Cats
+>   toggles; `WizardProfileStep.tsx` shows a pointer line to the Pets and Services sections.
+> - **Tenant capacity limits no longer "stay in Your business."** `MaxConcurrentPets` /
+>   `MaxPerDay` / `MaxNights` moved **per-service** (migration 0015); they are not edited in
+>   the profile step or the Business section.
+> - **The `petTypes` wire shape is obsolete:** settings GET returns `{ petType, label }[]`
+>   (no `enabled`), and there is no enabled-slug PUT array.
+> - **The "Customize" disclosure is additionally gated on `rateUnit === 'visit'`** — it renders
+>   only for per-visit presets, never for boarding/house-sit presets (`SetupWizard.tsx`).
+
 ## Problem
 
 The shipped v1 wizard (`app/admin/SetupWizard.tsx`) gets a fresh tenant bookable,

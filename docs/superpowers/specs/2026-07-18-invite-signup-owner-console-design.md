@@ -1,8 +1,24 @@
 # Invite-only sitter signup + owner console — design
 
 **Date:** 2026-07-18
-**Status:** Approved (user-directed decisions; see "Decisions locked")
+**Status:** Approved — amended (security behavior differs from ship), see below
 **Branch:** `custom-services`
+
+> **Amended 2026-07-20:** Two security-relevant descriptions here do not match the code that
+> shipped. Read the code (`server/routes/signup.ts`, `server/db/repo.ts`) as authoritative:
+>
+> - **Rate limiting is a TRUE fixed window, not a TTL-refresh counter.** This spec describes the
+>   limiter as "incremented with `expirationTtl: 3600`" — which alone is a rolling lockout where
+>   every retry (including over-cap ones) pushes the expiry out, so a capped user never ages out.
+>   The shipped `checkAndBumpRateLimit` stores `windowStart` **inside** the KV value and resets
+>   only when `now - windowStart >= TTL`; `expirationTtl` is pure garbage collection, not the
+>   window boundary.
+> - **Provisioning is atomic-plus-compensation, not purely atomic.** The `db.batch()` aborts on
+>   the `TenantUsers.Email UNIQUE` replay path (as described), but the claim `UPDATE ... WHERE
+>   ClaimedAt IS NULL` can match **zero rows** (invite revoked mid-flight) without aborting the
+>   batch — the Tenants/TenantUsers rows land regardless. `createTenantFromSignup` returns
+>   `false` in that case and the route calls `rollbackUnclaimedTenant` to delete the orphaned
+>   tenant (`repo.ts` + `signup.ts`). "No orphan tenant" holds only because of that rollback.
 
 ## Problem
 
