@@ -42,13 +42,20 @@ export function Hint({ label, children }: { label: string; children: ReactNode }
   }, [open, state]);
 
   // Clamp the popover against the right viewport edge so it never causes horizontal scroll,
-  // even for a hint button near the edge at 360px width.
+  // even for a hint button near the edge at 360px width. Re-runs on window resize while open
+  // (e.g. a device rotation or a shrunk browser window) so a pinned hint doesn't keep a stale
+  // offset computed at the old viewport size.
   useLayoutEffect(() => {
     const el = popRef.current;
     if (!open || !el) return;
-    el.style.left = '0px';
-    const overflow = el.getBoundingClientRect().right - document.documentElement.clientWidth + 16;
-    if (overflow > 0) el.style.left = `${-overflow}px`;
+    const clamp = () => {
+      el.style.left = '0px';
+      const overflow = el.getBoundingClientRect().right - document.documentElement.clientWidth + 16;
+      if (overflow > 0) el.style.left = `${-overflow}px`;
+    };
+    clamp();
+    window.addEventListener('resize', clamp);
+    return () => window.removeEventListener('resize', clamp);
   }, [open]);
 
   return (

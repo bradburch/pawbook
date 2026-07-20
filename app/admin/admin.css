@@ -152,6 +152,11 @@ body {
   font-family: var(--sans);
   font-size: 0.95rem;
   color: var(--body);
+  /* Flex/grid items default to a content-based min-width, so a long select option list
+     (timezones) or a native file-input control (large intrinsic min-content) can force
+     their flex container wider than the viewport at narrow widths. Let them shrink. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pb-wrap input[type='number'] {
@@ -289,6 +294,15 @@ body {
   .pb-wrap .pb-sidenav a {
     flex: none;
     white-space: nowrap;
+  }
+
+  /* .pb-layout's align-items: flex-start (desktop-only concern: keeps the sticky sidenav from
+     stretching to the panel's height) also applies on the cross axis once flex-direction flips
+     to column here — without a width, that sizes the panel to fit its widest content (e.g. a
+     long timezone <select> or a native file input's intrinsic min-content) instead of the
+     viewport, overflowing narrow screens. Stretch it back to the full row width. */
+  .pb-panel {
+    width: 100%;
   }
 }
 
@@ -838,11 +852,15 @@ body {
   border-color: var(--sage);
   background: var(--sage-wash);
 }
-.pb-wrap .pb-svc-editor-foot .pb-danger {
+/* Un-scoped (button.pb-danger, not just the editor footer's .pb-danger) so any delete/remove
+   action tagged .pb-danger gets the red tint — e.g. the pet-type registry's delete button in
+   PetsSection. Written as `button.pb-danger`, matching .pb-svc-editor-foot button's specificity
+   (two classes + one type) rather than losing to it, so this still wins by source order. */
+.pb-wrap button.pb-danger {
   color: var(--bad);
   border-color: color-mix(in srgb, var(--bad) 35%, transparent);
 }
-.pb-wrap .pb-svc-editor-foot .pb-danger:hover {
+.pb-wrap button.pb-danger:hover {
   color: var(--bad);
   border-color: var(--bad);
   background: var(--bad-wash);

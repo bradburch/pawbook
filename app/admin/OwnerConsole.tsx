@@ -125,8 +125,8 @@ export function OwnerConsole({
                   Status{' '}
                   <Hint label="Status">
                     &ldquo;Waiting to join&rdquo; means they haven&rsquo;t signed up yet and can
-                    still be removed. Once they&rsquo;ve joined, their business exists and
-                    can&rsquo;t be removed here.
+                    still be removed. Joined means they&rsquo;ve set up their business; if it was
+                    later deleted you&rsquo;ll see that flagged here.
                   </Hint>
                 </th>
                 <th aria-label="Actions" />
