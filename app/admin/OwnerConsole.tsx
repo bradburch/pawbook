@@ -117,41 +117,45 @@ export function OwnerConsole({
         ) : entries.length === 0 ? (
           <p>No one yet — add the first email above.</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>
-                  Status{' '}
-                  <Hint label="Status">
-                    &ldquo;Waiting to join&rdquo; means they haven&rsquo;t signed up yet and can
-                    still be removed. Joined means they&rsquo;ve set up their business; if it was
-                    later deleted you&rsquo;ll see that flagged here.
-                  </Hint>
-                </th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e) => (
-                <tr key={e.email}>
-                  <td>{e.email}</td>
-                  <td>
-                    {e.orphaned ? (
-                      <span className="pb-chip pb-chip-warn">Joined — business deleted</span>
-                    ) : e.claimedAt ? (
-                      `Joined → ${e.tenantSlug ?? ''}`
-                    ) : (
-                      'Waiting to join'
-                    )}
-                  </td>
-                  <td>
-                    {!e.claimedAt && <button onClick={() => void remove(e.email)}>Remove</button>}
-                  </td>
+          // The container (not the page body) scrolls horizontally if a long email or the
+          // "Joined — business deleted" chip still won't fit at narrow widths — see .pb-table-wrap.
+          <div className="pb-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>
+                    Status{' '}
+                    <Hint label="Status">
+                      &ldquo;Waiting to join&rdquo; means they haven&rsquo;t signed up yet and can
+                      still be removed. Joined means they&rsquo;ve set up their business; if it was
+                      later deleted you&rsquo;ll see that flagged here.
+                    </Hint>
+                  </th>
+                  <th aria-label="Actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {entries.map((e) => (
+                  <tr key={e.email}>
+                    <td>{e.email}</td>
+                    <td>
+                      {e.orphaned ? (
+                        <span className="pb-chip pb-chip-warn">Joined — business deleted</span>
+                      ) : e.claimedAt ? (
+                        `Joined → ${e.tenantSlug ?? ''}`
+                      ) : (
+                        'Waiting to join'
+                      )}
+                    </td>
+                    <td>
+                      {!e.claimedAt && <button onClick={() => void remove(e.email)}>Remove</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

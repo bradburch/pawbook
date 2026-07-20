@@ -488,6 +488,17 @@ body {
   filter: brightness(0.92);
 }
 
+/* BookingList's confirmation bar (Confirm/Decline/Cancel result, incl. the "couldn't email the
+   client" notice) reuses .pb-savebar for the same "can't scroll out of view" guarantee, but it
+   lives inside .pb-panel while the dashboard's own unsaved-changes/save-result bar is a later
+   sibling at the same fixed bottom:0 — without this, the dashboard bar (later in the DOM) paints
+   over it. --dash-savebar-h is measured in App.tsx (0px when that bar isn't showing) so this one
+   stacks just above it instead, rather than guessing a static offset that could be wrong once the
+   dashboard bar's text wraps to two lines. */
+.pb-panel .pb-savebar {
+  bottom: var(--dash-savebar-h, 0px);
+}
+
 /* ── Login card ────────────────────────────────────────────────── */
 .pb-login {
   max-width: 400px;
@@ -794,6 +805,12 @@ body {
   text-decoration: underline;
   cursor: pointer;
 }
+/* Lets the table itself scroll sideways on a narrow viewport instead of the page body — a long
+   email or the "Joined — business deleted" chip shouldn't be able to widen the whole page. */
+.pb-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
 .pb-owner-console table {
   width: 100%;
   border-collapse: collapse;
@@ -804,6 +821,19 @@ body {
   text-align: left;
   padding: 6px 8px;
   border-bottom: 1px solid var(--line);
+}
+/* The email column: scoped (not every cell) so this doesn't also make the Actions column's
+   "Remove" button wrap letter-by-letter. An email is one long unbreakable token, which would
+   otherwise force this cell — and the table, and (without .pb-table-wrap) the page — wider than
+   the viewport at 360px. */
+.pb-owner-console td:first-child {
+  overflow-wrap: anywhere;
+}
+.pb-owner-console .pb-chip {
+  /* .pb-chip is `white-space: nowrap` everywhere else (short one/two-word status text), but
+     "Joined — business deleted" is long enough to overflow a narrow cell on its own — allow it
+     to wrap here without touching the shared rule other chips (Bookings, Clients) rely on. */
+  white-space: normal;
 }
 
 /* ── Services & rates: expanded editor (spec 2026-07-19) ───────── */

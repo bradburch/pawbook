@@ -4,6 +4,9 @@ import { adminApi } from '../../shared-ui/api.js';
 import { IconUsers } from '../../shared-ui/icons';
 import { Hint } from '../Hint';
 
+/** The full pet-type registry entry (slug + display label), same shape as `Settings.petTypes`. */
+type PetType = { petType: string; label: string };
+
 function PetAdder({
   customer,
   petTypes,
@@ -14,7 +17,7 @@ function PetAdder({
   clearError,
 }: {
   customer: Customer;
-  petTypes: string[];
+  petTypes: PetType[];
   slug: string;
   token: string;
   onAdded: () => void;
@@ -22,16 +25,34 @@ function PetAdder({
   clearError: () => void;
 }) {
   const [name, setName] = useState('');
-  const [petType, setPetType] = useState(petTypes[0]);
+  // Value held here is the slug (what the server expects), not the label. Just the user's last
+  // pick, not necessarily a valid one right now — see `selectedPetType` below.
+  const [petType, setPetType] = useState(petTypes[0]?.petType ?? '');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Derived, not synced via an effect: `petType` goes stale if the registry changes while this
+  // stays mounted (every section stays mounted — see App.tsx), e.g. the sitter removes the
+  // currently-selected type in the Pet types section. Falling back here — rather than writing
+  // the fallback back into `petType` — means the <select>, and what `add()` submits, are always
+  // in sync with the current registry without a render-then-setState round trip.
+  const selectedPetType = petTypes.some((pt) => pt.petType === petType)
+    ? petType
+    : (petTypes[0]?.petType ?? '');
 
   const add = async () => {
     if (!name.trim() || busy) return;
     clearError();
     setBusy(true);
     try {
-      await adminApi.customers.addPet(slug, token, customer.id, name.trim(), petType, notes.trim());
+      await adminApi.customers.addPet(
+        slug,
+        token,
+        customer.id,
+        name.trim(),
+        selectedPetType,
+        notes.trim(),
+      );
       setName('');
       setNotes('');
       onAdded();
@@ -45,10 +66,10 @@ function PetAdder({
   return (
     <div className="pb-row pb-add-pet">
       <input placeholder="Pet name" value={name} onChange={(e) => setName(e.target.value)} />
-      <select value={petType} onChange={(e) => setPetType(e.target.value)}>
+      <select value={selectedPetType} onChange={(e) => setPetType(e.target.value)}>
         {petTypes.map((pt) => (
-          <option key={pt} value={pt}>
-            {pt === 'dog' ? 'Dog' : 'Cat'}
+          <option key={pt.petType} value={pt.petType}>
+            {pt.label}
           </option>
         ))}
       </select>
@@ -74,7 +95,7 @@ export function ClientsSection({
   clearError,
 }: {
   customers: Customer[];
-  petTypes: string[];
+  petTypes: PetType[];
   slug: string;
   token: string;
   onCustomersChanged: () => void;

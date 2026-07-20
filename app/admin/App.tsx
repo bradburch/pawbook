@@ -287,6 +287,31 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
     return () => observer.disconnect();
   }, [topbarEl]);
 
+  // This dashboard-level sticky bar (unsaved changes / save error / saved confirmation) and
+  // BookingList's own fixed confirmation bar (rendered inside .pb-panel — see BookingsSection
+  // and CalendarSection, which both reuse it) are two independent `position: fixed; bottom: 0`
+  // elements at the same z-index. Without coordination, this one — rendered later in the DOM —
+  // paints over the booking confirmation, hiding its "couldn't email the client" notice and its
+  // OK button. Measure this bar's height (same technique as --topbar-h above) and expose it as
+  // --dash-savebar-h so admin.css can offset the booking bar to sit just above it instead of
+  // underneath. Reset to 0px when this bar isn't showing, so the booking bar sits flush at the
+  // bottom exactly as before in the common case where the two never overlap.
+  const [dashSavebarEl, setDashSavebarEl] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    const wrap = topbarEl?.parentElement;
+    if (!wrap) return;
+    if (!dashSavebarEl) {
+      wrap.style.setProperty('--dash-savebar-h', '0px');
+      return;
+    }
+    const setHeight = () =>
+      wrap.style.setProperty('--dash-savebar-h', `${dashSavebarEl.offsetHeight}px`);
+    setHeight();
+    const observer = new ResizeObserver(setHeight);
+    observer.observe(dashSavebarEl);
+    return () => observer.disconnect();
+  }, [dashSavebarEl, topbarEl]);
+
   // Keeps the active section in sync with browser back/forward through the hash history
   // entries that switching sections now creates.
   useEffect(() => {
@@ -336,6 +361,27 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   }, []);
 
   const refresh = () => run(async () => applyLoaded(await loadSettings()));
+
+  /**
+   * Updates only `settings.calendar` from a fresh GET, leaving every other field — including
+   * whatever the sitter currently has staged and unsaved elsewhere on the page — untouched.
+   * There's no narrower server endpoint for "just the calendar status" (and this fix adds none),
+   * but `/admin/settings` already returns it as one field of the full payload, so the same
+   * request `refresh()` uses can be narrowed entirely on the client by only merging that one
+   * field into both `settings` and `savedSnapshot` (the latter so this fetch doesn't itself make
+   * the page look dirty — see `dirty`'s definition above). Used by the calendar-connect popup
+   * poll below, which used to call the full `refresh()` and blow away staged edits.
+   */
+  const refreshCalendarStatus = () =>
+    run(async () => {
+      const fresh = await loadSettings();
+      setSettings((prev) => (prev ? { ...prev, calendar: fresh.calendar } : prev));
+      setSavedSnapshot((prev) => {
+        if (!prev) return prev;
+        const parsed = JSON.parse(prev) as Settings;
+        return JSON.stringify({ ...parsed, calendar: fresh.calendar });
+      });
+    });
 
   const save = () =>
     run(async () => {
@@ -445,11 +491,14 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       const { url } = await adminApi.calendar.start(slug, token);
       const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
       // The callback page is script-free (CSP), so detect the popup closing here and re-fetch
-      // settings to pick up the new connected status.
+      // the connection status. Narrowed to just `calendar` (not the full refresh()) — this fires
+      // on a timer detached from any user action (up to 1s after the popup actually closes, and
+      // immediately if it was blocked), so it must not clobber whatever the sitter has staged
+      // elsewhere on the page in the meantime.
       const timer = window.setInterval(() => {
         if (!popup || popup.closed) {
           window.clearInterval(timer);
-          void refresh();
+          void refreshCalendarStatus();
         }
       }, 1000);
     });
@@ -509,9 +558,6 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   }, [loadSettings, handle, applyLoaded]);
 
   if (!settings) return <p className="pb-wrap">Loading…</p>;
-
-  // Full registry — pet creation is gated by registry membership, not per-service acceptance.
-  const petTypeSlugs = settings.petTypes.map((p) => p.petType);
 
   const panels: Record<SectionKey, ReactNode> = {
     calendar: (
@@ -582,9 +628,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       />
     ),
     clients: (
+      // settings.petTypes is the full registry (slug + label) — pet creation is gated by
+      // registry membership, not per-service acceptance, so the whole registry (not just the
+      // slugs) is what ClientsSection needs to render correct option labels.
       <ClientsSection
         customers={customers ?? []}
-        petTypes={petTypeSlugs}
+        petTypes={settings.petTypes}
         slug={slug}
         token={token}
         onCustomersChanged={reloadCustomers}
@@ -648,7 +697,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
       </div>
 
       {(dirty || message || error) && (
-        <div className="pb-savebar" role="status">
+        <div className="pb-savebar" role="status" ref={setDashSavebarEl}>
           {error ? (
             <p className="pb-savebar-error">{error}</p>
           ) : dirty ? (
