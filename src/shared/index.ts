@@ -36,6 +36,7 @@ export {
   validateAnswer,
   validateAnswers,
   validateServiceConstraints,
+  validatePetTypeAcceptance,
   type ServiceQuestion,
   type ServiceConstraints,
   type ServiceOption,

@@ -106,3 +106,25 @@ export function validateServiceConstraints(
     return `This service allows at most ${constraints.maxPetCount} pet${constraints.maxPetCount === 1 ? '' : 's'}.`;
   return null;
 }
+
+/**
+ * Per-service pet-type acceptance. `accepted` null = the service accepts every enabled type
+ * (the codebase's null-is-unlimited convention); an array is an explicit allow-list of
+ * pet-type slugs. Checks EVERY selected pet and returns the first error, or null.
+ * `labelOf` maps a slug to its tenant display label — callers fall back to the raw slug
+ * (`(s) => labels.get(s) ?? s`). The tenant-level enabled gate is separate and always wins;
+ * this only expresses the service's own restriction.
+ */
+export function validatePetTypeAcceptance(
+  accepted: string[] | null,
+  serviceLabel: string,
+  pets: { name: string; petType: string }[],
+  labelOf: (slug: string) => string,
+): string | null {
+  if (accepted === null) return null;
+  for (const pet of pets) {
+    if (!accepted.includes(pet.petType))
+      return `${serviceLabel} doesn't accept ${labelOf(pet.petType).toLowerCase()} — ${pet.name} can't join this booking.`;
+  }
+  return null;
+}
