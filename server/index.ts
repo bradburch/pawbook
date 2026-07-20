@@ -106,13 +106,14 @@ const LANDING_HTML = `<!doctype html>
     <style>
       :root {
         color-scheme: light;
-        --paper: #ece6d8;
-        --paper-2: #f7f3ea;
-        --ink: #26312e;
-        --soft: #545d4d;
-        --rule: #d6cebc;
-        --accent: #c77d0a;
-        --stamp: #9e3b4e;
+        --paper: #eae9d9;
+        --paper-2: #f6f4e9;
+        --ink: #24322a;
+        --pine: #22422e;
+        --soft: #55604f;
+        --rule: #d2cfba;
+        --accent: #4a7d3c;
+        --stamp: #a23e33;
         --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino,
           "Times New Roman", serif;
         --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
@@ -130,11 +131,11 @@ const LANDING_HTML = `<!doctype html>
         /* A faint ruled-notebook wash on warm paper — the ledger, felt not shouted. */
         background-color: var(--paper);
         background-image:
-          radial-gradient(120% 60% at 50% -6%, #f2ecdd 0%, var(--paper) 55%),
+          radial-gradient(120% 60% at 50% -6%, #f2f1e1 0%, var(--paper) 55%),
           repeating-linear-gradient(
             to bottom,
             transparent 0 31px,
-            rgba(38, 49, 46, 0.05) 31px 32px
+            rgba(34, 50, 40, 0.05) 31px 32px
           );
       }
       .page {
@@ -163,7 +164,7 @@ const LANDING_HTML = `<!doctype html>
         padding: 10px;
         box-shadow:
           0 1px 0 #fff inset,
-          0 18px 40px -26px rgba(38, 49, 46, 0.6);
+          0 18px 40px -26px rgba(34, 50, 40, 0.6);
         transform: rotate(-0.7deg);
       }
       .shot img {
@@ -239,17 +240,17 @@ const LANDING_HTML = `<!doctype html>
       a.cta {
         display: inline-block;
         padding: 13px 30px;
-        background: var(--ink);
+        background: var(--pine);
         color: var(--paper-2);
         text-decoration: none;
         border-radius: 4px;
         font-weight: 600;
         font-size: 1rem;
-        border: 1px solid var(--ink);
+        border: 1px solid var(--pine);
         transition:
           transform 0.12s ease,
           box-shadow 0.12s ease;
-        box-shadow: 0 6px 18px -10px rgba(38, 49, 46, 0.8);
+        box-shadow: 0 6px 18px -10px rgba(34, 50, 40, 0.8);
       }
       a.cta:hover { transform: translateY(-1px); }
       .links {
