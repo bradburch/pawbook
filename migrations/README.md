@@ -29,12 +29,12 @@ State as of this merge:
 - **Local dev DB**: has `0001`–`0008` applied (custom-services numbering — `0006_custom_services.sql`
   through `0008_payments.sql`). Needs `0009_service_slots.sql`, `0010_slot_index.sql`,
   `0011_contact_and_notes.sql`, `0012_weekday_only.sql`,
-  `0013_invite_signup_owner_console.sql`, and `0014_custom_pet_types.sql` applied next, in that
-  order.
-- **Remote DB**: has `0001`–`0005` applied. Needs the full `0006`–`0014` run, in order, at next
+  `0013_invite_signup_owner_console.sql`, `0014_custom_pet_types.sql`, and
+  `0015_service_level_attributes.sql` applied next, in that order.
+- **Remote DB**: has `0001`–`0005` applied. Needs the full `0006`–`0015` run, in order, at next
   deploy — none of the custom-services, booking-lifecycle, payments, service-slots, slot-index,
-  contact/notes, weekday-only, invite-signup/owner-console, or custom-pet-types migrations have
-  reached it yet.
+  contact/notes, weekday-only, invite-signup/owner-console, custom-pet-types, or
+  service-level-attributes migrations have reached it yet.
 
 Apply with, e.g.:
 
@@ -45,6 +45,7 @@ npx wrangler d1 execute pawbook-db --local  --file=./migrations/0011_contact_and
 npx wrangler d1 execute pawbook-db --local  --file=./migrations/0012_weekday_only.sql
 npx wrangler d1 execute pawbook-db --local  --file=./migrations/0013_invite_signup_owner_console.sql
 npx wrangler d1 execute pawbook-db --local  --file=./migrations/0014_custom_pet_types.sql
+npx wrangler d1 execute pawbook-db --local  --file=./migrations/0015_service_level_attributes.sql
 ```
 
 ### ⚠️ `0002_tenant_config_limits.sql` is DATA-DESTRUCTIVE if ever re-run against a live DB

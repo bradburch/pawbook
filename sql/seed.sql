@@ -24,24 +24,27 @@ INSERT OR REPLACE INTO TenantUsers (Id, TenantId, Email, PasswordHash) VALUES
 -- Which services each tenant offers. Every tenant gets a row per built-in template (rows, not
 -- code, are the service list); Enabled mirrors what each demo sitter actually offers. Sunny Paws
 -- also has a CUSTOM service ('morning-walk', cloned from the walk template) to demo custom services.
+-- Capacity lives on the service rows (0015): Sunny Paws boarding takes 2 pets/day, Happy Tails 4;
+-- everything else is unlimited (NULL). Happy Tails' services accept dogs only ('["dog"]' — the
+-- post-0015 materialized state of its dogs-only acceptance); NULL elsewhere = accepts every type.
 INSERT OR REPLACE INTO TenantServices
-  (TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind, SortOrder) VALUES
-  ('tnt_sunnypaws', 'boarding', 1, 'Boarding', 'bed', 'range', 'night', 0, 'boarding', 0),
-  ('tnt_sunnypaws', 'housesitting', 1, 'House sitting', 'home', 'range', 'night', 0, 'housesit', 1),
-  ('tnt_sunnypaws', 'daycare', 1, 'Day care', 'sun', 'single', 'day', 0, 'none', 2),
-  ('tnt_sunnypaws', 'walk', 1, 'Walks', 'paw', 'single', 'visit', 1, 'none', 3),
-  ('tnt_sunnypaws', 'checkin', 1, 'Check-ins', 'clipboard', 'single', 'visit', 1, 'none', 4),
-  ('tnt_sunnypaws', 'morning-walk', 1, 'Morning walk', 'paw', 'single', 'visit', 1, 'none', 5),
-  ('tnt_happytails', 'boarding', 1, 'Boarding', 'bed', 'range', 'night', 0, 'boarding', 0),
-  ('tnt_happytails', 'housesitting', 0, 'House sitting', 'home', 'range', 'night', 0, 'housesit', 1),
-  ('tnt_happytails', 'daycare', 1, 'Day care', 'sun', 'single', 'day', 0, 'none', 2),
-  ('tnt_happytails', 'walk', 1, 'Walks', 'paw', 'single', 'visit', 1, 'none', 3),
-  ('tnt_happytails', 'checkin', 0, 'Check-ins', 'clipboard', 'single', 'visit', 1, 'none', 4),
-  ('tnt_pawsandrelax', 'boarding', 1, 'Boarding', 'bed', 'range', 'night', 0, 'boarding', 0),
-  ('tnt_pawsandrelax', 'housesitting', 1, 'House sitting', 'home', 'range', 'night', 0, 'housesit', 1),
-  ('tnt_pawsandrelax', 'daycare', 0, 'Day care', 'sun', 'single', 'day', 0, 'none', 2),
-  ('tnt_pawsandrelax', 'walk', 1, 'Walks', 'paw', 'single', 'visit', 1, 'none', 3),
-  ('tnt_pawsandrelax', 'checkin', 0, 'Check-ins', 'clipboard', 'single', 'visit', 1, 'none', 4);
+  (TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind, SortOrder, MaxConcurrentPets, AcceptedPetTypes) VALUES
+  ('tnt_sunnypaws', 'boarding', 1, 'Boarding', 'bed', 'range', 'night', 0, 'boarding', 0, 2, NULL),
+  ('tnt_sunnypaws', 'housesitting', 1, 'House sitting', 'home', 'range', 'night', 0, 'housesit', 1, NULL, NULL),
+  ('tnt_sunnypaws', 'daycare', 1, 'Day care', 'sun', 'single', 'day', 0, 'none', 2, NULL, NULL),
+  ('tnt_sunnypaws', 'walk', 1, 'Walks', 'paw', 'single', 'visit', 1, 'none', 3, NULL, NULL),
+  ('tnt_sunnypaws', 'checkin', 1, 'Check-ins', 'clipboard', 'single', 'visit', 1, 'none', 4, NULL, NULL),
+  ('tnt_sunnypaws', 'morning-walk', 1, 'Morning walk', 'paw', 'single', 'visit', 1, 'none', 5, NULL, NULL),
+  ('tnt_happytails', 'boarding', 1, 'Boarding', 'bed', 'range', 'night', 0, 'boarding', 0, 4, '["dog"]'),
+  ('tnt_happytails', 'housesitting', 0, 'House sitting', 'home', 'range', 'night', 0, 'housesit', 1, NULL, '["dog"]'),
+  ('tnt_happytails', 'daycare', 1, 'Day care', 'sun', 'single', 'day', 0, 'none', 2, NULL, '["dog"]'),
+  ('tnt_happytails', 'walk', 1, 'Walks', 'paw', 'single', 'visit', 1, 'none', 3, NULL, '["dog"]'),
+  ('tnt_happytails', 'checkin', 0, 'Check-ins', 'clipboard', 'single', 'visit', 1, 'none', 4, NULL, '["dog"]'),
+  ('tnt_pawsandrelax', 'boarding', 1, 'Boarding', 'bed', 'range', 'night', 0, 'boarding', 0, NULL, NULL),
+  ('tnt_pawsandrelax', 'housesitting', 1, 'House sitting', 'home', 'range', 'night', 0, 'housesit', 1, NULL, NULL),
+  ('tnt_pawsandrelax', 'daycare', 0, 'Day care', 'sun', 'single', 'day', 0, 'none', 2, NULL, NULL),
+  ('tnt_pawsandrelax', 'walk', 1, 'Walks', 'paw', 'single', 'visit', 1, 'none', 3, NULL, NULL),
+  ('tnt_pawsandrelax', 'checkin', 0, 'Check-ins', 'clipboard', 'single', 'visit', 1, 'none', 4, NULL, NULL);
 
 -- Priced options. Non-duration services = single 'standard' option, DurationMinutes NULL.
 -- Walks/check-ins = sitter-defined (duration, price) rows; prices are free-typed (note the sitter's
@@ -76,9 +79,9 @@ INSERT OR REPLACE INTO TenantServiceOptions
   (Id, TenantId, ServiceType, OptionKey, Label, DurationMinutes, Rate, RateUnit, WeekdaysOnly) VALUES
   ('opt_sp_mw30', 'tnt_sunnypaws', 'morning-walk', 'd30', '30 minutes', 30, 18, 'visit', 1);
 
--- Accepted species: Sunny Paws takes dogs + cats + rabbits (rabbit demos custom types end to
--- end); Happy Tails dogs only (cat row present but disabled, matching the 0014 backfill);
--- Paws & Relax dogs + cats.
+-- Pet-type registry: Sunny Paws takes dogs + cats + rabbits (rabbit demos custom types end to
+-- end); Happy Tails' cat row stays in the registry but is accepted by NO service (its services
+-- carry '["dog"]' above — demos the acceptance chips); Paws & Relax dogs + cats.
 INSERT OR REPLACE INTO TenantPetTypes (TenantId, PetType, Label, Enabled) VALUES
   ('tnt_sunnypaws', 'dog', 'Dogs', 1),
   ('tnt_sunnypaws', 'cat', 'Cats', 1),
