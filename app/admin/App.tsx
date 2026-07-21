@@ -353,51 +353,38 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
 
   const dirty = settings !== null && JSON.stringify(settings) !== savedSnapshot;
 
-  // The sticky topbar's height isn't fixed — the business-name row wraps for a long name on a
-  // narrow viewport, and the nav row's height varies too. Measure it and expose it as --topbar-h
-  // so anything that needs to dock just below the sticky header can offset by the real height
-  // instead of guessing. A callback ref (not useRef + an empty-deps effect) because the header
-  // doesn't exist yet on the first render — this component returns the "Loading…" paragraph below
-  // until `settings` arrives. useLayoutEffect (not useEffect) so the measurement applies before
-  // paint — no flash of the pre-JS 78px fallback.
-  const [topbarEl, setTopbarEl] = useState<HTMLElement | null>(null);
-  useLayoutEffect(() => {
-    // Scoped to the dashboard's own wrapper (the topbar's parent) rather than the document root,
-    // so this doesn't leak global state that could go stale for anything else that might ever
-    // read a same-named custom property.
-    const wrap = topbarEl?.parentElement;
-    if (!wrap) return;
-    const setHeight = () => wrap.style.setProperty('--topbar-h', `${topbarEl.offsetHeight}px`);
-    setHeight();
-    const observer = new ResizeObserver(setHeight);
-    observer.observe(topbarEl);
-    return () => observer.disconnect();
-  }, [topbarEl]);
+  // The dashboard's own wrapper element, captured via callback ref (not useRef + an empty-deps
+  // effect) because it doesn't exist on the first render — this component returns the "Loading…"
+  // paragraph below until `settings` arrives. Custom properties are set on it (rather than the
+  // document root) so measurement state can't leak to anything else that might ever read a
+  // same-named property. The old sidebar's --topbar-h measurement is gone with the sidebar; the
+  // nav now lives inside the sticky topbar itself, which needs no offset.
+  const [wrapEl, setWrapEl] = useState<HTMLElement | null>(null);
 
   // This dashboard-level sticky bar (unsaved changes / save error / saved confirmation) and
   // BookingList's own fixed confirmation bar (rendered inside .pb-panel — see BookingsSection
   // and CalendarSection, which both reuse it) are two independent `position: fixed; bottom: 0`
   // elements at the same z-index. Without coordination, this one — rendered later in the DOM —
   // paints over the booking confirmation, hiding its "couldn't email the client" notice and its
-  // OK button. Measure this bar's height (same technique as --topbar-h above) and expose it as
-  // --dash-savebar-h so admin.css can offset the booking bar to sit just above it instead of
-  // underneath. Reset to 0px when this bar isn't showing, so the booking bar sits flush at the
-  // bottom exactly as before in the common case where the two never overlap.
+  // OK button. Measure this bar's height (useLayoutEffect + ResizeObserver, so it applies
+  // before paint and tracks wrapping) and expose it as --dash-savebar-h so admin.css can offset
+  // the booking bar to sit just above it instead of underneath. Reset to 0px when this bar
+  // isn't showing, so the booking bar sits flush at the bottom exactly as before in the common
+  // case where the two never overlap.
   const [dashSavebarEl, setDashSavebarEl] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    const wrap = topbarEl?.parentElement;
-    if (!wrap) return;
+    if (!wrapEl) return;
     if (!dashSavebarEl) {
-      wrap.style.setProperty('--dash-savebar-h', '0px');
+      wrapEl.style.setProperty('--dash-savebar-h', '0px');
       return;
     }
     const setHeight = () =>
-      wrap.style.setProperty('--dash-savebar-h', `${dashSavebarEl.offsetHeight}px`);
+      wrapEl.style.setProperty('--dash-savebar-h', `${dashSavebarEl.offsetHeight}px`);
     setHeight();
     const observer = new ResizeObserver(setHeight);
     observer.observe(dashSavebarEl);
     return () => observer.disconnect();
-  }, [dashSavebarEl, topbarEl]);
+  }, [dashSavebarEl, wrapEl]);
 
   // Keeps the active section in sync with browser back/forward through the hash history
   // entries that switching sections now creates.
@@ -746,8 +733,8 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   };
 
   return (
-    <div className="pb-wrap pb-dash">
-      <header className="pb-topbar" ref={setTopbarEl}>
+    <div className="pb-wrap pb-dash" ref={setWrapEl}>
+      <header className="pb-topbar">
         <div className="pb-topbar-row">
           <h1>{settings.displayName}</h1>
           <div className="pb-topbar-meta">

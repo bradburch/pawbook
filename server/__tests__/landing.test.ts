@@ -72,12 +72,12 @@ describe('GET / — landing page', () => {
     }
   });
 
-  it('every referenced screenshot exists in public/img/landing under budget (total ≤300KB)', async () => {
+  it('every referenced screenshot exists in public/img/landing under budget (total ≤210KB)', async () => {
     const body = await landingBody();
     const referenced = new Set(
       [...body.matchAll(/src="\/img\/landing\/([^"]+)"/g)].map((m) => m[1]),
     );
-    // The page must use exactly the five budgeted shots — no unbudgeted strays.
+    // The page must use exactly the four budgeted shots — no unbudgeted strays.
     expect([...referenced].sort()).toEqual(Object.keys(IMG_BUDGETS_KB).sort());
     let total = 0;
     for (const [file, kb] of Object.entries(IMG_BUDGETS_KB)) {
