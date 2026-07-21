@@ -301,7 +301,10 @@ export function BookTab({
                   <p className="bp-summary-policy">
                     Cancellation:{' '}
                     {service.cancellationTiers
-                      .map((t) => `${t.percent}% within ${t.withinDays} day${t.withinDays === 1 ? '' : 's'}`)
+                      .map(
+                        (t) =>
+                          `${t.percent}% within ${t.withinDays} day${t.withinDays === 1 ? '' : 's'}`,
+                      )
                       .join(', ')}
                   </p>
                 )}
