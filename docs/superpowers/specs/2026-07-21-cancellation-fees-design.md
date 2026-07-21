@@ -52,8 +52,9 @@ the booking engine.
 
 ## Server
 
-- `POST /:slug/admin/services` (`server/routes/admin.ts`): validate
-  `CancellationTiers` with the shared validator before persisting.
+- `PUT /:slug/admin/settings` (`server/routes/admin.ts` — the endpoint that
+  actually persists per-service config): validate `CancellationTiers` with the
+  shared validator before persisting.
 - Status endpoint `POST /:slug/admin/bookings/:id/status` (`admin.ts:1019`):
   accepts optional `chargeFee: true`. Honored only when **all** hold:
   target status is `cancelled` (never `declined`), the booking is currently
@@ -63,7 +64,9 @@ the booking engine.
   `chargeFee` on an ineligible request → 400.
 - Payment guard (`server/db/repo.ts:610`): cancelled bookings currently refuse
   all payments. New rule: refuse unless the booking has a non-null
-  `CancellationFee`, in which case payments are accepted up to the fee.
+  `CancellationFee`. No amount cap — no payment anywhere in Pawbook is capped
+  against its expected amount (EstCost isn't), and a cancelled-only cap would
+  be an inconsistency.
 - Ledger: wherever balance/earnings compare payments to an expected amount, a
   cancelled booking's expected amount is `CancellationFee` (0 if NULL) instead
   of `EstCost`. That substitution is the full-ledger behavior — no new tables.
