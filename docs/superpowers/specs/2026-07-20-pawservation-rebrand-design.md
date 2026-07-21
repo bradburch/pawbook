@@ -122,7 +122,8 @@ API we shipped. New name forward, old name honored indefinitely:
   posted means every loader vintage works, and no loader sees both of "its"
   types).
 - **DOM event**: the new loader dispatches **both** `pawservation:booked` and
-  legacy `pawbook:booked` CustomEvents on `document` so existing host-page
+  legacy `pawbook:booked` CustomEvents on `window` (matching the pre-rebrand
+  contract and `demo-host.js`'s listener) so existing host-page
   listeners keep working. README documents the new event and names the legacy
   one as a compatibility alias. `public/demo-host.js` (our fake-CMS demo)
   switches its listener to the new event — which makes the demo page itself
@@ -227,10 +228,14 @@ In order; each step is independently safe.
    re-bound and observability history is lost; (d) the old worker must be
    kept alive anyway to serve the old hostname. The name appears nowhere
    users look. Same logic keeps `database_name: pawbook-db`.
-5. **Google OAuth**: in the Google Cloud console, add the new origin's
-   redirect URI (`https://<new-domain>/oauth/google/callback` — the path is
-   origin-derived) and update the consent-screen app name/branding to
-   Pawservation. Verify a calendar connect from the new domain.
+5. **Google OAuth**: the redirect URI is the fixed `GOOGLE_OAUTH_REDIRECT_URI`
+   secret (not request-derived), so no secret change is needed — keep the
+   currently registered workers.dev URI in the Google console; the callback
+   lands on the same worker via the old hostname and the connect flow works
+   from the new domain as-is. Re-put the secret (and register the new URI)
+   only if you want the callback to move to the new domain. Update the
+   consent-screen app name/branding to Pawservation either way, then verify
+   a calendar connect from the new domain.
 6. **GitHub repo rename** `bradburch/pawbook` → `bradburch/pawservation`: one
    click; GitHub automatically redirects old web URLs and git remotes (until
    a new repo reuses the old name — don't). Owner chose a full rebrand, so
