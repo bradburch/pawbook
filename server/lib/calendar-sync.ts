@@ -110,7 +110,7 @@ const calendarSyncKey = (tenantId: string) => `calendar-sync:${tenantId}:last`;
 
 /**
  * Reconciles this tenant's synced bookings against Google Calendar: if a booking's event was
- * deleted directly in Calendar (not through Pawbook), the booking is marked cancelled. Read-only
+ * deleted directly in Calendar (not through Pawservation), the booking is marked cancelled. Read-only
  * against Google and strictly best-effort — a Calendar failure must never block the dashboard from
  * returning current DB state, same philosophy as syncBookingToCalendar above.
  */

@@ -84,8 +84,8 @@ export function AppsSection({
       <h2>
         <IconPlug size={18} /> Connected apps
         <Hint label="Connected apps">
-          Link Pawbook to tools you already use. With Google Calendar connected, bookings appear on
-          your own calendar automatically.
+          Link Pawservation to tools you already use. With Google Calendar connected, bookings
+          appear on your own calendar automatically.
         </Hint>
       </h2>
       <ul>

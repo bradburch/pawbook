@@ -29,9 +29,9 @@ export function HelpSection() {
         Only people on your client list can book, so start in <a href="#clients">Clients</a>: add
         each client&rsquo;s email (or import a spreadsheet) and they get an invite. A client&rsquo;s
         request arrives under &ldquo;Needs your reply&rdquo; — nothing is ever booked without you.
-        Confirm and the client gets an email; decline and they hear that too. Pawbook won&rsquo;t
-        double-book you: once a day is full, or you&rsquo;ve blocked it as time off, clients simply
-        can&rsquo;t pick it.
+        Confirm and the client gets an email; decline and they hear that too. Pawservation
+        won&rsquo;t double-book you: once a day is full, or you&rsquo;ve blocked it as time off,
+        clients simply can&rsquo;t pick it.
       </p>
 
       <h3>Your calendar and Google Calendar</h3>
@@ -47,7 +47,7 @@ export function HelpSection() {
 
       <h3>Getting paid</h3>
       <p>
-        Pawbook doesn&rsquo;t process payments — no card fees, nobody holding your money. You
+        Pawservation doesn&rsquo;t process payments — no card fees, nobody holding your money. You
         collect the way you already do: cash, Venmo, Zelle, PayPal, check. Each booking shows an
         estimated cost from your rates; when a client pays, open the booking&rsquo;s Payments and
         record it — the full amount, a deposit, or a partial. <a href="#earnings">Earnings</a> does
@@ -66,12 +66,12 @@ export function HelpSection() {
 
       <h3>Running your own copy</h3>
       <p>
-        Most sitters use Pawbook as a hosted service — sign in and it just works, with hosting and
-        updates handled for you. Pawbook is also open source (MIT), so if you&rsquo;re technical (or
-        know someone who is) you can run your own copy on Cloudflare Workers, with your own database
-        and domain. The README at{' '}
-        <a href="https://github.com/bradburch/pawbook">github.com/bradburch/pawbook</a> walks
-        through it.
+        Most sitters use Pawservation as a hosted service — sign in and it just works, with hosting
+        and updates handled for you. Pawservation is also open source (MIT), so if you&rsquo;re
+        technical (or know someone who is) you can run your own copy on Cloudflare Workers, with
+        your own database and domain. The README at{' '}
+        <a href="https://github.com/bradburch/pawservation">github.com/bradburch/pawservation</a>{' '}
+        walks through it.
       </p>
     </>
   );

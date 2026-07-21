@@ -1,5 +1,5 @@
 {
-  "name": "pawbook",
+  "name": "pawservation",
   "description": "Sandboxed prototype: multitenant embeddable booking widget (iframe embed for Wix/Squarespace)",
   "private": true,
   "type": "module",

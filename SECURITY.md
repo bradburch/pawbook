@@ -1,6 +1,6 @@
 # Security Policy
 
-Pawbook handles authentication (signed session tokens, hashed passwords) and multi-tenant data
+Pawservation handles authentication (signed session tokens, hashed passwords) and multi-tenant data
 isolation, so we take security reports seriously.
 
 ## Reporting a vulnerability

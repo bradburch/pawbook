@@ -1,6 +1,6 @@
-# Pawbook
+# Pawservation
 
-[![CI](https://github.com/bradburch/pawbook/actions/workflows/ci.yml/badge.svg)](https://github.com/bradburch/pawbook/actions/workflows/ci.yml)
+[![CI](https://github.com/bradburch/pawservation/actions/workflows/ci.yml/badge.svg)](https://github.com/bradburch/pawservation/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 
@@ -17,8 +17,10 @@ the availability/conflict math.
 ## Features
 
 - **One-tag embed** — `public/embed.js` injects an auto-resizing iframe; every
-  `postMessage` is validated by origin and source, and a `pawbook:booked` DOM event fires
-  on the host page. A plain-iframe variant exists for script-stripping hosts.
+  `postMessage` is validated by origin and source, and a `pawservation:booked` DOM event
+  fires on the host page (`pawbook:booked` still fires as a compatibility alias for
+  pre-rebrand integrations). A plain-iframe variant exists for script-stripping hosts.
+  Don't subscribe to both events on the same host page — one booking fires both, so pick one.
 - **Multi-tenant** — every request is scoped to a tenant resolved from the URL slug, with
   isolated services, pricing, pets, customers, and bookings.
 - **Custom services** — each tenant defines its own service list (from templates or from
@@ -163,7 +165,7 @@ npx wrangler kv namespace create PAWBOOK_CACHE     # put id into wrangler.jsonc
 npx wrangler secret put TOKEN_SECRET               # strong random value (openssl rand -base64 32)
 npx wrangler secret put OWNER_EMAILS               # comma-separated platform-owner email(s)
 npx wrangler secret put RESEND_API_KEY             # from https://resend.com — required for login codes & signup links
-npx wrangler secret put RESEND_FROM                # e.g. "Pawbook <bookings@yourdomain.com>" (verified sender)
+npx wrangler secret put RESEND_FROM                # e.g. "Pawservation <bookings@pawservation.com>" (verified sender)
 # Optional — Google Calendar sync:
 npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET

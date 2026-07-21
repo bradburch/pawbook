@@ -353,8 +353,8 @@ export function ServiceEditor({
               onChange={(maxConcurrentPets) => setService({ ...s, maxConcurrentPets })}
             />
             <Hint label="Boarding spots per day">
-              Blank means no limit. Set a number and Pawbook stops offering new bookings once that
-              day is full.
+              Blank means no limit. Set a number and Pawservation stops offering new bookings once
+              that day is full.
             </Hint>
           </div>
         )}
@@ -366,8 +366,8 @@ export function ServiceEditor({
               onChange={(maxPerDay) => setService({ ...s, maxPerDay })}
             />
             <Hint label="House-sits per day">
-              Blank means no limit. Set a number and Pawbook stops offering new house-sit bookings
-              once that many are already booked for the day.
+              Blank means no limit. Set a number and Pawservation stops offering new house-sit
+              bookings once that many are already booked for the day.
             </Hint>
           </div>
         )}

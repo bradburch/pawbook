@@ -5,7 +5,7 @@ import { adminFetch, type OwnerSession } from './shared.js';
 import { Hint } from './Hint';
 
 /**
- * Platform-owner console: who may join Pawbook. Deliberately non-technical copy — the owner
+ * Platform-owner console: who may join Pawservation. Deliberately non-technical copy — the owner
  * allowlists an email out-of-band, then the sitter starts signup themselves from the sign-in
  * page. Claimed rows can't be removed here (tenant deletion is out of scope).
  */
@@ -89,7 +89,7 @@ export function OwnerConsole({
     <div className="pb-wrap">
       <header className="pb-topbar">
         <div className="pb-topbar-row">
-          <h1>Who can join Pawbook</h1>
+          <h1>Who can join Pawservation</h1>
           <button className="pb-signout" onClick={onSignOut}>
             Sign out
           </button>

@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a problem with Pawbook
+description: Report a problem with Pawservation
 labels: [bug]
 body:
   - type: markdown

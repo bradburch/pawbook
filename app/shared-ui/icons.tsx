@@ -1,7 +1,7 @@
 import type { ComponentType, ReactNode } from 'react';
 
 /**
- * Pawbook's icon set: small inline SVGs on one consistent system — 24px grid,
+ * Pawservation's icon set: small inline SVGs on one consistent system — 24px grid,
  * 1.75 stroke, round caps/joins, `currentColor` — so every icon inherits the
  * text color of its context. Decorative by default (`aria-hidden`); pair with
  * visible text or an aria-label on the interactive parent.

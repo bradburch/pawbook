@@ -329,13 +329,21 @@ export const adminApi = {
  * live in the side-by-side demo as a 403 "Wrong tenant." in the second widget.
  */
 const memoryTokens = new Map<string, string>();
-const storageKey = (slug: string) => `pawbook-embed-token:${slug}`;
+const storageKey = (slug: string) => `pawservation-embed-token:${slug}`;
+const legacyStorageKey = (slug: string) => `pawbook-embed-token:${slug}`; // pre-rebrand; migrate-once
 
 export function getToken(slug: string): string | null {
   const inMemory = memoryTokens.get(slug);
   if (inMemory) return inMemory;
   try {
-    const stored = sessionStorage.getItem(storageKey(slug));
+    let stored = sessionStorage.getItem(storageKey(slug));
+    if (!stored) {
+      stored = sessionStorage.getItem(legacyStorageKey(slug));
+      if (stored) {
+        sessionStorage.setItem(storageKey(slug), stored); // migrate once
+        sessionStorage.removeItem(legacyStorageKey(slug));
+      }
+    }
     if (stored) memoryTokens.set(slug, stored);
     return stored;
   } catch {
@@ -349,7 +357,10 @@ export function setToken(slug: string, token: string | null): void {
   else memoryTokens.delete(slug);
   try {
     if (token) sessionStorage.setItem(storageKey(slug), token);
-    else sessionStorage.removeItem(storageKey(slug));
+    else {
+      sessionStorage.removeItem(storageKey(slug));
+      sessionStorage.removeItem(legacyStorageKey(slug));
+    }
   } catch {
     /* storage denied — stateless-per-load mode */
   }

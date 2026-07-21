@@ -1,14 +1,14 @@
 ---
-title: Pawbook
+title: Pawservation
 description: Open-source, embeddable multi-tenant booking widget for pet-sitting businesses
 ---
 
-# Pawbook
+# Pawservation
 
 **An embeddable booking widget for pet-sitting and boarding businesses — drop a live
 calendar into any website with one `<script>` tag.**
 
-Pawbook is a full-stack, production-shaped side project: a multi-tenant SaaS booking
+Pawservation is a full-stack, production-shaped side project: a multi-tenant SaaS booking
 platform built on the Cloudflare edge (Workers, D1, KV), with a React embed widget, a
 sitter-facing admin dashboard, and a pure, dependency-free booking/pricing engine at
 its core. It's the kind of problem a small team actually gets paid to solve — tenancy
