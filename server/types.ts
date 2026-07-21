@@ -1,11 +1,8 @@
 import type { CapacityKind, PetType, RateUnit, ServiceShape, ServiceType } from './lib/services';
 import type { PaymentMethod } from './lib/validation';
-import type { ServiceQuestion } from '../src/shared/index.js';
+import type { ServiceQuestion, CancellationTier } from '../src/shared/index.js';
 
-export type { CapacityKind, PetType, RateUnit, ServiceShape, ServiceType };
-
-/** Local until Task 2 lands it in src/shared and this becomes a re-export. */
-export type CancellationTier = { withinDays: number; percent: number };
+export type { CapacityKind, PetType, RateUnit, ServiceShape, ServiceType, CancellationTier };
 
 export type Tenant = {
   Id: string;
