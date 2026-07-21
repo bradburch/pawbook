@@ -43,11 +43,19 @@ import { OwnerConsole } from './OwnerConsole';
  * The tenant slug comes from the session, not the URL — the sitter never types it.
  */
 
-const TOKEN_KEY = 'pawbook-admin-token';
+const TOKEN_KEY = 'pawservation-admin-token';
+const LEGACY_TOKEN_KEY = 'pawbook-admin-token'; // pre-rebrand; migrate-once
 
 function getStoredToken(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (t) return t;
+    const legacy = localStorage.getItem(LEGACY_TOKEN_KEY);
+    if (legacy) {
+      localStorage.setItem(TOKEN_KEY, legacy); // migrate once
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+    }
+    return legacy;
   } catch {
     return null;
   }
@@ -55,7 +63,11 @@ function getStoredToken(): string | null {
 function storeToken(token: string | null): void {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    else {
+      // Logout clears BOTH keys — an old tab may have re-written the legacy one.
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+    }
   } catch {
     /* storage denied — session lasts the page lifetime only */
   }
@@ -489,7 +501,7 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
   const connectCalendar = () =>
     run(async () => {
       const { url } = await adminApi.calendar.start(slug, token);
-      const popup = window.open(url, 'pawbook-gcal', 'width=520,height=640');
+      const popup = window.open(url, 'pawservation-gcal', 'width=520,height=640');
       // The callback page is script-free (CSP), so detect the popup closing here and re-fetch
       // the connection status. Narrowed to just `calendar` (not the full refresh()) — this fires
       // on a timer detached from any user action (up to 1s after the popup actually closes, and

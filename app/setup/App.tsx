@@ -10,7 +10,7 @@ import '../admin/admin.css';
  * on the owner console.
  */
 
-const TOKEN_KEY = 'pawbook-admin-token'; // must match app/admin/App.tsx
+const TOKEN_KEY = 'pawservation-admin-token'; // must match app/admin/App.tsx
 
 /** Mirrors the server-side floor in POST /api/signup/complete (client-side is UX only). */
 const MIN_PASSWORD_LENGTH = 8;
