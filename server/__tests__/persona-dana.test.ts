@@ -94,12 +94,12 @@ describe('Persona: Dana (Happy Tails) — calendar sync absent/late', () => {
     });
   });
 
-  describe('2. connect later — no retroactive sync', () => {
-    it('confirming an OLD pending booking after connecting does not sync it to Google', async () => {
+  describe('2. connect later — confirm catches up', () => {
+    it('confirming an OLD pending booking after connecting creates its event via catch-up', async () => {
       const { env, raw } = createTestEnv();
 
       // seed_ht_pend1: a pending walk booked by jess on 2026-08-12, back when Dana's calendar
-      // was still disconnected.
+      // was still disconnected — so it has no GCalEventId.
       const before = raw
         .prepare(`SELECT Status, GCalEventId FROM BookingRequests WHERE Id='seed_ht_pend1'`)
         .get() as { Status: string; GCalEventId: string | null };
@@ -111,7 +111,7 @@ describe('Persona: Dana (Happy Tails) — calendar sync absent/late', () => {
 
       const spy = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(new Response(JSON.stringify({ id: 'evt_should_not_happen' })));
+        .mockResolvedValue(new Response(JSON.stringify({ id: 'evt_ht_catchup' }), { status: 200 }));
 
       const res = await app.request(
         `/api/happy-tails/admin/bookings/seed_ht_pend1/status`,
@@ -128,12 +128,16 @@ describe('Persona: Dana (Happy Tails) — calendar sync absent/late', () => {
         .prepare(`SELECT Status, GCalEventId FROM BookingRequests WHERE Id='seed_ht_pend1'`)
         .get() as { Status: string; GCalEventId: string | null };
       expect(after.Status).toBe('confirmed');
-      // Still no event — sync only ever fires at booking-request time (routes/bookings.ts), never
-      // on a later status transition or on connecting the calendar. This is a real UX gap for a
-      // sitter who connects mid-stream: every request made before she connected will silently
-      // never show up on her Google Calendar, confirmed or not, unless she manually recreates it.
-      expect(after.GCalEventId).toBeNull();
-      expect(spy).not.toHaveBeenCalled();
+      // A booking with no event is now created as a catch-up on confirm — the request-lifecycle
+      // fix for a sitter who connected mid-stream. The event id Google returned is persisted.
+      expect(after.GCalEventId).toBe('evt_ht_catchup');
+
+      expect(spy).toHaveBeenCalledOnce();
+      const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+      expect(init.method).toBe('POST'); // a create, not a PATCH (there was no prior event)
+      expect(String(url)).toContain('/calendars/primary/events');
+      const body = bearerBody(init) as { summary: string };
+      expect(body.summary).toBe('Walks — 1 pet'); // confirmed, so no [REQUEST] prefix
     });
   });
 
@@ -163,7 +167,9 @@ describe('Persona: Dana (Happy Tails) — calendar sync absent/late', () => {
         startTime: '08:00',
         durationMinutes: 60,
         petCount: 1,
+        petNames: [],
         estCost: 18,
+        status: 'pending',
       });
 
       expect(spy).toHaveBeenCalledOnce();
@@ -212,7 +218,9 @@ describe('Persona: Dana (Happy Tails) — calendar sync absent/late', () => {
         startTime: '08:00',
         durationMinutes: 60,
         petCount: 1,
+        petNames: [],
         estCost: 18,
+        status: 'pending',
       });
 
       const [, init] = spy.mock.calls[0] as [string, RequestInit];
@@ -246,7 +254,9 @@ describe('Persona: Dana (Happy Tails) — calendar sync absent/late', () => {
         startTime: null,
         durationMinutes: null,
         petCount: 1,
+        petNames: [],
         estCost: 120,
+        status: 'pending',
       });
 
       const [, init] = spy.mock.calls[0] as [string, RequestInit];
@@ -278,7 +288,9 @@ describe('Persona: Dana (Happy Tails) — calendar sync absent/late', () => {
         startTime: null,
         durationMinutes: null,
         petCount: 1,
+        petNames: [],
         estCost: 35,
+        status: 'pending',
       });
 
       const [, init] = spy.mock.calls[0] as [string, RequestInit];

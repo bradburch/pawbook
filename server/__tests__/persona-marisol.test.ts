@@ -94,14 +94,19 @@ describe('Persona: Marisol (Sunny Paws) — booking → Google Calendar → dash
     expect(capturedUrl).toContain('googleapis.com');
 
     const resource = JSON.parse(capturedInit.body as string) as EventResource;
-    expect(resource.summary).toBe('Boarding — jess@example.com (2 pets)');
-    expect(resource.description).toBe('Service: Boarding\nEstimated cost: $150');
+    // A pending request is marked [REQUEST], names the pets, and carries full booking metadata.
+    expect(resource.summary).toBe('[REQUEST] Boarding — Bella, Mochi');
+    expect(resource.description).toBe(
+      'Service: Boarding\nPets: Bella, Mochi\nCustomer: jess@example.com\nEstimated cost: $150\n' +
+        'Requested via Pawservation — confirm or decline in your dashboard.',
+    );
     expect(resource.extendedProperties?.private).toEqual({
       pawbook: 'true',
       category: 'boarding',
       petCount: '2',
       customerEmail: 'jess@example.com',
       bookingId: booked.id,
+      status: 'pending',
     });
 
     // The event id Google returned is persisted on the booking row.
@@ -111,7 +116,7 @@ describe('Persona: Marisol (Sunny Paws) — booking → Google Calendar → dash
     expect(row.GCalEventId).toBe('evt_marisol_1');
   });
 
-  it('2. confirming the booking does NOT touch the calendar event (current behavior, not a failure)', async () => {
+  it('2. confirming the booking PATCHes its event to drop the [REQUEST] marker', async () => {
     const { env, raw } = createTestEnv();
     await connectCalendar(env);
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
@@ -135,10 +140,82 @@ describe('Persona: Marisol (Sunny Paws) — booking → Google Calendar → dash
     const confirmRes = await setStatus(env, id, 'confirmed');
     expect(confirmRes.status).toBe(200);
 
-    // No Google API call happens on confirm — the event created at request time is never
-    // retitled, re-colored, or otherwise updated to reflect the confirmed state.
-    expect(spy).not.toHaveBeenCalled();
+    // Confirm now updates the existing event in place: a single PATCH to that event id, whose
+    // patched summary is the confirmed (prefix-free) form — no new event is created.
+    expect(spy).toHaveBeenCalledOnce();
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe('PATCH');
+    expect(url).toContain(`/calendars/${CALENDAR_ID}/events/evt_marisol_2`);
+    const patched = JSON.parse(init.body as string) as EventResource;
+    expect(patched.summary).toBe('Boarding — Bella, Mochi');
+    expect(patched.summary).not.toContain('[REQUEST]');
 
+    const rowAfter = raw.prepare(`SELECT Status FROM BookingRequests WHERE Id = ?`).get(id) as {
+      Status: string;
+    };
+    expect(rowAfter.Status).toBe('confirmed');
+  });
+
+  it('5. a request lost to a Google outage is created as a catch-up when confirmed', async () => {
+    const { env, raw } = createTestEnv();
+    await connectCalendar(env);
+
+    // Outage at request time: the create-sync throws, so the booking has NO GCalEventId.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (String(url).includes('googleapis.com')) throw new TypeError('outage');
+      throw new Error(`unexpected fetch to ${String(url)}`);
+    });
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const bookRes = await bookBoarding(env, token, '2029-07-01', '2029-07-04');
+    const { id } = (await bookRes.json()) as { id: string };
+    expect(
+      (
+        raw.prepare(`SELECT GCalEventId FROM BookingRequests WHERE Id = ?`).get(id) as {
+          GCalEventId: string | null;
+        }
+      ).GCalEventId,
+    ).toBeNull();
+
+    // Google is healthy again; confirming creates the missing event, already confirmed.
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ id: 'evt_marisol_5' }), { status: 200 }));
+    spy.mockClear();
+
+    const confirmRes = await setStatus(env, id, 'confirmed');
+    expect(confirmRes.status).toBe(200);
+
+    expect(spy).toHaveBeenCalledOnce();
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe('POST'); // a create (catch-up), not a PATCH
+    expect(url).toContain(`/calendars/${CALENDAR_ID}/events`);
+    const created = JSON.parse(init.body as string) as EventResource;
+    expect(created.summary).toBe('Boarding — Bella, Mochi'); // confirmed, no [REQUEST]
+
+    const row = raw
+      .prepare(`SELECT Status, GCalEventId FROM BookingRequests WHERE Id = ?`)
+      .get(id) as { Status: string; GCalEventId: string | null };
+    expect(row.Status).toBe('confirmed');
+    expect(row.GCalEventId).toBe('evt_marisol_5'); // now persisted
+  });
+
+  it('6. an updateEvent failure on confirm never breaks the confirm response', async () => {
+    const { env, raw } = createTestEnv();
+    await connectCalendar(env);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ id: 'evt_marisol_6' }), { status: 200 }),
+    );
+
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const bookRes = await bookBoarding(env, token, '2029-08-01', '2029-08-04');
+    const { id } = (await bookRes.json()) as { id: string };
+
+    // The PATCH on confirm fails (Google 500), but the booking is already confirmed in the DB and
+    // the response must still be 200 — calendar sync is strictly best-effort.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('boom', { status: 500 }));
+
+    const confirmRes = await setStatus(env, id, 'confirmed');
+    expect(confirmRes.status).toBe(200);
     const rowAfter = raw.prepare(`SELECT Status FROM BookingRequests WHERE Id = ?`).get(id) as {
       Status: string;
     };
