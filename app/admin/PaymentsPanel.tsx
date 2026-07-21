@@ -149,9 +149,9 @@ export function PaymentsPanel({
             Record payment
           </button>
           <Hint label="Recording payments">
-            Pawbook doesn&rsquo;t take payments — you collect money however you like (cash, Venmo,
-            Zelle…). Record what you received here so Earnings stays right; deposits and partial
-            payments are fine.
+            Pawservation doesn&rsquo;t take payments — you collect money however you like (cash,
+            Venmo, Zelle…). Record what you received here so Earnings stays right; deposits and
+            partial payments are fine.
           </Hint>
         </div>
       )}

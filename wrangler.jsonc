@@ -1,5 +1,5 @@
 /**
- * Pawbook worker — binds only Pawbook's dedicated D1 + KV.
+ * Pawservation worker — binds only Pawservation's dedicated D1 + KV.
  * TOKEN_SECRET is a secret (set via `wrangler secret put TOKEN_SECRET`), never committed here.
  */
 {
