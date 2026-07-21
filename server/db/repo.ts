@@ -774,7 +774,7 @@ export async function getAnalytics(
         // route/UI shape is unchanged. SQLite can't reference the alias inside an expression, so the
         // CASE is repeated verbatim in ORDER BY.
         `SELECT b.Id AS BookingId, u.Name AS Name, u.Email AS Email,
-                b.ServiceType AS ServiceType, b.StartDate AS StartDate,
+                b.ServiceType AS ServiceType, b.StartDate AS StartDate, b.Status AS Status,
                 CASE WHEN b.Status = 'cancelled' THEN b.CancellationFee ELSE b.EstCost END AS EstCost,
                 COALESCE(paid.Total, 0) AS PaidTotal
          FROM BookingRequests b

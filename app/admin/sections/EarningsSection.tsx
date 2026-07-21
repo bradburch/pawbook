@@ -208,7 +208,8 @@ export function EarningsSection({
                 <span className="pb-truncate">{o.name || o.email || 'Unknown client'}</span> —{' '}
                 {o.serviceType} ({o.startDate})
                 <br />
-                owes ${o.balance} (paid ${o.paidTotal} of ${o.estCost})
+                owes ${o.balance} (paid ${o.paidTotal} of ${o.estCost}
+                {o.isCancellationFee ? ' cancellation fee' : ''})
               </span>
               <button onClick={() => setOpenId(openId === o.bookingId ? null : o.bookingId)}>
                 {openId === o.bookingId ? 'Close' : 'Record payment'}

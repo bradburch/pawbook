@@ -1064,7 +1064,8 @@ export const adminRoutes = new Hono<AppEnv>()
       if (status !== 'cancelled')
         return c.json({ error: 'A cancellation fee applies only when cancelling.' }, 400);
       const bk = await getBookingWithCustomer(c.env.PAWBOOK_DB, tenant.Id, id);
-      if (!bk || bk.Status !== 'confirmed' || bk.EstCost == null)
+      if (!bk) return c.json({ error: 'Not found.' }, 404);
+      if (bk.Status !== 'confirmed' || bk.EstCost == null)
         return c.json({ error: 'A fee needs a confirmed booking with an estimated cost.' }, 400);
       const svc = (await listServices(c.env.PAWBOOK_DB, tenant.Id)).find(
         (s) => s.ServiceType === bk.ServiceType,
@@ -1231,6 +1232,9 @@ export const adminRoutes = new Hono<AppEnv>()
       estCost: o.EstCost,
       paidTotal: o.PaidTotal,
       balance: o.EstCost - o.PaidTotal,
+      // The subquery's EstCost is aliased from CancellationFee on a cancelled row, so the UI
+      // needs this flag to label the amount as a fee rather than a live booking balance.
+      isCancellationFee: o.Status === 'cancelled',
     }));
     return c.json({
       tiles: {

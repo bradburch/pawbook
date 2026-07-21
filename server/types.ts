@@ -155,6 +155,7 @@ export type AnalyticsData = {
     Email: string | null;
     ServiceType: string;
     StartDate: string;
+    Status: string;
     EstCost: number;
     PaidTotal: number;
   }[];

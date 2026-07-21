@@ -89,7 +89,7 @@ function BookingList({
     setMessage('');
     setBusyId(b.id);
     try {
-      const { notified } = await adminApi.bookings.setStatus(
+      const { notified, cancellationFee } = await adminApi.bookings.setStatus(
         session.slug,
         session.token,
         b.id,
@@ -104,7 +104,10 @@ function BookingList({
           (notified
             ? `We emailed ${who} the update.`
             : `${who} couldn't be emailed automatically (email sending isn't set up), so let them know directly.`) +
-          (chargeFee ? ` Charged $${b.feeIfCancelledToday} cancellation fee.` : ''),
+          // Server-computed (authoritative) amount, not the client-side feeIfCancelledToday preview.
+          (chargeFee && cancellationFee != null
+            ? ` Charged $${cancellationFee} cancellation fee.`
+            : ''),
       );
       reloadBookings();
     } catch (e) {

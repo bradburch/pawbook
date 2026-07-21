@@ -106,8 +106,33 @@ describe('getAnalytics outstanding includes cancelled-with-fee', () => {
     expect(outstanding.find((o) => o.BookingId === cancelledWithFee)).toMatchObject({
       EstCost: 100, // the fee stands in for the expected amount
       PaidTotal: 40,
+      Status: 'cancelled',
+    });
+    expect(outstanding.find((o) => o.BookingId === confirmedUnderpaid)).toMatchObject({
+      Status: 'confirmed',
     });
     expect(outstanding.some((o) => o.BookingId === cancelledNoFee)).toBe(false);
+  });
+
+  it('/admin/analytics marks cancelled-with-fee outstanding rows with isCancellationFee, confirmed rows without', async () => {
+    const { env } = createTestEnv();
+    const cancelledWithFee = await makeBooking(env, TENANT_C, { estCost: 250 });
+    await updateBookingStatus(env.PAWBOOK_DB, TENANT_C, cancelledWithFee, 'cancelled', 100);
+    await pay(env, TENANT_C, cancelledWithFee, 40);
+    const confirmedUnderpaid = await makeBooking(env, TENANT_C, { estCost: 300 });
+    await pay(env, TENANT_C, confirmedUnderpaid, 50);
+
+    const res = await app.request(
+      '/api/paws-and-relax/admin/analytics',
+      { headers: await adminHeaders(TENANT_C) },
+      env,
+    );
+    const body = (await res.json()) as {
+      outstanding: { bookingId: string; isCancellationFee: boolean }[];
+    };
+    const byId = (id: string) => body.outstanding.find((o) => o.bookingId === id)!;
+    expect(byId(cancelledWithFee).isCancellationFee).toBe(true);
+    expect(byId(confirmedUnderpaid).isCancellationFee).toBe(false);
   });
 });
 

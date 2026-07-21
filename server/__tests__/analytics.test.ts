@@ -233,7 +233,13 @@ describe('GET /:slug/admin/analytics (route)', () => {
         total: number;
         bookings: number;
       }[];
-      outstanding: { bookingId: string; estCost: number; paidTotal: number; balance: number }[];
+      outstanding: {
+        bookingId: string;
+        estCost: number;
+        paidTotal: number;
+        balance: number;
+        isCancellationFee: boolean;
+      }[];
     };
     expect(body.tiles).toEqual({
       thisMonth: 100,
@@ -256,6 +262,7 @@ describe('GET /:slug/admin/analytics (route)', () => {
         estCost: 300,
         paidTotal: 160,
         balance: 140,
+        isCancellationFee: false,
       },
     ]);
   });

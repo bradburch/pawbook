@@ -205,4 +205,16 @@ describe('cancellation fee assessment at cancel time', () => {
     expect(feeRow(raw, created.id)).toBeNull();
     expect(statusRow(raw, created.id)).toBe('confirmed');
   });
+
+  it('404s (not 400) when chargeFee targets a booking id that does not exist', async () => {
+    const { env, raw } = createTestEnv();
+    seedTiers(raw);
+
+    const res = await postStatus(env, TENANT_A, 'br_does_not_exist', {
+      status: 'cancelled',
+      chargeFee: true,
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'Not found.' });
+  });
 });
