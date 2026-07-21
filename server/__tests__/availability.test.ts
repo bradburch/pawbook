@@ -28,6 +28,7 @@ function svc(type: TemplateId, over: Partial<TenantService> = {}): TenantService
     AcceptedPetTypes: null,
     MaxConcurrentPets: null,
     MaxPerDay: null,
+    CancellationTiers: null,
     ...over,
   };
 }
@@ -204,6 +205,7 @@ describe('rowsToCapacityEvents', () => {
         StartTime: null,
         GCalEventId: null,
         EstCost: null,
+        CancellationFee: null,
         Status: 'confirmed',
         Declined: 0,
         CreatedAt: '',
@@ -222,6 +224,7 @@ describe('rowsToCapacityEvents', () => {
         StartTime: null,
         GCalEventId: null,
         EstCost: 100,
+        CancellationFee: null,
         Status: 'pending',
         Declined: 0,
         CreatedAt: '',

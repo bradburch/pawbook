@@ -244,7 +244,11 @@ describe('Persona: Marisol (Sunny Paws) — booking → Google Calendar → dash
 
     const declineRes = await setStatus(env, id, 'declined');
     expect(declineRes.status).toBe(200);
-    expect(await declineRes.json()).toEqual({ status: 'declined', notified: false });
+    expect(await declineRes.json()).toEqual({
+      status: 'declined',
+      notified: false,
+      cancellationFee: null,
+    });
 
     expect(spy).toHaveBeenCalledOnce();
     const [url, init] = spy.mock.calls[0] as [string, RequestInit];

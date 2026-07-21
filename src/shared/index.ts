@@ -25,6 +25,11 @@ export {
 } from './booking/capacity.js';
 export { billableUnits } from './pricing/booking-cost.js';
 export {
+  cancellationFee,
+  validateCancellationTiers,
+  type CancellationTier,
+} from './pricing/cancellation-fee.js';
+export {
   monthGrid,
   shiftMonth,
   nextRangeSelection,

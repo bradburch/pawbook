@@ -62,6 +62,9 @@ CREATE TABLE IF NOT EXISTS TenantServices (
   -- (bookings of THIS service per day). A cap on a 'none'-kind service is rejected on PUT.
   MaxConcurrentPets INTEGER,
   MaxPerDay INTEGER,
+  -- Tiered cancellation policy (added by 0016); JSON array like
+  -- [{"withinDays":2,"percent":100},{"withinDays":7,"percent":50}]. NULL = no fee.
+  CancellationTiers TEXT,
   UNIQUE (TenantId, ServiceType)
 );
 
@@ -140,6 +143,8 @@ CREATE TABLE IF NOT EXISTS BookingRequests (
   StartTime TEXT, -- 'HH:MM' wall-clock for timed bookings (walk/check-in); NULL = all-day event
   GCalEventId TEXT, -- Google Calendar event id created for this booking; NULL if none/unsynced
   EstCost INTEGER,
+  -- Fee assessed at cancel time, whole dollars, matches EstCost (added by 0016). NULL = none assessed.
+  CancellationFee INTEGER,
   Answers TEXT NOT NULL DEFAULT '{}', -- JSON {questionId: answer}; questions defined on TenantServices
   Status TEXT NOT NULL DEFAULT 'pending' CHECK (Status IN ('pending', 'confirmed', 'cancelled')),
   -- 1 when a pending request was declined by the sitter (stored as Status 'cancelled' + this

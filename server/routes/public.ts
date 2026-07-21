@@ -35,6 +35,7 @@ export const publicRoutes = new Hono<AppEnv>()
           minPetCount: svc.MinPetCount,
           maxPetCount: svc.MaxPetCount,
           acceptedPetTypes: svc.AcceptedPetTypes,
+          cancellationTiers: svc.CancellationTiers,
           options: options
             .filter((o) => o.ServiceType === svc.ServiceType)
             .map((o) => ({

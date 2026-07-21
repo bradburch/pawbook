@@ -1,8 +1,8 @@
 import type { CapacityKind, PetType, RateUnit, ServiceShape, ServiceType } from './lib/services';
 import type { PaymentMethod } from './lib/validation';
-import type { ServiceQuestion } from '../src/shared/index.js';
+import type { ServiceQuestion, CancellationTier } from '../src/shared/index.js';
 
-export type { CapacityKind, PetType, RateUnit, ServiceShape, ServiceType };
+export type { CapacityKind, PetType, RateUnit, ServiceShape, ServiceType, CancellationTier };
 
 export type Tenant = {
   Id: string;
@@ -59,6 +59,8 @@ export type TenantService = {
   MaxConcurrentPets: number | null;
   /** Housesit-kind only: bookings of THIS service per day; null = unlimited (0015). */
   MaxPerDay: number | null;
+  /** Tiered cancel policy; null = no fee (0016). */
+  CancellationTiers: CancellationTier[] | null;
 };
 
 export type TenantServiceOption = {
@@ -115,6 +117,8 @@ export type BookingRow = {
   StartTime: string | null;
   GCalEventId: string | null;
   EstCost: number | null;
+  /** Fee assessed at cancel time, whole dollars; null = none assessed (0016). */
+  CancellationFee: number | null;
   Status: 'pending' | 'confirmed' | 'cancelled';
   // 1 = the cancellation was the sitter declining a pending request. Optional because only the
   // booking-list queries select it; capacity/availability queries never need it.
@@ -151,6 +155,7 @@ export type AnalyticsData = {
     Email: string | null;
     ServiceType: string;
     StartDate: string;
+    Status: string;
     EstCost: number;
     PaidTotal: number;
   }[];

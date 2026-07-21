@@ -304,6 +304,7 @@ describe('custom services — deletion', () => {
       acceptedPetTypes: null,
       maxConcurrentPets: null,
       maxPerDay: null,
+      cancellationTiers: null,
     });
     expect(updated).toBe(false);
   });

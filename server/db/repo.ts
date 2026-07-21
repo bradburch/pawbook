@@ -2,6 +2,7 @@ import type {
   AllowedSitterRow,
   AnalyticsData,
   BookingRow,
+  CancellationTier,
   EndUser,
   EndUserPet,
   OwnerUser,
@@ -30,7 +31,7 @@ import { constantTimeEqual } from '../lib/timing';
 const TENANT_COLS = 'Id, Slug, DisplayName, AccentColor, Timezone, ContactEmail, ContactPhone';
 
 const BOOKING_COLS =
-  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, Declined, CreatedAt';
+  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, CancellationFee, GCalEventId, Status, Declined, CreatedAt';
 
 /** BOOKING_COLS, table-qualified — needed once a query joins BookingRequests against another
  * table (EndUsers) that shares column names like Id/TenantId, which would otherwise be ambiguous. */
@@ -68,14 +69,15 @@ export async function listServices(db: D1Database, tenantId: string): Promise<Te
     .prepare(
       `SELECT TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind,
               SortOrder, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount, AcceptedPetTypes,
-              MaxConcurrentPets, MaxPerDay
+              MaxConcurrentPets, MaxPerDay, CancellationTiers
        FROM TenantServices WHERE TenantId = ? ORDER BY SortOrder, Label`,
     )
     .bind(tenantId)
     .all<
-      Omit<TenantService, 'Questions' | 'AcceptedPetTypes'> & {
+      Omit<TenantService, 'Questions' | 'AcceptedPetTypes' | 'CancellationTiers'> & {
         Questions: string;
         AcceptedPetTypes: string | null;
+        CancellationTiers: string | null;
       }
     >();
   return results.map((r) => ({
@@ -83,6 +85,8 @@ export async function listServices(db: D1Database, tenantId: string): Promise<Te
     Questions: JSON.parse(r.Questions) as ServiceQuestion[],
     AcceptedPetTypes:
       r.AcceptedPetTypes === null ? null : (JSON.parse(r.AcceptedPetTypes) as string[]),
+    CancellationTiers:
+      r.CancellationTiers === null ? null : (JSON.parse(r.CancellationTiers) as CancellationTier[]),
   }));
 }
 
@@ -569,7 +573,20 @@ export async function updateBookingStatus(
   tenantId: string,
   id: string,
   status: 'confirmed' | 'cancelled' | 'declined',
+  cancellationFee?: number,
 ): Promise<boolean> {
+  // Assessed cancellation: record the fee and cancel atomically. The `Status = 'confirmed'` guard
+  // lives in the SQL so a raced double-cancel can't charge the fee twice.
+  if (status === 'cancelled' && cancellationFee != null) {
+    const result = await db
+      .prepare(
+        `UPDATE BookingRequests SET Status = 'cancelled', CancellationFee = ?
+         WHERE TenantId = ? AND Id = ? AND ServiceType != 'blocked' AND Status = 'confirmed'`,
+      )
+      .bind(cancellationFee, tenantId, id)
+      .run();
+    return (result.meta as { changes?: number }).changes !== 0;
+  }
   const result =
     status === 'declined'
       ? await db
@@ -609,10 +626,12 @@ export async function getBookingWithCustomer(
 
 /**
  * Record a payment iff the booking exists for THIS tenant, is not a 'blocked' sentinel, and is
- * not cancelled — the guard lives in the SQL (INSERT ... SELECT ... WHERE) so it is atomic with
- * the write, like updateBookingStatus's guarded UPDATE. 'pending' is deliberately allowed:
- * deposits are commonly collected before a booking is confirmed. Returns the new payment id, or
- * null when the guard refused (route 404s on null, the existing idiom).
+ * either not cancelled OR cancelled with an assessed CancellationFee — the guard lives in the SQL
+ * (INSERT ... SELECT ... WHERE) so it is atomic with the write, like updateBookingStatus's guarded
+ * UPDATE. 'pending' is deliberately allowed: deposits are commonly collected before a booking is
+ * confirmed. A cancelled booking normally refuses payment, but one carrying a cancellation fee is a
+ * live receivable — the customer still owes that fee — so payments against it are accepted. Returns
+ * the new payment id, or null when the guard refused (route 404s on null, the existing idiom).
  */
 export async function insertPayment(
   db: D1Database,
@@ -631,7 +650,8 @@ export async function insertPayment(
       `INSERT INTO Payments (Id, TenantId, BookingRequestId, Amount, Method, PaidDate, Note)
        SELECT ?, ?, ?, ?, ?, ?, ?
        FROM BookingRequests
-       WHERE TenantId = ? AND Id = ? AND ServiceType != 'blocked' AND Status != 'cancelled'`,
+       WHERE TenantId = ? AND Id = ? AND ServiceType != 'blocked'
+         AND (Status != 'cancelled' OR CancellationFee IS NOT NULL)`,
     )
     .bind(
       id,
@@ -749,18 +769,27 @@ export async function getAnalytics(
       .all<AnalyticsData['topClients'][number]>(),
     db
       .prepare(
+        // Expected amount is EstCost for confirmed bookings, but the assessed CancellationFee for a
+        // cancelled one — a cancelled-with-fee booking is a live receivable. Aliased EstCost so the
+        // route/UI shape is unchanged. SQLite can't reference the alias inside an expression, so the
+        // CASE is repeated verbatim in ORDER BY.
         `SELECT b.Id AS BookingId, u.Name AS Name, u.Email AS Email,
-                b.ServiceType AS ServiceType, b.StartDate AS StartDate,
-                b.EstCost AS EstCost, COALESCE(paid.Total, 0) AS PaidTotal
+                b.ServiceType AS ServiceType, b.StartDate AS StartDate, b.Status AS Status,
+                CASE WHEN b.Status = 'cancelled' THEN b.CancellationFee ELSE b.EstCost END AS EstCost,
+                COALESCE(paid.Total, 0) AS PaidTotal
          FROM BookingRequests b
          LEFT JOIN EndUsers u ON u.Id = b.EndUserId AND u.TenantId = b.TenantId
          LEFT JOIN (
            SELECT BookingRequestId, SUM(Amount) AS Total
            FROM Payments WHERE TenantId = ? GROUP BY BookingRequestId
          ) paid ON paid.BookingRequestId = b.Id
-         WHERE b.TenantId = ? AND b.Status = 'confirmed' AND b.ServiceType != 'blocked'
-           AND b.EstCost IS NOT NULL AND COALESCE(paid.Total, 0) < b.EstCost
-         ORDER BY b.EstCost - COALESCE(paid.Total, 0) DESC`,
+         WHERE b.TenantId = ? AND b.ServiceType != 'blocked'
+           AND ((b.Status = 'confirmed' AND b.EstCost IS NOT NULL
+                   AND COALESCE(paid.Total, 0) < b.EstCost)
+                OR (b.Status = 'cancelled' AND b.CancellationFee IS NOT NULL
+                   AND COALESCE(paid.Total, 0) < b.CancellationFee))
+         ORDER BY (CASE WHEN b.Status = 'cancelled' THEN b.CancellationFee ELSE b.EstCost END)
+                  - COALESCE(paid.Total, 0) DESC`,
       )
       .bind(tenantId, tenantId)
       .all<AnalyticsData['outstanding'][number]>(),
@@ -846,13 +875,14 @@ export async function setServiceConfig(
     acceptedPetTypes: string[] | null;
     maxConcurrentPets: number | null;
     maxPerDay: number | null;
+    cancellationTiers: CancellationTier[] | null;
   },
 ): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE TenantServices SET
          Enabled = ?, Questions = ?, MinNights = ?, MaxNights = ?, MinPetCount = ?, MaxPetCount = ?,
-         AcceptedPetTypes = ?, MaxConcurrentPets = ?, MaxPerDay = ?
+         AcceptedPetTypes = ?, MaxConcurrentPets = ?, MaxPerDay = ?, CancellationTiers = ?
        WHERE TenantId = ? AND ServiceType = ?`,
     )
     .bind(
@@ -865,6 +895,7 @@ export async function setServiceConfig(
       config.acceptedPetTypes === null ? null : JSON.stringify(config.acceptedPetTypes),
       config.maxConcurrentPets,
       config.maxPerDay,
+      config.cancellationTiers === null ? null : JSON.stringify(config.cancellationTiers),
       tenantId,
       serviceType,
     )

@@ -79,8 +79,13 @@ import {
   minutesBetweenTimes,
 } from '../lib/validation';
 import type { AppEnv } from '../types';
-import type { ServiceQuestion } from '../../src/shared/index.js';
-import { getPacificDateStr } from '../../src/shared/index.js';
+import type { CancellationTier, ServiceQuestion } from '../../src/shared/index.js';
+import {
+  cancellationFee,
+  getPacificDateStr,
+  validateCancellationTiers,
+  DEFAULT_TIMEZONE,
+} from '../../src/shared/index.js';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -307,6 +312,7 @@ type ServiceBody = {
   acceptedPetTypes?: string[] | null;
   maxConcurrentPets?: number | null;
   maxPerDay?: number | null;
+  cancellationTiers?: CancellationTier[] | null;
 };
 type SettingsBody = {
   displayName?: string;
@@ -364,6 +370,7 @@ export const adminRoutes = new Hono<AppEnv>()
         minPetCount: svc.MinPetCount,
         maxPetCount: svc.MaxPetCount,
         acceptedPetTypes: svc.AcceptedPetTypes,
+        cancellationTiers: svc.CancellationTiers,
         capacityKind: svc.CapacityKind,
         maxConcurrentPets: svc.MaxConcurrentPets,
         maxPerDay: svc.MaxPerDay,
@@ -488,6 +495,13 @@ export const adminRoutes = new Hono<AppEnv>()
           { error: `${meta.Label}: that capacity doesn't apply to this service.` },
           400,
         );
+      if (svc.cancellationTiers != null && !validateCancellationTiers(svc.cancellationTiers))
+        return c.json(
+          {
+            error: `${meta.Label}: cancellation tiers must be 1-5 rows of increasing days with a 1-100 percent.`,
+          },
+          400,
+        );
       // Per-service acceptance list: PATCH semantics (absent = keep current). An explicit list
       // must be a subset of the tenant's slugs; the EFFECTIVE list (incoming or kept) may not be
       // empty on an enabled service — "accepts nothing" is expressed by disabling the service.
@@ -545,6 +559,8 @@ export const adminRoutes = new Hono<AppEnv>()
         maxConcurrentPets:
           'maxConcurrentPets' in svc ? (svc.maxConcurrentPets ?? null) : current.MaxConcurrentPets,
         maxPerDay: 'maxPerDay' in svc ? (svc.maxPerDay ?? null) : current.MaxPerDay,
+        cancellationTiers:
+          'cancellationTiers' in svc ? (svc.cancellationTiers ?? null) : current.CancellationTiers,
       });
       // The service existed when validated above but was deleted by a concurrent request since —
       // stop before writing options for a slug that no longer exists.
@@ -997,6 +1013,15 @@ export const adminRoutes = new Hono<AppEnv>()
     const tenant = c.get('tenant');
     await reconcileIfStale(c.env, tenant);
     const rows = await listBookingsForTenant(c.env.PAWBOOK_DB, tenant.Id);
+    // Cancellation policy per service, so each confirmed row can preview the fee it would owe if
+    // cancelled today (one query, keyed by ServiceType; NULL/missing = no policy).
+    const tiersByType = new Map<string, CancellationTier[] | null>(
+      (await listServices(c.env.PAWBOOK_DB, tenant.Id)).map((s) => [
+        s.ServiceType,
+        s.CancellationTiers,
+      ]),
+    );
+    const today = getPacificDateStr(new Date(), tenant.Timezone ?? DEFAULT_TIMEZONE);
     return c.json({
       bookings: rows.map((r) => ({
         id: r.Id,
@@ -1011,6 +1036,11 @@ export const adminRoutes = new Hono<AppEnv>()
         estCost: r.EstCost,
         paidTotal: r.PaidTotal ?? 0,
         status: r.Declined ? 'declined' : r.Status,
+        cancellationFee: r.CancellationFee,
+        feeIfCancelledToday:
+          r.Status === 'confirmed' && r.EstCost != null && tiersByType.get(r.ServiceType)
+            ? cancellationFee(tiersByType.get(r.ServiceType)!, r.EstCost, r.StartDate, today)
+            : null,
         createdAt: r.CreatedAt,
       })),
     });
@@ -1019,11 +1049,35 @@ export const adminRoutes = new Hono<AppEnv>()
   .post('/:slug/admin/bookings/:id/status', async (c) => {
     const tenant = c.get('tenant');
     const id = c.req.param('id');
-    const body = await c.req.json<{ status?: unknown }>().catch(() => ({}) as { status?: unknown });
+    const body = await c.req
+      .json<{ status?: unknown; chargeFee?: unknown }>()
+      .catch(() => ({}) as { status?: unknown; chargeFee?: unknown });
     const status = body.status;
     if (status !== 'confirmed' && status !== 'cancelled' && status !== 'declined')
       return c.json({ error: "Status must be 'confirmed', 'declined', or 'cancelled'." }, 400);
-    const updated = await updateBookingStatus(c.env.PAWBOOK_DB, tenant.Id, id, status);
+
+    // Cancellation-fee assessment. The amount is ALWAYS computed server-side from the tenant's
+    // policy — the request only supplies the `chargeFee` boolean, never a dollar figure. A $0
+    // computed fee stores NULL (no fee assessed).
+    let fee: number | undefined;
+    if (body.chargeFee === true) {
+      if (status !== 'cancelled')
+        return c.json({ error: 'A cancellation fee applies only when cancelling.' }, 400);
+      const bk = await getBookingWithCustomer(c.env.PAWBOOK_DB, tenant.Id, id);
+      if (!bk) return c.json({ error: 'Not found.' }, 404);
+      if (bk.Status !== 'confirmed' || bk.EstCost == null)
+        return c.json({ error: 'A fee needs a confirmed booking with an estimated cost.' }, 400);
+      const svc = (await listServices(c.env.PAWBOOK_DB, tenant.Id)).find(
+        (s) => s.ServiceType === bk.ServiceType,
+      );
+      if (!svc?.CancellationTiers)
+        return c.json({ error: 'This service has no cancellation policy.' }, 400);
+      const today = getPacificDateStr(new Date(), tenant.Timezone ?? DEFAULT_TIMEZONE);
+      const computed = cancellationFee(svc.CancellationTiers, bk.EstCost, bk.StartDate, today);
+      if (computed > 0) fee = computed; // $0 stores NULL per spec
+    }
+
+    const updated = await updateBookingStatus(c.env.PAWBOOK_DB, tenant.Id, id, status, fee);
     if (!updated) return c.json({ error: 'Not found.' }, 404);
 
     // One unconditional fetch serves both the calendar hooks and the customer
@@ -1089,7 +1143,7 @@ export const adminRoutes = new Hono<AppEnv>()
         /* status change stands; the dashboard reports the client was not emailed */
       }
     }
-    return c.json({ status, notified });
+    return c.json({ status, notified, cancellationFee: fee ?? null });
   })
 
   .post('/:slug/admin/bookings/:id/payments', async (c) => {
@@ -1178,6 +1232,9 @@ export const adminRoutes = new Hono<AppEnv>()
       estCost: o.EstCost,
       paidTotal: o.PaidTotal,
       balance: o.EstCost - o.PaidTotal,
+      // The subquery's EstCost is aliased from CancellationFee on a cancelled row, so the UI
+      // needs this flag to label the amount as a fee rather than a live booking balance.
+      isCancellationFee: o.Status === 'cancelled',
     }));
     return c.json({
       tiles: {

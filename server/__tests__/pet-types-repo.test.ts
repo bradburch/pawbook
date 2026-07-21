@@ -119,6 +119,7 @@ describe('pet-type rows (repo)', () => {
       acceptedPetTypes: ['rabbit'],
       maxConcurrentPets: null,
       maxPerDay: null,
+      cancellationTiers: null,
     });
     const result = await deletePetTypeAndScrub(env.PAWBOOK_DB, TENANT_A, 'rabbit');
     const checkin = (await listServices(env.PAWBOOK_DB, TENANT_A)).find(
@@ -149,6 +150,7 @@ describe('AcceptedPetTypes round-trip (repo)', () => {
       acceptedPetTypes: ['dog'],
       maxConcurrentPets: before.MaxConcurrentPets,
       maxPerDay: before.MaxPerDay,
+      cancellationTiers: before.CancellationTiers,
     });
     const after = (await listServices(env.PAWBOOK_DB, TENANT_A)).find(
       (s) => s.ServiceType === 'boarding',
