@@ -14,9 +14,8 @@ const IMG_BUDGETS_KB: Record<string, number> = {
   'step-services.webp': 40,
   'step-calendar.webp': 40,
   'step-request.webp': 40,
-  'admin-bookings.webp': 80,
 };
-const TOTAL_BUDGET_KB = 300;
+const TOTAL_BUDGET_KB = 210;
 
 async function landingBody(): Promise<string> {
   const { env } = createTestEnv();
@@ -62,7 +61,7 @@ describe('GET / — landing page', () => {
   it('every image is a same-origin landing screenshot with informative alt text', async () => {
     const body = await landingBody();
     const imgTags = body.match(/<img\b[^>]*>/g) ?? [];
-    expect(imgTags.length).toBeGreaterThanOrEqual(5);
+    expect(imgTags.length).toBeGreaterThanOrEqual(4);
     for (const tag of imgTags) {
       const src = /src="([^"]+)"/.exec(tag)?.[1];
       const alt = /alt="([^"]*)"/.exec(tag)?.[1];

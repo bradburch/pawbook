@@ -1,29 +1,33 @@
 /*
- * Sitter dashboard — Pawservation's forest identity, first-party.
- * Cream-parchment page, white section cards with icon headers, deep-pine actions.
- * Leaf green appears only as highlight (focus rings, section icons); moss/sage
- * mid-tones carry washes and quiet borders, bark-warm neutrals rule the lines.
- * Mono survives only in embed snippets.
+ * Sitter dashboard — Pawservation's clean, professional SaaS identity, first-party,
+ * sharing the landing page's design system so the whole product reads as one brand.
+ * Near-white page, white section cards with icon headers, brand-green (#2e6440) actions.
+ * A single sans stack carries everything; headings get their voice from weight + tight
+ * tracking, not a display family. Sage mid-tones carry washes and quiet borders, cool
+ * grey-green neutrals rule the lines. Mono survives only in embed snippets.
  */
 :root {
-  --page: #f6f4ea;
+  --page: #fcfcfa;
   --card: #ffffff;
-  --ink: #22422e;
-  --body: #2a352c;
-  --soft: #59695b;
-  --line: #ddd8c5;
-  --sage: #94ae9a;
-  --sage-wash: #ebf1e7;
-  --leaf: #4a7d3c;
+  --ink: #18271d;
+  --body: #415044;
+  --soft: #697a6d;
+  --line: #e3e7e0;
+  --sage: #9db2a2;
+  --sage-wash: #f1f5ee;
+  --leaf: #2e6440;
+  --deep: #1d3826;
+  --deepest: #142919;
   --ok: #23684a;
   --ok-wash: #e7f2e8;
-  --warn: #7c530f;
-  --warn-wash: #f8efdb;
+  --warn: #8a6b1c;
+  --warn-wash: #f8f1de;
   --bad: #b23a30;
   --bad-wash: #f8ebe8;
-  --display:
-    ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Quicksand, system-ui, sans-serif;
-  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* The old rounded display family is gone — headings share the one sans stack and earn
+     their personality from weight (700–800) and tight tracking instead. */
+  --display: var(--sans);
   --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -49,7 +53,7 @@ body {
   font-family: var(--display);
   font-weight: 700;
   font-size: 1.45rem;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.025em;
   color: var(--ink);
   margin: 0;
 }
@@ -84,8 +88,8 @@ body {
   padding: 20px 24px 24px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: 0 10px 24px -22px rgba(23, 42, 29, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px -22px rgba(24, 39, 29, 0.45);
 }
 
 .pb-wrap h2 {
@@ -95,6 +99,7 @@ body {
   font-family: var(--display);
   font-weight: 700;
   font-size: 1.1rem;
+  letter-spacing: -0.02em;
   color: var(--ink);
   margin: 0 0 16px;
 }
@@ -110,6 +115,7 @@ body {
   font-family: var(--display);
   font-weight: 700;
   font-size: 0.95rem;
+  letter-spacing: -0.02em;
   color: var(--ink);
   margin: 18px 0 10px;
 }
@@ -191,7 +197,7 @@ body {
   font-size: 0.8rem;
   line-height: 1.5;
   resize: vertical;
-  background: #faf9f1;
+  background: #f6f8f4;
 }
 
 /* ── Buttons ───────────────────────────────────────────────────────
@@ -200,20 +206,23 @@ body {
    list item, whose visual weight multiplies with the list. */
 .pb-wrap button {
   padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--ink);
-  background: var(--ink);
+  border-radius: 8px;
+  border: 1px solid var(--leaf);
+  background: var(--leaf);
   color: #fff;
   font-family: var(--display);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   min-height: 36px;
-  transition: filter 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    filter 0.12s ease;
 }
 
 .pb-wrap button:hover {
-  filter: brightness(1.18);
+  background: var(--deep);
+  border-color: var(--deep);
 }
 
 .pb-wrap button:disabled {
@@ -321,11 +330,24 @@ body {
 .pb-wrap .pb-cal-nav button,
 .pb-wrap .pb-wizard-back,
 .pb-wrap .pb-signout {
-  background: none;
-  color: var(--soft);
+  background: var(--card);
+  color: var(--ink);
   border: 1px solid var(--line);
   font-family: var(--sans);
   font-weight: 500;
+}
+
+/* Confirm is the one row action that IS the primary decision — it keeps the
+   brand-green fill (matches the landing page's dashboard mock). */
+.pb-wrap li button.pb-confirm:not(:disabled) {
+  background: var(--leaf);
+  color: #fff;
+  border-color: var(--leaf);
+  font-weight: 600;
+}
+.pb-wrap li button.pb-confirm:not(:disabled):hover {
+  background: var(--deep);
+  border-color: var(--deep);
 }
 
 .pb-wrap li button:not(:where(.pb-hint-btn)):hover,
@@ -499,7 +521,7 @@ body {
   padding: 12px 20px;
   background: var(--ink);
   color: #fff;
-  box-shadow: 0 -8px 24px -16px rgba(23, 42, 29, 0.7);
+  box-shadow: 0 -8px 24px -16px rgba(24, 39, 29, 0.7);
 }
 
 .pb-savebar p {
@@ -545,8 +567,8 @@ body {
   padding: 28px 26px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: 0 18px 40px -28px rgba(23, 42, 29, 0.55);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -28px rgba(24, 39, 29, 0.55);
 }
 
 .pb-login h1 {
@@ -594,11 +616,11 @@ body {
   display: block;
   width: 100%;
   border: 0;
-  background: #faf9f1;
+  background: #f6f8f4;
 }
 
 :focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--leaf) 45%, transparent);
+  outline: 3px solid var(--leaf);
   outline-offset: 2px;
 }
 
@@ -835,14 +857,25 @@ body {
 .pb-login-signup {
   margin-top: 16px;
 }
-.pb-linklike {
+/* Prefixed with .pb-wrap (like the ghost buttons above) so it outranks the
+   `.pb-wrap button` primary fill — otherwise this renders as a second solid
+   green CTA under the real one. */
+.pb-wrap button.pb-linklike,
+.pb-wrap button.pb-linklike:hover {
+  width: auto;
   background: none;
   border: none;
   padding: 0;
-  color: inherit;
+  color: var(--ink);
   font: inherit;
+  font-weight: 500;
   text-decoration: underline;
+  text-decoration-color: var(--leaf);
+  text-underline-offset: 2px;
   cursor: pointer;
+}
+.pb-wrap button.pb-linklike:hover {
+  color: var(--leaf);
 }
 /* Lets the table itself scroll sideways on a narrow viewport instead of the page body — a long
    email or the "Joined — business deleted" chip shouldn't be able to widen the whole page. */
@@ -895,8 +928,8 @@ body {
 /* Footer buttons are quiet ghosts (same treatment as .pb-options/.pb-questions
    buttons above); Delete service gets a danger tint. */
 .pb-wrap .pb-svc-editor-foot button {
-  background: none;
-  color: var(--soft);
+  background: var(--card);
+  color: var(--ink);
   border: 1px solid var(--line);
   font-family: var(--sans);
   font-weight: 500;
@@ -1385,7 +1418,7 @@ body {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: 0 8px 18px -14px rgba(23, 42, 29, 0.45);
+  box-shadow: 0 8px 18px -14px rgba(24, 39, 29, 0.45);
   color: var(--body);
   font-family: var(--sans);
   font-size: 0.82rem;
