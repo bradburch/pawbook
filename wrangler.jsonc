@@ -8,6 +8,9 @@
   "compatibility_date": "2026-06-05",
   "main": "./server/index.ts",
   "workers_dev": true,
+  // Custom domain for the rebrand. workers_dev stays on so existing embeds (pointed at the
+  // *.workers.dev URL) keep working; www can be added the same way later.
+  "routes": [{ "pattern": "pawservation.com", "custom_domain": true }],
   "observability": {
     "enabled": true,
   },
