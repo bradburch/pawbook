@@ -26,6 +26,7 @@ export type ServiceForm = ServiceConstraints & {
   options: ServiceOptionForm[];
   questions: QuestionForm[];
   acceptedPetTypes: string[] | null;
+  cancellationTiers: { withinDays: number; percent: number }[] | null;
 };
 export type ServiceTemplate = { id: string; label: string };
 export type Settings = {
@@ -66,6 +67,7 @@ export type ServicePayload = ServiceConstraints & {
   options: ServiceOptionForm[];
   questions: QuestionForm[];
   acceptedPetTypes: string[] | null;
+  cancellationTiers: { withinDays: number; percent: number }[] | null;
 };
 export type SettingsPayload = {
   displayName: string;

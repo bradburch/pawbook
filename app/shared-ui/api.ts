@@ -298,11 +298,14 @@ export const adminApi = {
       token: string,
       id: string,
       status: 'confirmed' | 'declined' | 'cancelled',
+      // Only sent when the sitter opts to charge the prospective cancellation fee; the server
+      // ignores it for non-cancel transitions, so it's omitted unless explicitly true.
+      chargeFee?: boolean,
     ) =>
       request<{ status: string; notified: boolean }>(`/api/${slug}/admin/bookings/${id}/status`, {
         method: 'POST',
         headers: { ...jsonHeaders, ...authHeaders(token) },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(chargeFee ? { status, chargeFee: true } : { status }),
       }),
   },
   calendar: {

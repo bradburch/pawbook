@@ -2,6 +2,9 @@ import { NullableNumberField } from './fields.js';
 import type { QuestionForm, ServiceForm, ServiceOptionForm } from '../shared.js';
 import { Hint } from '../Hint';
 
+/** One row of the cancellation-policy editor, mirroring the wire/shared CancellationTier shape. */
+type ServiceEditorTier = { withinDays: number; percent: number };
+
 const QUESTION_TYPES: QuestionForm['type'][] = ['text', 'yesno', 'number', 'select'];
 const QUESTION_TYPE_LABELS: Record<QuestionForm['type'], string> = {
   text: 'Text',
@@ -157,6 +160,18 @@ export function ServiceEditor({
   onDelete?: () => void;
   petTypes: { petType: string; label: string }[]; // the tenant's pet-type registry
 }) {
+  // Cancellation tiers edit through setService like every other field; an emptied list
+  // normalizes back to null so "no policy" round-trips as the server's NULL sentinel.
+  const tiers = s.cancellationTiers ?? [];
+  const commitTiers = (next: ServiceEditorTier[]) =>
+    setService({ ...s, cancellationTiers: next.length ? next : null });
+  const updateTier = (i: number, next: ServiceEditorTier) =>
+    commitTiers(tiers.map((t, k) => (k === i ? next : t)));
+  const removeTier = (i: number) => commitTiers(tiers.filter((_, k) => k !== i));
+  const addTier = () => {
+    const last = tiers[tiers.length - 1];
+    commitTiers([...tiers, { withinDays: (last?.withinDays ?? 0) + 5, percent: 50 }]);
+  };
   return (
     <div
       className="pb-svc-editor"
@@ -395,6 +410,43 @@ export function ServiceEditor({
           value={s.maxPetCount}
           onChange={(maxPetCount) => setService({ ...s, maxPetCount })}
         />
+      </div>
+
+      <div className="pb-limits pb-tiers">
+        <h3>
+          Cancellation policy
+          <Hint label="Cancellation policy">
+            Blank = no cancellation fee. Tightest window wins.
+          </Hint>
+        </h3>
+        {tiers.map((t, i) => (
+          <div key={i} className="pb-inline">
+            Within{' '}
+            <input
+              type="number"
+              min={0}
+              value={t.withinDays}
+              onChange={(e) => updateTier(i, { ...t, withinDays: Number(e.target.value) })}
+            />{' '}
+            days of start:{' '}
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={t.percent}
+              onChange={(e) => updateTier(i, { ...t, percent: Number(e.target.value) })}
+            />
+            % of cost
+            <button type="button" onClick={() => removeTier(i)}>
+              Remove
+            </button>
+          </div>
+        ))}
+        {tiers.length < 5 && (
+          <button type="button" onClick={addTier}>
+            Add tier
+          </button>
+        )}
       </div>
 
       <div className="pb-limits">

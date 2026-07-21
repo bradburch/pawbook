@@ -409,6 +409,7 @@ body {
 .pb-wrap td button,
 .pb-wrap .pb-options button:not(:where(.pb-hint-btn)),
 .pb-wrap .pb-questions button:not(:where(.pb-hint-btn)),
+.pb-wrap .pb-tiers button:not(:where(.pb-hint-btn)),
 .pb-wrap .pb-cal-nav button,
 .pb-wrap .pb-wizard-back,
 .pb-wrap .pb-signout {
@@ -436,6 +437,7 @@ body {
 .pb-wrap td button:hover,
 .pb-wrap .pb-options button:not(:where(.pb-hint-btn)):hover,
 .pb-wrap .pb-questions button:not(:where(.pb-hint-btn)):hover,
+.pb-wrap .pb-tiers button:not(:where(.pb-hint-btn)):hover,
 .pb-wrap .pb-cal-nav button:hover,
 .pb-wrap .pb-wizard-back:hover,
 .pb-wrap .pb-signout:hover {
@@ -453,6 +455,7 @@ body {
 .pb-wrap td button,
 .pb-wrap .pb-options button:not(:where(.pb-hint-btn)),
 .pb-wrap .pb-questions button:not(:where(.pb-hint-btn)),
+.pb-wrap .pb-tiers button:not(:where(.pb-hint-btn)),
 .pb-wrap .pb-cal-nav button,
 .pb-wrap .pb-signout {
   padding: 4px 10px;

@@ -33,6 +33,16 @@ function paidText(b: AdminBooking): string | null {
   return b.paidTotal >= b.estCost ? 'paid in full' : `paid $${b.paidTotal} of $${b.estCost}`;
 }
 
+/** Fee state for a cancelled row that had a cancellation fee assessed. Mirrors paidText's
+ * "paid $X of $Y" shape but measured against the fee owed, so a sitter reviewing the row sees
+ * the amount and how much of it has been collected. Takes precedence over paidText on those rows. */
+function feeText(b: AdminBooking): string | null {
+  if (b.status !== 'cancelled' || b.cancellationFee == null) return null;
+  return b.paidTotal > 0
+    ? `paid $${b.paidTotal} of fee $${b.cancellationFee}`
+    : `fee $${b.cancellationFee}`;
+}
+
 type ListProps = {
   session: Session;
   /** Reloads the ONE shared bookings array held by Dashboard — a status change made through any
@@ -67,6 +77,14 @@ function BookingList({
       )
     )
       return;
+    // Second prompt only when there's actually a fee to charge on this cancel; OK charges it,
+    // Cancel waives it. Confirmed rows of a tiers service carry feeIfCancelledToday.
+    let chargeFee = false;
+    if (status === 'cancelled' && b.feeIfCancelledToday != null && b.feeIfCancelledToday > 0) {
+      chargeFee = window.confirm(
+        `Charge the $${b.feeIfCancelledToday} cancellation fee? OK charges it; Cancel waives it.`,
+      );
+    }
     clearError();
     setMessage('');
     setBusyId(b.id);
@@ -76,6 +94,7 @@ function BookingList({
         session.token,
         b.id,
         status,
+        chargeFee,
       );
       const who = b.customerName || b.customerEmail || 'the client';
       const verb =
@@ -84,7 +103,8 @@ function BookingList({
         `${verb} ${who}'s ${b.type} ${status === 'cancelled' ? 'booking' : 'request'}. ` +
           (notified
             ? `We emailed ${who} the update.`
-            : `${who} couldn't be emailed automatically (email sending isn't set up), so let them know directly.`),
+            : `${who} couldn't be emailed automatically (email sending isn't set up), so let them know directly.`) +
+          (chargeFee ? ` Charged $${b.feeIfCancelledToday} cancellation fee.` : ''),
       );
       reloadBookings();
     } catch (e) {
@@ -124,7 +144,7 @@ function BookingList({
   );
 
   const row = (b: AdminBooking) => {
-    const paid = paidText(b);
+    const paid = feeText(b) ?? paidText(b);
     return (
       <li key={b.id} data-booking-id={b.id}>
         <span>

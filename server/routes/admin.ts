@@ -370,6 +370,7 @@ export const adminRoutes = new Hono<AppEnv>()
         minPetCount: svc.MinPetCount,
         maxPetCount: svc.MaxPetCount,
         acceptedPetTypes: svc.AcceptedPetTypes,
+        cancellationTiers: svc.CancellationTiers,
         capacityKind: svc.CapacityKind,
         maxConcurrentPets: svc.MaxConcurrentPets,
         maxPerDay: svc.MaxPerDay,

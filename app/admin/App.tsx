@@ -492,6 +492,12 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           minPetCount: s.minPetCount,
           maxPetCount: s.maxPetCount,
           acceptedPetTypes: s.acceptedPetTypes,
+          // Empty editor list normalizes to null; sort by withinDays so honest sitter input
+          // passes the server's strict "strictly increasing" validator regardless of row order.
+          cancellationTiers:
+            s.cancellationTiers && s.cancellationTiers.length > 0
+              ? [...s.cancellationTiers].sort((a, b) => a.withinDays - b.withinDays)
+              : null,
         })),
       };
       await adminFetch(token, `/api/${slug}/admin/settings`, {
