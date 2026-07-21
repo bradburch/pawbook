@@ -2,6 +2,7 @@ import type {
   AllowedSitterRow,
   AnalyticsData,
   BookingRow,
+  CancellationTier,
   EndUser,
   EndUserPet,
   OwnerUser,
@@ -30,7 +31,7 @@ import { constantTimeEqual } from '../lib/timing';
 const TENANT_COLS = 'Id, Slug, DisplayName, AccentColor, Timezone, ContactEmail, ContactPhone';
 
 const BOOKING_COLS =
-  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, GCalEventId, Status, Declined, CreatedAt';
+  'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, CancellationFee, GCalEventId, Status, Declined, CreatedAt';
 
 /** BOOKING_COLS, table-qualified — needed once a query joins BookingRequests against another
  * table (EndUsers) that shares column names like Id/TenantId, which would otherwise be ambiguous. */
@@ -68,14 +69,15 @@ export async function listServices(db: D1Database, tenantId: string): Promise<Te
     .prepare(
       `SELECT TenantId, ServiceType, Enabled, Label, Icon, Shape, RateUnit, HasDuration, CapacityKind,
               SortOrder, Questions, MinNights, MaxNights, MinPetCount, MaxPetCount, AcceptedPetTypes,
-              MaxConcurrentPets, MaxPerDay
+              MaxConcurrentPets, MaxPerDay, CancellationTiers
        FROM TenantServices WHERE TenantId = ? ORDER BY SortOrder, Label`,
     )
     .bind(tenantId)
     .all<
-      Omit<TenantService, 'Questions' | 'AcceptedPetTypes'> & {
+      Omit<TenantService, 'Questions' | 'AcceptedPetTypes' | 'CancellationTiers'> & {
         Questions: string;
         AcceptedPetTypes: string | null;
+        CancellationTiers: string | null;
       }
     >();
   return results.map((r) => ({
@@ -83,6 +85,8 @@ export async function listServices(db: D1Database, tenantId: string): Promise<Te
     Questions: JSON.parse(r.Questions) as ServiceQuestion[],
     AcceptedPetTypes:
       r.AcceptedPetTypes === null ? null : (JSON.parse(r.AcceptedPetTypes) as string[]),
+    CancellationTiers:
+      r.CancellationTiers === null ? null : (JSON.parse(r.CancellationTiers) as CancellationTier[]),
   }));
 }
 
@@ -846,13 +850,14 @@ export async function setServiceConfig(
     acceptedPetTypes: string[] | null;
     maxConcurrentPets: number | null;
     maxPerDay: number | null;
+    cancellationTiers: CancellationTier[] | null;
   },
 ): Promise<boolean> {
   const result = await db
     .prepare(
       `UPDATE TenantServices SET
          Enabled = ?, Questions = ?, MinNights = ?, MaxNights = ?, MinPetCount = ?, MaxPetCount = ?,
-         AcceptedPetTypes = ?, MaxConcurrentPets = ?, MaxPerDay = ?
+         AcceptedPetTypes = ?, MaxConcurrentPets = ?, MaxPerDay = ?, CancellationTiers = ?
        WHERE TenantId = ? AND ServiceType = ?`,
     )
     .bind(
@@ -865,6 +870,7 @@ export async function setServiceConfig(
       config.acceptedPetTypes === null ? null : JSON.stringify(config.acceptedPetTypes),
       config.maxConcurrentPets,
       config.maxPerDay,
+      config.cancellationTiers === null ? null : JSON.stringify(config.cancellationTiers),
       tenantId,
       serviceType,
     )

@@ -4,6 +4,9 @@ import type { ServiceQuestion } from '../src/shared/index.js';
 
 export type { CapacityKind, PetType, RateUnit, ServiceShape, ServiceType };
 
+/** Local until Task 2 lands it in src/shared and this becomes a re-export. */
+export type CancellationTier = { withinDays: number; percent: number };
+
 export type Tenant = {
   Id: string;
   Slug: string;
@@ -59,6 +62,8 @@ export type TenantService = {
   MaxConcurrentPets: number | null;
   /** Housesit-kind only: bookings of THIS service per day; null = unlimited (0015). */
   MaxPerDay: number | null;
+  /** Tiered cancel policy; null = no fee (0016). */
+  CancellationTiers: CancellationTier[] | null;
 };
 
 export type TenantServiceOption = {
@@ -115,6 +120,8 @@ export type BookingRow = {
   StartTime: string | null;
   GCalEventId: string | null;
   EstCost: number | null;
+  /** Fee assessed at cancel time, whole dollars; null = none assessed (0016). */
+  CancellationFee: number | null;
   Status: 'pending' | 'confirmed' | 'cancelled';
   // 1 = the cancellation was the sitter declining a pending request. Optional because only the
   // booking-list queries select it; capacity/availability queries never need it.

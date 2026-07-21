@@ -27,6 +27,7 @@ describe('config columns — caps live on services, timezone on the tenant', () 
       acceptedPetTypes: before.AcceptedPetTypes,
       maxConcurrentPets: 7,
       maxPerDay: null,
+      cancellationTiers: before.CancellationTiers,
     });
     let after = (await listServices(env.PAWBOOK_DB, TENANT_A)).find(
       (s) => s.ServiceType === 'boarding',
@@ -42,6 +43,7 @@ describe('config columns — caps live on services, timezone on the tenant', () 
       acceptedPetTypes: before.AcceptedPetTypes,
       maxConcurrentPets: null,
       maxPerDay: null,
+      cancellationTiers: before.CancellationTiers,
     });
     after = (await listServices(env.PAWBOOK_DB, TENANT_A)).find(
       (s) => s.ServiceType === 'boarding',
