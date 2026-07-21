@@ -17,6 +17,7 @@ export type ServiceConfig = ServiceConstraints & {
   options: ServiceOption[];
   questions: ServiceQuestion[];
   acceptedPetTypes: string[] | null;
+  cancellationTiers: { withinDays: number; percent: number }[] | null;
 };
 export type TenantConfig = {
   slug: string;
@@ -48,6 +49,7 @@ export type Booking = {
   endDate: string | null;
   petCount: number;
   estCost: number | null;
+  cancellationFee: number | null;
   status: string;
   pets: string[];
 };
