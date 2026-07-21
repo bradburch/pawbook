@@ -80,7 +80,12 @@ import {
 } from '../lib/validation';
 import type { AppEnv } from '../types';
 import type { CancellationTier, ServiceQuestion } from '../../src/shared/index.js';
-import { getPacificDateStr, validateCancellationTiers } from '../../src/shared/index.js';
+import {
+  cancellationFee,
+  getPacificDateStr,
+  validateCancellationTiers,
+  DEFAULT_TIMEZONE,
+} from '../../src/shared/index.js';
 
 const COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -1029,11 +1034,34 @@ export const adminRoutes = new Hono<AppEnv>()
   .post('/:slug/admin/bookings/:id/status', async (c) => {
     const tenant = c.get('tenant');
     const id = c.req.param('id');
-    const body = await c.req.json<{ status?: unknown }>().catch(() => ({}) as { status?: unknown });
+    const body = await c.req
+      .json<{ status?: unknown; chargeFee?: unknown }>()
+      .catch(() => ({}) as { status?: unknown; chargeFee?: unknown });
     const status = body.status;
     if (status !== 'confirmed' && status !== 'cancelled' && status !== 'declined')
       return c.json({ error: "Status must be 'confirmed', 'declined', or 'cancelled'." }, 400);
-    const updated = await updateBookingStatus(c.env.PAWBOOK_DB, tenant.Id, id, status);
+
+    // Cancellation-fee assessment. The amount is ALWAYS computed server-side from the tenant's
+    // policy — the request only supplies the `chargeFee` boolean, never a dollar figure. A $0
+    // computed fee stores NULL (no fee assessed).
+    let fee: number | undefined;
+    if (body.chargeFee === true) {
+      if (status !== 'cancelled')
+        return c.json({ error: 'A cancellation fee applies only when cancelling.' }, 400);
+      const bk = await getBookingWithCustomer(c.env.PAWBOOK_DB, tenant.Id, id);
+      if (!bk || bk.Status !== 'confirmed' || bk.EstCost == null)
+        return c.json({ error: 'A fee needs a confirmed booking with an estimated cost.' }, 400);
+      const svc = (await listServices(c.env.PAWBOOK_DB, tenant.Id)).find(
+        (s) => s.ServiceType === bk.ServiceType,
+      );
+      if (!svc?.CancellationTiers)
+        return c.json({ error: 'This service has no cancellation policy.' }, 400);
+      const today = getPacificDateStr(new Date(), tenant.Timezone ?? DEFAULT_TIMEZONE);
+      const computed = cancellationFee(svc.CancellationTiers, bk.EstCost, bk.StartDate, today);
+      if (computed > 0) fee = computed; // $0 stores NULL per spec
+    }
+
+    const updated = await updateBookingStatus(c.env.PAWBOOK_DB, tenant.Id, id, status, fee);
     if (!updated) return c.json({ error: 'Not found.' }, 404);
 
     // One unconditional fetch serves both the calendar hooks and the customer
@@ -1099,7 +1127,7 @@ export const adminRoutes = new Hono<AppEnv>()
         /* status change stands; the dashboard reports the client was not emailed */
       }
     }
-    return c.json({ status, notified });
+    return c.json({ status, notified, cancellationFee: fee ?? null });
   })
 
   .post('/:slug/admin/bookings/:id/payments', async (c) => {

@@ -573,7 +573,20 @@ export async function updateBookingStatus(
   tenantId: string,
   id: string,
   status: 'confirmed' | 'cancelled' | 'declined',
+  cancellationFee?: number,
 ): Promise<boolean> {
+  // Assessed cancellation: record the fee and cancel atomically. The `Status = 'confirmed'` guard
+  // lives in the SQL so a raced double-cancel can't charge the fee twice.
+  if (status === 'cancelled' && cancellationFee != null) {
+    const result = await db
+      .prepare(
+        `UPDATE BookingRequests SET Status = 'cancelled', CancellationFee = ?
+         WHERE TenantId = ? AND Id = ? AND ServiceType != 'blocked' AND Status = 'confirmed'`,
+      )
+      .bind(cancellationFee, tenantId, id)
+      .run();
+    return (result.meta as { changes?: number }).changes !== 0;
+  }
   const result =
     status === 'declined'
       ? await db

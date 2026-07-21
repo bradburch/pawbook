@@ -70,7 +70,11 @@ describe('POST /:slug/admin/bookings/:id/status — Google Calendar hooks (confi
       .mockResolvedValue(new Response(null, { status: 204 }));
     const res = await postStatus(env, id, 'cancelled');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'cancelled', notified: false });
+    expect(await res.json()).toEqual({
+      status: 'cancelled',
+      notified: false,
+      cancellationFee: null,
+    });
     expect(spy).toHaveBeenCalledOnce();
     const [url, init] = spy.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('DELETE');
@@ -89,7 +93,11 @@ describe('POST /:slug/admin/bookings/:id/status — Google Calendar hooks (confi
       .mockResolvedValue(new Response(null, { status: 204 }));
     const res = await postStatus(env, id, 'declined');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'declined', notified: false });
+    expect(await res.json()).toEqual({
+      status: 'declined',
+      notified: false,
+      cancellationFee: null,
+    });
     expect(spy).toHaveBeenCalledOnce();
     const [url, init] = spy.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe('DELETE');
@@ -140,7 +148,11 @@ describe('POST /:slug/admin/bookings/:id/status — Google Calendar hooks (confi
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('', { status: 500 }));
     const res = await postStatus(env, id, 'cancelled');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'cancelled', notified: false });
+    expect(await res.json()).toEqual({
+      status: 'cancelled',
+      notified: false,
+      cancellationFee: null,
+    });
     expect((await bookingRow(env, id)).Status).toBe('cancelled');
   });
 

@@ -77,7 +77,11 @@ describe('admin booking lifecycle', () => {
       env,
     );
     expect(confirm.status).toBe(200);
-    expect(await confirm.json()).toEqual({ status: 'confirmed', notified: false });
+    expect(await confirm.json()).toEqual({
+      status: 'confirmed',
+      notified: false,
+      cancellationFee: null,
+    });
 
     const list = (await (
       await app.request(
@@ -104,7 +108,11 @@ describe('admin booking lifecycle', () => {
 
     const decline = await setStatus('declined');
     expect(decline.status).toBe(200);
-    expect(await decline.json()).toEqual({ status: 'declined', notified: false });
+    expect(await decline.json()).toEqual({
+      status: 'declined',
+      notified: false,
+      cancellationFee: null,
+    });
 
     const list = (await (
       await app.request(
@@ -135,7 +143,11 @@ describe('admin booking lifecycle', () => {
     expect((await setStatus('confirmed')).status).toBe(200);
     const cancel = await setStatus('cancelled');
     expect(cancel.status).toBe(200);
-    expect(await cancel.json()).toEqual({ status: 'cancelled', notified: false });
+    expect(await cancel.json()).toEqual({
+      status: 'cancelled',
+      notified: false,
+      cancellationFee: null,
+    });
 
     // Cancelled is terminal: even re-confirming the same row is rejected.
     const again = await setStatus('confirmed');
