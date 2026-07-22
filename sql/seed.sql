@@ -13,11 +13,12 @@ INSERT OR REPLACE INTO Tenants (Id, Slug, DisplayName, AccentColor) VALUES
   ('tnt_happytails', 'happy-tails', 'Happy Tails', '#d97706'),
   ('tnt_pawsandrelax', 'paws-and-relax', 'Paws & Relax', '#059669');
 
--- Sitter dashboard logins (DEMO password "demo1234" for both; 600k-iteration PBKDF2 hashes).
+-- Sitter dashboard logins (DEMO password "demo1234" for both; 100k-iteration PBKDF2 hashes —
+-- Cloudflare Workers' production runtime rejects PBKDF2 above 100k iterations).
 INSERT OR REPLACE INTO TenantUsers (Id, TenantId, Email, PasswordHash) VALUES
-  ('tu_sunny', 'tnt_sunnypaws', 'admin@sunnypaws.example', 'pbkdf2$600000$4f4aa1b2f29635a386a62fbce18336ae$8eaa4c479048f11664af6dd8a6118996921474eb6c72ba6c4b6caf66155fc6ae'),
-  ('tu_dana', 'tnt_happytails', 'dana@happytails.test', 'pbkdf2$600000$03503c998c342f5f3704921e532a3e35$deac9874ed916391151ee6ce3b3aecb3a55c44123349729ae220d4762e911d07'),
-  ('tu_pawsandrelax', 'tnt_pawsandrelax', 'admin@pawsandrelax.example', 'pbkdf2$600000$4f4aa1b2f29635a386a62fbce18336ae$8eaa4c479048f11664af6dd8a6118996921474eb6c72ba6c4b6caf66155fc6ae');
+  ('tu_sunny', 'tnt_sunnypaws', 'admin@sunnypaws.example', 'pbkdf2$100000$75ec423211a87b5687e462502235e9f4$6c3625d682942c58d946ede85f64e3370ea83d17aa8e1fa86f360100088ad683'),
+  ('tu_dana', 'tnt_happytails', 'dana@happytails.test', 'pbkdf2$100000$0247366df2d9233578630a9a57888573$2c332c6290d673cace58bb9509722dc87ee0929609fafd6ff6d91e2d9c3863ae'),
+  ('tu_pawsandrelax', 'tnt_pawsandrelax', 'admin@pawsandrelax.example', 'pbkdf2$100000$5e4234bef7913725b820563128f5bb6b$50a9e479d5e2f7776181822ced273d45cdef3ba067b3afeb9df4505d7d36114f');
 
 -- Which services each tenant offers. Every tenant gets a row per built-in template (rows, not
 -- code, are the service list); Enabled mirrors what each demo sitter actually offers. Sunny Paws
