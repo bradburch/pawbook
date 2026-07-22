@@ -21,7 +21,7 @@ import {
 import type { Tenant, TenantService, TenantServiceOption } from '../types';
 
 // Per-tenant availability built on the shared capacity engine. Each pool-drawing service carries
-// its own nullable cap (MaxConcurrentPets / MaxPerDay; null = unlimited / auto pass-through).
+// its own nullable cap (MaxConcurrentPets; null = unlimited / auto pass-through).
 
 export function rowsToCapacityEvents(rows: CapacityRow[]): CapacityEvent[] {
   return rows.map((row) =>
@@ -69,14 +69,20 @@ async function checkRange(
   const request: CapacityRequest = {
     serviceType: service.ServiceType,
     kind: service.CapacityKind === 'housesit' ? 'housesit' : 'boarding',
-    cap: service.CapacityKind === 'housesit' ? service.MaxPerDay : service.MaxConcurrentPets,
+    cap: service.MaxConcurrentPets,
     petCount,
   };
-  // The engine (rangeHasConflict) already rejects an over-cap boarding request on its own. This
-  // fast path is kept purely for UX + cost: it returns a SPECIFIC "exceeds capacity" reason (vs the
-  // generic "dates not available") and short-circuits before the capacity DB read. Unlimited skips it.
-  if (request.kind === 'boarding' && request.cap !== null && petCount > request.cap) {
-    return { available: false, reason: 'That exceeds our boarding capacity.' };
+  // The engine (rangeHasConflict) already rejects an over-cap request on its own. This fast path
+  // is kept purely for UX + cost: it returns a SPECIFIC "exceeds capacity" reason (vs the generic
+  // "dates not available") and short-circuits before the capacity DB read. Unlimited skips it.
+  if (request.cap !== null && petCount > request.cap) {
+    return {
+      available: false,
+      reason:
+        request.kind === 'boarding'
+          ? 'That exceeds our boarding capacity.'
+          : 'That exceeds our house-sitting capacity.',
+    };
   }
   // Fetch one day PAST checkout so the soft-bookend look-ahead sees a booking starting on the
   // checkout day (without +1, listCapacityRows clips that row and a final night can double-book).
@@ -241,7 +247,7 @@ export async function monthAvailability(
     if (poolKind !== null) {
       // Range service (boarding / housesitting): capacity-aware against ITS OWN pool + cap.
       const rawUsed = day?.byService.get(service.ServiceType) ?? 0;
-      max = poolKind === 'boarding' ? service.MaxConcurrentPets : service.MaxPerDay;
+      max = service.MaxConcurrentPets;
       const blocked = (day?.blocked ?? 0) >= 1;
       const unavailable = blocked || (max != null && rawUsed >= max);
       status = unavailable ? 'unavailable' : max != null && rawUsed > 0 ? 'partial' : 'available';

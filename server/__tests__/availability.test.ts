@@ -453,6 +453,39 @@ describe('checkAvailability', () => {
     const full = await checkAvailability(env, t, svc('walk'), slotOption, '2028-09-01', '');
     expect(full).toMatchObject({ available: false });
   });
+
+  it('house-sit pool cap is read from MaxConcurrentPets, in pets', async () => {
+    const { env } = createTestEnv();
+    const t = tenant();
+    const o = opt({
+      ServiceType: 'housesitting',
+      OptionKey: 'standard',
+      DurationMinutes: null,
+      Rate: 70,
+      RateUnit: 'night',
+    });
+    // House-sit service with a 2-pet cap and one existing 2-pet sit (Aug, no boarding overlap).
+    const service = svc('housesitting', { MaxConcurrentPets: 2 });
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'housesitting',
+      startDate: '2028-08-10',
+      endDate: '2028-08-14',
+      optionKey: 'standard',
+      petType: null,
+      petCount: 2,
+      estCost: null,
+      status: 'confirmed',
+    });
+    // A 1-pet sit overlapping mid-range: 2 + 1 > 2 → blocked.
+    const blocked = await checkAvailability(env, t, service, o, '2028-08-11', '2028-08-13', 1);
+    expect(blocked).toMatchObject({ available: false });
+
+    // A 3-pet sit against a cap of 2 fails the fast path even on empty dates.
+    const overCap = await checkAvailability(env, t, service, o, '2028-08-20', '2028-08-22', 3);
+    expect(overCap).toMatchObject({ available: false });
+    expect((overCap as { reason: string }).reason).toBe('That exceeds our house-sitting capacity.');
+  });
 });
 
 describe('countSlotBookings / listSlotBookingCounts', () => {
