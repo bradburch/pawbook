@@ -18,7 +18,9 @@ interface Env {
   RESEND_FROM_BOOKING?: string;
   /**
    * Deployment environment. Only `'development'` (set in local `.dev.vars`) may show login codes
-   * on screen when email is unconfigured; anything else (incl. unset) fails closed in production.
+   * on screen when email is unconfigured; anything else (incl. unset) fails closed in production —
+   * except the two public /demo tenants, which always get the on-screen code regardless of
+   * ENVIRONMENT or email configuration (see `DEMO_TENANT_SLUGS` in `server/routes/auth.ts`).
    */
   ENVIRONMENT?: string;
   /**

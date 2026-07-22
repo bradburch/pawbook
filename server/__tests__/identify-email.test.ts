@@ -7,9 +7,11 @@ import { createTestEnv } from './helpers';
 describe('identify with email configured', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  function identify(env: Env) {
+  // sunny-paws is one of the two public /demo tenants — it always gets the on-screen code (see
+  // below), so the general "email configured" path is exercised against paws-and-relax instead.
+  function identify(env: Env, slug = 'sunny-paws') {
     return app.request(
-      '/api/sunny-paws/identify',
+      `/api/${slug}/identify`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -28,7 +30,7 @@ describe('identify with email configured', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response('{}', { status: 200 }));
 
-    const res = await identify(env);
+    const res = await identify(env, 'paws-and-relax');
     expect(res.status).toBe(200);
     const body = (await res.json()) as { codeId: string; prototypeCode?: string };
     expect(body.codeId).toBeTruthy();
@@ -45,7 +47,7 @@ describe('identify with email configured', () => {
     env.RESEND_FROM_BOOKING = 'Pawservation <booking@example.com>';
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nope', { status: 500 }));
 
-    const res = await identify(env);
+    const res = await identify(env, 'paws-and-relax');
     expect(res.status).toBe(502);
   });
 
@@ -53,15 +55,7 @@ describe('identify with email configured', () => {
     const { env } = createTestEnv();
     env.ENVIRONMENT = 'production'; // not development, and no RESEND_* set
     // paws-and-relax isn't one of the public /demo tenants, so it still needs a real provider.
-    const res = await app.request(
-      '/api/paws-and-relax/identify',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'jess@example.com' }),
-      },
-      env,
-    );
+    const res = await identify(env, 'paws-and-relax');
     expect(res.status).toBe(503);
     const body = (await res.json()) as { prototypeCode?: string };
     expect(body.prototypeCode).toBeUndefined();
@@ -74,6 +68,24 @@ describe('identify with email configured', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { prototypeCode?: string };
     expect(body.prototypeCode).toBeTruthy();
+  });
+
+  it('shows the on-screen code for the demo tenant even with email fully configured', async () => {
+    // The real production state: RESEND_* are all set (see README.md). The demo tenant's seeded
+    // EndUser has no real inbox, so it must still get the on-screen code and skip the real send
+    // entirely — not attempt (and fail) to email jess@example.com.
+    const { env } = createTestEnv();
+    env.ENVIRONMENT = 'production';
+    env.RESEND_API_KEY = 'test-key';
+    env.RESEND_FROM_NOREPLY = 'Pawservation <no_reply@example.com>';
+    env.RESEND_FROM_BOOKING = 'Pawservation <booking@example.com>';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const res = await identify(env); // sunny-paws
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { prototypeCode?: string };
+    expect(body.prototypeCode).toBeTruthy();
+    expect(fetchSpy).not.toHaveBeenCalled(); // no real send attempted for a demo tenant
   });
 });
 

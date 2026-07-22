@@ -183,8 +183,11 @@ npx wrangler d1 execute pawbook-db --remote --file=./sql/schema.sql   # fresh DB
 Production **fails closed** without email: customer login and sitter signup return 503
 rather than ever leaking a code or link, so `RESEND_API_KEY`/`RESEND_FROM_NOREPLY`/
 `RESEND_FROM_BOOKING` are effectively all required in production (email counts as
-configured only when all three are set — see `server/lib/email.ts`). Merges to `main`
-auto-deploy via CI.
+configured only when all three are set — see `server/lib/email.ts`). The two tenants
+embedded on the public `/demo` page (`sunny-paws`, `happy-tails`) are the one deliberate
+exception — their seeded end user has no real inbox, so they always get the on-screen code
+regardless of email configuration (see `DEMO_TENANT_SLUGS` in `server/routes/auth.ts`).
+Merges to `main` auto-deploy via CI.
 
 ## Provisioning the first sitter
 

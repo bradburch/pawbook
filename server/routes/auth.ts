@@ -14,8 +14,9 @@ import type { AppEnv } from '../types';
 const CODE_TTL_MS = 10 * 60 * 1000;
 
 // The public /demo page (demo.html) embeds these two tenants for anyone to try, with no
-// real inbox behind their seeded EndUsers — so they always get the on-screen code, the same
-// path local dev uses, regardless of ENVIRONMENT.
+// real inbox behind their seeded EndUsers — a real send would just vanish. Checked BEFORE
+// isEmailConfigured (see /identify below) so this holds even when production has RESEND_*
+// fully configured, which is the expected production state per README.md.
 const DEMO_TENANT_SLUGS = new Set(['sunny-paws', 'happy-tails']);
 
 // --- Reference valibot pattern ---
@@ -55,6 +56,9 @@ export const authRoutes = new Hono<AppEnv>()
     const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
     const codeId = await createLoginCode(c.env.PAWBOOK_DB, tenant.Id, user.Id, code, expiresAt);
 
+    if (DEMO_TENANT_SLUGS.has(tenant.Slug)) {
+      return c.json({ codeId, prototypeCode: code });
+    }
     // When email is configured, send the code and NEVER return it — returning it would be an
     // unauthenticated account-takeover (anyone knowing the email could read the code).
     if (isEmailConfigured(c.env)) {
@@ -65,11 +69,10 @@ export const authRoutes = new Hono<AppEnv>()
       }
       return c.json({ codeId });
     }
-    // No email provider configured. Only show the code on screen in explicit local development,
-    // or for the two public demo tenants — gating on an env signal (not merely on the secrets
-    // being absent) so a production deploy that forgot to set RESEND_* fails CLOSED instead of
-    // silently leaking codes for real tenants.
-    if (c.env.ENVIRONMENT === 'development' || DEMO_TENANT_SLUGS.has(tenant.Slug)) {
+    // No email provider configured. Only show the code on screen in explicit local development —
+    // gating on an env signal (not merely on the secrets being absent) so a production deploy that
+    // forgot to set RESEND_* fails CLOSED instead of silently leaking codes for real tenants.
+    if (c.env.ENVIRONMENT === 'development') {
       return c.json({ codeId, prototypeCode: code });
     }
     return c.json({ error: 'Login is temporarily unavailable.' }, 503);
