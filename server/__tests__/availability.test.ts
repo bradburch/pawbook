@@ -27,7 +27,6 @@ function svc(type: TemplateId, over: Partial<TenantService> = {}): TenantService
     MaxPetCount: null,
     AcceptedPetTypes: null,
     MaxConcurrentPets: null,
-    MaxPerDay: null,
     CancellationTiers: null,
     ...over,
   };
@@ -415,6 +414,77 @@ describe('checkAvailability', () => {
     const otherDate = await checkAvailability(env, t, svc('walk'), slotOption, '2028-09-02', '');
     expect(otherDate).toMatchObject({ available: true });
   });
+
+  it('slot capacity counts pets, not bookings (SUM(PetCount))', async () => {
+    const { env } = createTestEnv();
+    const t = tenant();
+    const slotOption = opt({ OptionKey: 'morning-walk', Capacity: 4 });
+
+    // One 2-pet booking: 2 of 4 pets used → still available.
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 2,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    const partial = await checkAvailability(env, t, svc('walk'), slotOption, '2028-09-01', '');
+    expect(partial).toMatchObject({ available: true });
+
+    // A second 2-pet booking fills the 4-pet slot → full.
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 2,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    const full = await checkAvailability(env, t, svc('walk'), slotOption, '2028-09-01', '');
+    expect(full).toMatchObject({ available: false });
+  });
+
+  it('house-sit pool cap is read from MaxConcurrentPets, in pets', async () => {
+    const { env } = createTestEnv();
+    const t = tenant();
+    const o = opt({
+      ServiceType: 'housesitting',
+      OptionKey: 'standard',
+      DurationMinutes: null,
+      Rate: 70,
+      RateUnit: 'night',
+    });
+    // House-sit service with a 2-pet cap and one existing 2-pet sit (Aug, no boarding overlap).
+    const service = svc('housesitting', { MaxConcurrentPets: 2 });
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'housesitting',
+      startDate: '2028-08-10',
+      endDate: '2028-08-14',
+      optionKey: 'standard',
+      petType: null,
+      petCount: 2,
+      estCost: null,
+      status: 'confirmed',
+    });
+    // A 1-pet sit overlapping mid-range: 2 + 1 > 2 → blocked.
+    const blocked = await checkAvailability(env, t, service, o, '2028-08-11', '2028-08-13', 1);
+    expect(blocked).toMatchObject({ available: false });
+
+    // A 3-pet sit against a cap of 2 fails the fast path even on empty dates.
+    const overCap = await checkAvailability(env, t, service, o, '2028-08-20', '2028-08-22', 3);
+    expect(overCap).toMatchObject({ available: false });
+    expect((overCap as { reason: string }).reason).toBe('That exceeds our house-sitting capacity.');
+  });
 });
 
 describe('countSlotBookings / listSlotBookingCounts', () => {
@@ -526,5 +596,51 @@ describe('countSlotBookings / listSlotBookingCounts', () => {
     );
     expect(including).toBe(1);
     expect(excluding).toBe(0);
+  });
+
+  it('sums PetCount across bookings for the slot', async () => {
+    const { env } = createTestEnv();
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-10',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 2,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-10',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 3,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    const count = await countSlotBookings(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-10',
+    );
+    expect(count).toBe(5); // 2 + 3 pets, not 2 bookings
+
+    const counts = await listSlotBookingCounts(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-10',
+      '2028-09-11',
+    );
+    expect(counts.get('2028-09-10')).toBe(5);
   });
 });

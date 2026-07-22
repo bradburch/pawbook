@@ -548,7 +548,6 @@ function Dashboard({ session, onSignOut }: { session: Session; onSignOut: () => 
           type: s.type,
           enabled: s.enabled,
           maxConcurrentPets: s.maxConcurrentPets,
-          maxPerDay: s.maxPerDay,
           options: s.options.map((o): ServiceOptionForm => ({
             optionKey: o.optionKey,
             label: o.label,

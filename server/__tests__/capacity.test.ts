@@ -12,12 +12,12 @@ const boarding = (
   serviceType = 'boarding',
   petCount = 1,
 ): CapacityEvent => ({ start_date: start, end_date: end, kind: 'boarding', serviceType, petCount });
-const houseSit = (start: string, end: string, serviceType = 'housesitting'): CapacityEvent => ({
-  start_date: start,
-  end_date: end,
-  kind: 'housesit',
-  serviceType,
-});
+const houseSit = (
+  start: string,
+  end: string,
+  serviceType = 'housesitting',
+  petCount = 1,
+): CapacityEvent => ({ start_date: start, end_date: end, kind: 'housesit', serviceType, petCount });
 const blocked = (start: string, end: string): CapacityEvent => ({
   start_date: start,
   end_date: end,
@@ -115,5 +115,55 @@ describe('rangeHasConflict with per-service CapacityRequest', () => {
     const sit: CapacityRequest = { serviceType: 'housesitting', kind: 'housesit', cap: null };
     expect(rangeHasConflict('2028-09-02', '2028-09-04', sit, cap)).toBe(true); // overlaps 2 days
     expect(rangeHasConflict('2028-09-01', '2028-09-02', sit, cap)).toBe(false); // exactly 1 day
+  });
+
+  it('house-sit occupancy counts PETS: a 3-pet sit fills 3 units', () => {
+    const cap = buildCapacity([houseSit('2028-09-01', '2028-09-04', 'housesitting', 3)]);
+    const sit = (over: Partial<CapacityRequest> = {}): CapacityRequest => ({
+      serviceType: 'housesitting',
+      kind: 'housesit',
+      cap: null,
+      petCount: 1,
+      ...over,
+    });
+    // cap 3 is exactly filled by the existing 3-pet sit → one more pet blocks.
+    expect(rangeHasConflict('2028-09-02', '2028-09-03', sit({ cap: 3, petCount: 1 }), cap)).toBe(
+      true,
+    );
+    // cap 4 leaves room for one more pet.
+    expect(rangeHasConflict('2028-09-02', '2028-09-03', sit({ cap: 4, petCount: 1 }), cap)).toBe(
+      false,
+    );
+  });
+
+  it('house-sit petCount null/0 still counts as 1', () => {
+    const capNull = buildCapacity([
+      houseSit('2028-09-01', '2028-09-04', 'housesitting', undefined),
+    ]);
+    const sit: CapacityRequest = { serviceType: 'housesitting', kind: 'housesit', cap: 1 };
+    // 1 existing pet (defaulted) fills cap 1 → a second 1-pet request blocks.
+    expect(rangeHasConflict('2028-09-02', '2028-09-03', sit, capNull)).toBe(true);
+
+    const capZero = buildCapacity([
+      {
+        start_date: '2028-10-01',
+        end_date: '2028-10-04',
+        kind: 'housesit',
+        serviceType: 'housesitting',
+        petCount: 0,
+      },
+    ]);
+    expect(rangeHasConflict('2028-10-02', '2028-10-03', sit, capZero)).toBe(true);
+  });
+
+  it('house-sit over-cap is rejected on an EMPTY calendar (standalone guard, pets)', () => {
+    const empty = buildCapacity([]);
+    const sit: CapacityRequest = {
+      serviceType: 'housesitting',
+      kind: 'housesit',
+      cap: 2,
+      petCount: 3,
+    };
+    expect(rangeHasConflict('2028-09-02', '2028-09-04', sit, empty)).toBe(true);
   });
 });
