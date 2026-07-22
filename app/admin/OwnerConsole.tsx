@@ -18,6 +18,12 @@ type Entry = {
   orphaned: boolean;
 };
 
+type AddResult = {
+  entry: { email: string; claimedAt: string | null };
+  emailSent: boolean;
+  prototypeLink?: string;
+};
+
 export function OwnerConsole({
   session,
   onSignOut,
@@ -28,6 +34,7 @@ export function OwnerConsole({
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<AddResult | null>(null);
 
   const handle = useCallback(
     (e: unknown) => {
@@ -58,13 +65,15 @@ export function OwnerConsole({
   const add = async () => {
     if (busy || !email.trim()) return;
     setError('');
+    setNote(null);
     setBusy(true);
     try {
-      await adminFetch(session.token, '/api/owner/allowlist', {
+      const result = await adminFetch<AddResult>(session.token, '/api/owner/allowlist', {
         method: 'POST',
         body: JSON.stringify({ email }),
       });
       setEmail('');
+      setNote(result);
       reload();
     } catch (e) {
       handle(e);
@@ -111,6 +120,23 @@ export function OwnerConsole({
           {busy ? 'Adding…' : 'Add'}
         </button>
         {error && <p className="pb-error">{error}</p>}
+        {note &&
+          (note.entry.claimedAt ? (
+            <p>{note.entry.email} already has an account.</p>
+          ) : note.prototypeLink ? (
+            <p className="pb-ok">
+              {/* Dev only: the server returns prototypeLink when no email provider is configured
+                  (mirrors the login page's setup-link affordance). */}
+              Invite ready — <a href={note.prototypeLink}>open the setup link (dev)</a>.
+            </p>
+          ) : note.emailSent ? (
+            <p className="pb-ok">Invite sent to {note.entry.email}.</p>
+          ) : (
+            <p className="pb-error">
+              Added {note.entry.email}, but the invite email couldn&rsquo;t be sent — re-add to
+              retry.
+            </p>
+          ))}
 
         {entries === null ? (
           <p>Loading…</p>
