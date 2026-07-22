@@ -6,14 +6,17 @@ import {
   getAllowedSitter,
   listAllowedSitters,
 } from '../db/repo';
+import { isEmailConfigured, sendSitterInvite } from '../lib/email';
 import { ownerAuth } from '../lib/middleware';
 import { isOwnerEmail } from '../lib/owners';
+import { INVITE_LINK_TTL_SECONDS, mintLink } from '../lib/signup-link';
 import { EMAIL_RE } from '../lib/validation';
 import type { AppEnv } from '../types';
 
 /**
  * Owner console: allowlist management. Non-slug-scoped ('owner' is in RESERVED_SLUGS) and
- * owner-token-gated. No email is sent on add — the sitter initiates from the login page.
+ * owner-token-gated. Adding an unclaimed email mints a 7-day setup link and emails it (see
+ * `sendSitterInvite`); re-adding a claimed email sends nothing.
  */
 
 const EmailBody = v.object({
@@ -53,9 +56,48 @@ export const ownerRoutes = new Hono<AppEnv>()
       return c.json({ error: 'That email is a platform owner and cannot join as a sitter.' }, 400);
     // Idempotent — re-adding returns the existing row (the customer-invite precedent).
     const row = await addAllowedSitter(c.env.PAWBOOK_DB, email);
-    return c.json({
-      entry: { email: row.Email, addedAt: row.AddedAt, claimedAt: row.ClaimedAt, tenantSlug: null },
-    });
+    const entry = {
+      email: row.Email,
+      addedAt: row.AddedAt,
+      claimedAt: row.ClaimedAt,
+      tenantSlug: null,
+    };
+
+    // A claimed row means the sitter already has an account — nothing to invite.
+    if (row.ClaimedAt) return c.json({ entry, emailSent: false });
+
+    const origin = new URL(c.req.url).origin;
+
+    // Local-dev degrade (mirrors /signup/start's prototypeLink): with no provider configured in
+    // development, hand the minted link back on-screen so demos work with a blanked RESEND_API_KEY.
+    if (!isEmailConfigured(c.env)) {
+      if (c.env.ENVIRONMENT === 'development') {
+        const prototypeLink = await mintLink(
+          c.env,
+          origin,
+          email,
+          'sitter',
+          INVITE_LINK_TTL_SECONDS,
+        );
+        return c.json({ entry, emailSent: false, prototypeLink });
+      }
+      // Unconfigured outside development: no link minted, no send — but the add still succeeds.
+      // Unlike the public signup routes there is no fail-closed requirement here; the owner
+      // console surfaces the failure.
+      return c.json({ entry, emailSent: false });
+    }
+
+    // Owner-authenticated route: no enumeration-neutrality constraint and invites are rare, so
+    // await the send and report the truth. A failure NEVER rolls back the row (the row is the
+    // source of truth for who may join; the email is a courtesy notification).
+    try {
+      const link = await mintLink(c.env, origin, email, 'sitter', INVITE_LINK_TTL_SECONDS);
+      await sendSitterInvite(c.env, email, link);
+      return c.json({ entry, emailSent: true });
+    } catch (err) {
+      console.error('sitter invite send failed', err);
+      return c.json({ entry, emailSent: false });
+    }
   })
 
   .delete('/owner/allowlist/:email', async (c) => {
