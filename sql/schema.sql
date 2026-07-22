@@ -43,8 +43,8 @@ CREATE TABLE IF NOT EXISTS TenantServices (
   Shape TEXT NOT NULL CHECK (Shape IN ('range', 'single')),
   RateUnit TEXT NOT NULL CHECK (RateUnit IN ('night', 'day', 'visit')),
   HasDuration INTEGER NOT NULL DEFAULT 0, -- options priced per duration (walk/check-in style)?
-  -- Which capacity RULE the service uses (not the service's name): 'boarding' = pet-counted vs its
-  -- own MaxConcurrentPets, 'housesit' = day-counted vs its own MaxPerDay, 'none' = unlimited.
+  -- Which capacity RULE the service uses (not the service's name): 'boarding' and 'housesit' both
+  -- count PETS against their own MaxConcurrentPets; 'none' = unlimited (blocked days only).
   CapacityKind TEXT NOT NULL DEFAULT 'none' CHECK (CapacityKind IN ('boarding', 'housesit', 'none')),
   SortOrder INTEGER NOT NULL DEFAULT 0,
   -- Per-service intake questions (JSON array of ServiceQuestion, see src/shared/booking/service-rules.ts)
@@ -57,9 +57,11 @@ CREATE TABLE IF NOT EXISTS TenantServices (
   -- JSON array of pet-type slugs this service accepts; NULL = accepts every registry type
   -- (null-is-unlimited convention). An empty array is invalid for an ENABLED service.
   AcceptedPetTypes TEXT,
-  -- Per-service capacity (added by 0015; both NULL = unlimited). MaxConcurrentPets applies to
-  -- CapacityKind='boarding' (pets in care per day for THIS service); MaxPerDay to 'housesit'
-  -- (bookings of THIS service per day). A cap on a 'none'-kind service is rejected on PUT.
+  -- Per-service capacity (added by 0015; NULL = unlimited). MaxConcurrentPets is the pets-per-day
+  -- cap for BOTH pool kinds (0017): CapacityKind='boarding' and 'housesit' both read it — a booking
+  -- with three pets uses three slots. A cap on a 'none'-kind service is rejected on PUT. MaxPerDay
+  -- is RETIRED (0017 folded it into MaxConcurrentPets); the column stays for shape lockstep but no
+  -- code reads or writes it. Drop in a future cleanup migration.
   MaxConcurrentPets INTEGER,
   MaxPerDay INTEGER,
   -- Tiered cancellation policy (added by 0016); JSON array like
