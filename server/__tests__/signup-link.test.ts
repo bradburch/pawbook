@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { signState, verifyState } from '../lib/oauth-state';
 import {
+  INVITE_LINK_TTL_SECONDS,
+  mintLink,
   SIGNUP_LINK_TTL_SECONDS,
   SIGNUP_NONCE_KEY,
   signSignupLink,
   verifySignupLink,
   type SignupPayload,
 } from '../lib/signup-link';
+import { createTestEnv } from './helpers';
 
 const SECRET = 'test-secret-0123456789';
 const payload = (): SignupPayload => ({
@@ -58,5 +61,40 @@ describe('signup link', () => {
   it('exports the agreed TTL and KV nonce key shape', () => {
     expect(SIGNUP_LINK_TTL_SECONDS).toBe(1800);
     expect(SIGNUP_NONCE_KEY('abc')).toBe('signup:nonce:abc');
+  });
+});
+
+describe('mintLink', () => {
+  it('mints a /setup link whose token + nonce carry the requested TTL', async () => {
+    const { env } = createTestEnv();
+    const before = Date.now();
+    const url = await mintLink(
+      env,
+      'https://x.test',
+      'sitter@x.test',
+      'sitter',
+      INVITE_LINK_TTL_SECONDS,
+    );
+    expect(url).toMatch(/^https:\/\/x\.test\/setup\?t=/);
+
+    const token = new URL(url).searchParams.get('t')!;
+    const payload = await verifySignupLink(env.TOKEN_SECRET, token, Date.now());
+    expect(payload).not.toBeNull();
+    expect(payload!.kind).toBe('sitter');
+    expect(payload!.email).toBe('sitter@x.test');
+    // exp is ~7 days out (>= start + full TTL).
+    expect(payload!.exp).toBeGreaterThanOrEqual(before + INVITE_LINK_TTL_SECONDS * 1000);
+
+    // The single-use nonce was registered so /signup/complete can consume it.
+    const seen = await env.PAWBOOK_CACHE.get(SIGNUP_NONCE_KEY(payload!.nonce));
+    expect(seen).toBe('1');
+
+    // Valid right before exp, invalid just after.
+    expect(await verifySignupLink(env.TOKEN_SECRET, token, payload!.exp - 1)).not.toBeNull();
+    expect(await verifySignupLink(env.TOKEN_SECRET, token, payload!.exp + 1)).toBeNull();
+  });
+
+  it('exports the 7-day invite TTL (604800s)', () => {
+    expect(INVITE_LINK_TTL_SECONDS).toBe(604800);
   });
 });

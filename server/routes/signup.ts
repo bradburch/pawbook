@@ -15,9 +15,9 @@ import { hashPassword } from '../lib/password';
 import { checkAndBumpRateLimit } from '../lib/rate-limit';
 import { slugifyServiceLabel } from '../lib/services';
 import {
+  mintLink,
   SIGNUP_LINK_TTL_SECONDS,
   SIGNUP_NONCE_KEY,
-  signSignupLink,
   verifySignupLink,
 } from '../lib/signup-link';
 import { mintAdminToken, mintOwnerToken } from '../lib/token';
@@ -76,26 +76,6 @@ async function eligibleKind(env: Env, email: string): Promise<'sitter' | 'owner'
   return row && !row.ClaimedAt ? 'sitter' : null;
 }
 
-/** Mint a link and register its single-use nonce in KV (same expiry as the link). */
-async function mintLink(
-  env: Env,
-  origin: string,
-  email: string,
-  kind: 'sitter' | 'owner',
-): Promise<string> {
-  const nonce = crypto.randomUUID();
-  await env.PAWBOOK_CACHE.put(SIGNUP_NONCE_KEY(nonce), '1', {
-    expirationTtl: SIGNUP_LINK_TTL_SECONDS,
-  });
-  const token = await signSignupLink(env.TOKEN_SECRET, {
-    email,
-    kind,
-    nonce,
-    exp: Date.now() + SIGNUP_LINK_TTL_SECONDS * 1000,
-  });
-  return `${origin}/setup?t=${token}`;
-}
-
 export const signupRoutes = new Hono<AppEnv>()
   .post('/signup/start', async (c) => {
     const raw = await c.req.json<unknown>().catch(() => ({}));
@@ -125,7 +105,10 @@ export const signupRoutes = new Hono<AppEnv>()
       if (overCap) return c.json({ ok: true });
       const kind = await eligibleKind(c.env, email);
       if (!kind) return c.json({ ok: true });
-      return c.json({ ok: true, prototypeLink: await mintLink(c.env, origin, email, kind) });
+      return c.json({
+        ok: true,
+        prototypeLink: await mintLink(c.env, origin, email, kind, SIGNUP_LINK_TTL_SECONDS),
+      });
     }
 
     // Enumeration neutrality is structural: the 200 goes out NOW; everything whose duration
@@ -135,7 +118,11 @@ export const signupRoutes = new Hono<AppEnv>()
       if (overCap) return;
       const kind = await eligibleKind(c.env, email);
       if (!kind) return;
-      await sendSignupLink(c.env, email, await mintLink(c.env, origin, email, kind));
+      await sendSignupLink(
+        c.env,
+        email,
+        await mintLink(c.env, origin, email, kind, SIGNUP_LINK_TTL_SECONDS),
+      );
     })().catch((err) => console.error('signup link send failed', err));
     try {
       c.executionCtx.waitUntil(work);
