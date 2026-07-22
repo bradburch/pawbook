@@ -6,7 +6,10 @@
 
 import { constantTimeEqual } from './timing';
 
-export const ITERATIONS = 600_000;
+// Cloudflare Workers' runtime rejects PBKDF2 iteration counts above 100_000
+// (NotSupportedError in production; local workerd and Node do NOT enforce the cap),
+// so this is the maximum deployable value.
+export const ITERATIONS = 100_000;
 const KEY_BYTES = 32;
 const SALT_BYTES = 16;
 const encoder = new TextEncoder();
@@ -47,7 +50,7 @@ export async function hashPassword(password: string): Promise<string> {
  * timing parity can't silently drift if ITERATIONS is raised.
  */
 export const DUMMY_PASSWORD_HASH =
-  'pbkdf2$600000$a33cd73eff7c27b9b9e7dce5cdd9c49d$af3af0107bc6bfe119b372878b96b3031f7271c0a32c6d1a0e7b5a0859246ed2';
+  'pbkdf2$100000$a9ed3cc9aea90df324aa3f7f5321c8b2$196ab1e6cbfd64f76c1b69b5dae27e112d5dedc77f07abec1a6d989bb79f186d';
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split('$');

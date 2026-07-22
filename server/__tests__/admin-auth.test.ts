@@ -31,6 +31,14 @@ describe('password hashing', () => {
     expect(scheme).toBe('pbkdf2');
     expect(Number(iterations)).toBe(ITERATIONS);
   });
+
+  it('stays within the Cloudflare Workers PBKDF2 iteration cap', () => {
+    // Cloudflare Workers' PRODUCTION runtime throws NotSupportedError for PBKDF2 above
+    // 100_000 iterations, so every hashPassword() call would fail there. Neither Node
+    // (Vitest) nor local workerd enforces this cap, making this assertion the only
+    // automatable guard against regressing ITERATIONS past the deployable maximum.
+    expect(ITERATIONS).toBeLessThanOrEqual(100_000);
+  });
 });
 
 describe('sitter login', () => {
