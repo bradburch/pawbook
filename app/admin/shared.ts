@@ -22,7 +22,6 @@ export type ServiceForm = ServiceConstraints & {
   enabled: boolean;
   capacityKind: 'boarding' | 'housesit' | 'none';
   maxConcurrentPets: number | null;
-  maxPerDay: number | null;
   options: ServiceOptionForm[];
   questions: QuestionForm[];
   acceptedPetTypes: string[] | null;
@@ -63,7 +62,6 @@ export type ServicePayload = ServiceConstraints & {
   type: string;
   enabled: boolean;
   maxConcurrentPets: number | null;
-  maxPerDay: number | null;
   options: ServiceOptionForm[];
   questions: QuestionForm[];
   acceptedPetTypes: string[] | null;

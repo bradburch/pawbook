@@ -278,8 +278,8 @@ export function ServiceEditor({
                     onChange={(capacity) => setOption({ capacity })}
                   />
                   <Hint label="Capacity">
-                    How many bookings this time slot can take. A booking with three dogs still uses
-                    one spot. A full slot stops being offered; blank means no limit.
+                    How many pets this time slot can take. A booking with three dogs uses three
+                    spots. A full slot stops being offered; blank means no limit.
                   </Hint>
                   {windowed && (
                     <>
@@ -360,29 +360,16 @@ export function ServiceEditor({
 
       <div className="pb-limits">
         <h3>Booking limits</h3>
-        {s.capacityKind === 'boarding' && (
+        {(s.capacityKind === 'boarding' || s.capacityKind === 'housesit') && (
           <div className="pb-cap-row">
             <NullableNumberField
-              label="Boarding spots per day (pets)"
+              label="Pets per day"
               value={s.maxConcurrentPets}
               onChange={(maxConcurrentPets) => setService({ ...s, maxConcurrentPets })}
             />
-            <Hint label="Boarding spots per day">
-              Blank means no limit. Set a number and Pawservation stops offering new bookings once
-              that day is full.
-            </Hint>
-          </div>
-        )}
-        {s.capacityKind === 'housesit' && (
-          <div className="pb-cap-row">
-            <NullableNumberField
-              label="House-sits per day"
-              value={s.maxPerDay}
-              onChange={(maxPerDay) => setService({ ...s, maxPerDay })}
-            />
-            <Hint label="House-sits per day">
-              Blank means no limit. Set a number and Pawservation stops offering new house-sit
-              bookings once that many are already booked for the day.
+            <Hint label="Pets per day">
+              Blank means no limit. Counts every pet in care that day — a booking with three dogs
+              uses three spots.
             </Hint>
           </div>
         )}
