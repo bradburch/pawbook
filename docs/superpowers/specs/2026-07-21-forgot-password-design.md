@@ -31,9 +31,13 @@ reset reuses this machinery:
   identical per-email+IP soft cap.
 - **`server/routes/password-reset.ts`** (new): two endpoints mirroring `signup/start` +
   `signup/complete`.
-- **`app/setup/App.tsx`**: extended, not replaced. The link payload gains `action: 'signup' |
-'reset'`; when `action === 'reset'` the page skips the business-name field and posts to the
-  reset-complete endpoint instead of signup-complete.
+- **`app/setup/App.tsx`**: extended, not replaced. Reset links are a structurally distinct
+  signed-link type (`server/lib/reset-link.ts`, its own HKDF label `'pawbook-reset-link'`) rather
+  than a variant of the signup payload; `/setup` tells the two apart via a plain `?reset=1` URL
+  marker the server appends when minting the link (not part of the signed payload — the server
+  fully controls it, so it carries no additional trust requirement). When the marker is present
+  the page skips the business-name field and posts to the reset-complete endpoint instead of
+  signup-complete.
 - **`app/admin/App.tsx`**: `Login` gets a "Forgot password?" toggle, structurally identical to the
   existing "New here?" signup toggle.
 
@@ -54,8 +58,9 @@ Mirrors `signup/start` exactly:
    whether the email has an account.
 4. After the response: look up `OwnerUsers` first (an owner email never doubles as a sitter
    login, matching `eligibleKind`'s existing precedence), else `TenantUsers`. If either matches,
-   mint a reset link (`kind: 'owner' | 'sitter'` per which table matched, `action: 'reset'`) and
-   email it via a new `sendResetLink` in `lib/email.ts`. No match → do nothing.
+   mint a reset link (`kind: 'owner' | 'sitter'` per which table matched, signed via
+   `reset-link.ts`'s distinct HKDF label with a `?reset=1` URL marker appended) and email it via a
+   new `sendResetLink` in `lib/email.ts`. No match → do nothing.
 5. Local-dev (no email provider configured): same inline/`prototypeLink` degrade as
    `signup/start`, so `npm run dev` demos keep working without real email.
 
@@ -109,8 +114,11 @@ neutral copy ("If that email has an account, a reset link is on its way") + the 
 
 ### `app/setup/App.tsx`
 
-Extended, not duplicated. `LinkPayload` gains `action: 'signup' | 'reset'`. When
-`action === 'reset'`:
+Extended, not duplicated. Reset links are a structurally distinct signed-link type
+(`server/lib/reset-link.ts`, its own HKDF label `'pawbook-reset-link'`) rather than a variant of
+`SignupPayload`. `/setup` distinguishes signup vs. reset via a plain `?reset=1` URL marker the
+server appends when minting the link — it is not part of the signed payload, so the server fully
+controls it and it carries no additional trust requirement. When the marker is present:
 
 - Business-name field is skipped regardless of `kind` (sitter or owner).
 - Heading reads "Reset your password".
