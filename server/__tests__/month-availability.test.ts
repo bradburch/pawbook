@@ -263,4 +263,42 @@ describe('GET /api/:slug/availability/month', () => {
     const d15 = body.days.find((d) => d.date === '2026-10-15')!;
     expect(d15.mine).toBe(true);
   });
+
+  it('per-option slot: month grid marks the day full by pets, not bookings', async () => {
+    const { env, raw } = createTestEnv();
+    // Give the seeded 30-minute walk option a 4-pet capacity.
+    raw
+      .prepare(
+        `UPDATE TenantServiceOptions SET Capacity = 4
+         WHERE TenantId = 'tnt_sunnypaws' AND ServiceType = 'walk' AND OptionKey = 'd30'`,
+      )
+      .run();
+    // Two 2-pet walks fill the 4-pet slot on Nov 12.
+    for (const _ of [0, 1]) {
+      await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+        endUserId: null,
+        serviceType: 'walk',
+        startDate: '2026-11-12',
+        endDate: null,
+        optionKey: 'd30',
+        petType: null,
+        petCount: 2,
+        startTime: null,
+        estCost: null,
+        status: 'confirmed',
+      });
+    }
+    const token = await endUserToken(env, 'sunny-paws', 'jess@example.com');
+    const res = await app.request(
+      '/api/sunny-paws/availability/month?type=walk&option=d30&month=2026-11',
+      { headers: { Authorization: `Bearer ${token}` } },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { days: MonthDay[] };
+    const d12 = body.days.find((d) => d.date === '2026-11-12')!;
+    expect(d12.status).toBe('unavailable'); // 4 pets ≥ capacity 4
+    const d13 = body.days.find((d) => d.date === '2026-11-13')!;
+    expect(d13.status).toBe('available');
+  });
 });

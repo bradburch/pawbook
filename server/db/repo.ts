@@ -422,7 +422,7 @@ export async function listUserBookingDatesInRange(
 }
 
 /**
- * Count non-cancelled bookings against one option on one date — enforces a windowed option's
+ * Sum the pets across non-cancelled bookings against one option on one date — enforces a windowed option's
  * Capacity. `excludeId` lets the post-insert race check ask "do I still fit, ignoring myself?",
  * matching the pattern `listCapacityRows` already uses for boarding/house-sit.
  */
@@ -436,7 +436,7 @@ export async function countSlotBookings(
 ): Promise<number> {
   const row = await db
     .prepare(
-      `SELECT COUNT(*) AS n FROM BookingRequests
+      `SELECT COALESCE(SUM(PetCount), 0) AS n FROM BookingRequests
        WHERE TenantId = ? AND ServiceType = ? AND OptionKey = ? AND StartDate = ?
          AND Status IN ('pending', 'confirmed') AND (? IS NULL OR Id != ?)`,
     )
@@ -446,7 +446,7 @@ export async function countSlotBookings(
 }
 
 /**
- * Per-date booking counts against one option over [fromDate, toDateExclusive) — ONE query for
+ * Per-date pet counts against one option over [fromDate, toDateExclusive) — ONE query for
  * a whole month grid, so `monthAvailability` never issues one DB round-trip per day (the
  * "build the map once" pattern `buildCapacity` already uses for boarding/house-sit).
  */
@@ -460,7 +460,7 @@ export async function listSlotBookingCounts(
 ): Promise<Map<string, number>> {
   const { results } = await db
     .prepare(
-      `SELECT StartDate, COUNT(*) AS n FROM BookingRequests
+      `SELECT StartDate, COALESCE(SUM(PetCount), 0) AS n FROM BookingRequests
        WHERE TenantId = ? AND ServiceType = ? AND OptionKey = ?
          AND StartDate >= ? AND StartDate < ? AND Status IN ('pending', 'confirmed')
        GROUP BY StartDate`,

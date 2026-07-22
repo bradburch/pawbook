@@ -415,6 +415,44 @@ describe('checkAvailability', () => {
     const otherDate = await checkAvailability(env, t, svc('walk'), slotOption, '2028-09-02', '');
     expect(otherDate).toMatchObject({ available: true });
   });
+
+  it('slot capacity counts pets, not bookings (SUM(PetCount))', async () => {
+    const { env } = createTestEnv();
+    const t = tenant();
+    const slotOption = opt({ OptionKey: 'morning-walk', Capacity: 4 });
+
+    // One 2-pet booking: 2 of 4 pets used → still available.
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 2,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    const partial = await checkAvailability(env, t, svc('walk'), slotOption, '2028-09-01', '');
+    expect(partial).toMatchObject({ available: true });
+
+    // A second 2-pet booking fills the 4-pet slot → full.
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-01',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 2,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    const full = await checkAvailability(env, t, svc('walk'), slotOption, '2028-09-01', '');
+    expect(full).toMatchObject({ available: false });
+  });
 });
 
 describe('countSlotBookings / listSlotBookingCounts', () => {
@@ -526,5 +564,51 @@ describe('countSlotBookings / listSlotBookingCounts', () => {
     );
     expect(including).toBe(1);
     expect(excluding).toBe(0);
+  });
+
+  it('sums PetCount across bookings for the slot', async () => {
+    const { env } = createTestEnv();
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-10',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 2,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    await insertBookingRequest(env.PAWBOOK_DB, TENANT_A, {
+      endUserId: null,
+      serviceType: 'walk',
+      startDate: '2028-09-10',
+      endDate: null,
+      optionKey: 'morning-walk',
+      petType: null,
+      petCount: 3,
+      startTime: '11:00',
+      estCost: null,
+      status: 'confirmed',
+    });
+    const count = await countSlotBookings(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-10',
+    );
+    expect(count).toBe(5); // 2 + 3 pets, not 2 bookings
+
+    const counts = await listSlotBookingCounts(
+      env.PAWBOOK_DB,
+      TENANT_A,
+      'walk',
+      'morning-walk',
+      '2028-09-10',
+      '2028-09-11',
+    );
+    expect(counts.get('2028-09-10')).toBe(5);
   });
 });
