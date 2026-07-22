@@ -115,7 +115,11 @@ export default function App() {
   return (
     <div className="pb-wrap pb-login">
       <h1>
-        {isReset ? 'Reset your password' : sitter ? 'Set up your business' : 'Set up your owner account'}
+        {isReset
+          ? 'Reset your password'
+          : sitter
+            ? 'Set up your business'
+            : 'Set up your owner account'}
       </h1>
       <p>
         {isReset ? 'Resetting the password for' : 'Setting up'} <strong>{payload.email}</strong>
@@ -152,7 +156,13 @@ export default function App() {
         />
       </label>
       <button onClick={submit} disabled={busy}>
-        {busy ? (isReset ? 'Resetting…' : 'Setting up…') : isReset ? 'Reset password' : 'Finish setup'}
+        {busy
+          ? isReset
+            ? 'Resetting…'
+            : 'Setting up…'
+          : isReset
+            ? 'Reset password'
+            : 'Finish setup'}
       </button>
       {error && <p className="pb-error">{error}</p>}
     </div>

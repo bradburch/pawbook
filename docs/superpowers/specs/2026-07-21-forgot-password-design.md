@@ -32,7 +32,7 @@ reset reuses this machinery:
 - **`server/routes/password-reset.ts`** (new): two endpoints mirroring `signup/start` +
   `signup/complete`.
 - **`app/setup/App.tsx`**: extended, not replaced. The link payload gains `action: 'signup' |
-  'reset'`; when `action === 'reset'` the page skips the business-name field and posts to the
+'reset'`; when `action === 'reset'` the page skips the business-name field and posts to the
   reset-complete endpoint instead of signup-complete.
 - **`app/admin/App.tsx`**: `Login` gets a "Forgot password?" toggle, structurally identical to the
   existing "New here?" signup toggle.
@@ -159,7 +159,7 @@ in-memory SQLite harness (`server/__tests__/helpers.ts`):
 ## Out of scope
 
 - Session revocation on reset (see above).
-- Rate-limiting or throttling password-reset *attempts* beyond the existing link TTL + single-use
+- Rate-limiting or throttling password-reset _attempts_ beyond the existing link TTL + single-use
   (i.e., no separate lockout on repeated wrong passwords — that's the existing login endpoint's
   concern, unchanged by this work).
 - Any change to the customer-facing (widget) login, which already uses a different mechanism
