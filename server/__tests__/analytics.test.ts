@@ -286,4 +286,21 @@ describe('GET /:slug/admin/analytics (route)', () => {
       },
     ]);
   });
+
+  it('forwards ytd and quarterly in the payload', async () => {
+    const { env } = createTestEnv();
+    const b = await makeBooking(env, TENANT_C, { estCost: 300 });
+    const today = getPacificDateStr(); // e.g. current Pacific day
+    await pay(env, TENANT_C, b, 90, today);
+    const body = (await (await getAnalyticsRoute(env)).json()) as {
+      ytd: number;
+      quarterly: { q: number; total: number }[];
+    };
+    expect(body.ytd).toBe(90);
+    expect(body.quarterly).toHaveLength(4);
+    expect(body.quarterly.map((q) => q.q)).toEqual([1, 2, 3, 4]);
+    const [, month] = today.split('-').map(Number);
+    const thisQ = Math.floor((month - 1) / 3) + 1;
+    expect(body.quarterly.find((q) => q.q === thisQ)?.total).toBe(90);
+  });
 });
