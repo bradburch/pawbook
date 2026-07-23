@@ -19,6 +19,7 @@ import type {
 import type { CapacityKind, RateUnit, ServiceShape, ServiceType } from '../lib/services';
 import type { PaymentMethod } from '../lib/validation';
 import type { ServiceQuestion } from '../../src/shared/index.js';
+import { quarterlyBreakdown } from '../../src/shared/index.js';
 import { constantTimeEqual } from '../lib/timing';
 
 /**
@@ -809,8 +810,12 @@ export async function getAnalytics(
   ]);
 
   const byMonth = new Map(monthlyRes.results.map((r) => [r.Month, r.Total]));
+  const monthly = months.map((month) => ({ Month: month, Total: byMonth.get(month) ?? 0 }));
+  const { ytd, quarters } = quarterlyBreakdown(monthly, y);
   return {
-    monthly: months.map((month) => ({ Month: month, Total: byMonth.get(month) ?? 0 })),
+    monthly,
+    ytd,
+    quarterly: quarters,
     byService: byServiceRes.results,
     topClients: topClientsRes.results,
     outstanding: outstandingRes.results,

@@ -139,6 +139,8 @@ export type PaymentRow = {
  * month first, zero-filled. The route maps to camelCase and derives the stat tiles in JS. */
 export type AnalyticsData = {
   monthly: { Month: string; Total: number }[];
+  ytd: number;
+  quarterly: { q: number; total: number }[];
   byService: { ServiceType: string; Label: string; Total: number }[];
   topClients: {
     EndUserId: string;

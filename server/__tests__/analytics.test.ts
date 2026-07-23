@@ -159,6 +159,26 @@ describe('getAnalytics (repo)', () => {
     const other = await getAnalytics(env.PAWBOOK_DB, TENANT_B, TODAY);
     expect(other.outstanding.map((o) => o.BookingId)).toEqual(['seed_ht_board1']);
   });
+
+  it('ytd + quarterly derive from monthly[]; prior-year payment excluded from ytd but present in monthly', async () => {
+    const { env } = createTestEnv();
+    const b = await makeBooking(env, TENANT_A);
+    await pay(env, TENANT_A, b, 30, '2026-02-15'); // Q1 2026
+    await pay(env, TENANT_A, b, 50, '2026-05-10'); // Q2 2026
+    await pay(env, TENANT_A, b, 70, '2026-07-01'); // Q3 2026
+    await pay(env, TENANT_A, b, 999, '2025-12-20'); // prior year — inside the 12-month window
+    const { ytd, quarterly, monthly } = await getAnalytics(env.PAWBOOK_DB, TENANT_A, TODAY);
+    expect(ytd).toBe(150); // 30+50+70; the 999 from 2025 is excluded
+    expect(quarterly).toEqual([
+      { q: 1, total: 30 },
+      { q: 2, total: 50 },
+      { q: 3, total: 70 },
+      { q: 4, total: 0 }, // mid-year: no Q4 yet
+    ]);
+    // The prior-year payment is still visible in the rolling 12-month monthly[] — proving the YTD
+    // filter (not the query window) is what scopes ytd.
+    expect(monthly.find((m) => m.Month === '2025-12')).toEqual({ Month: '2025-12', Total: 999 });
+  });
 });
 
 describe('GET /:slug/admin/analytics (route)', () => {
