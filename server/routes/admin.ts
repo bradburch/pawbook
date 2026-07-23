@@ -1244,6 +1244,8 @@ export const adminRoutes = new Hono<AppEnv>()
         outstandingCount: outstanding.length,
       },
       monthly: data.monthly.map((m) => ({ month: m.Month, total: m.Total })),
+      ytd: data.ytd,
+      quarterly: data.quarterly,
       byService: data.byService.map((s) => ({
         serviceType: s.ServiceType,
         label: s.Label,

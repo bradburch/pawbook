@@ -106,6 +106,8 @@ export type AnalyticsPayload = {
     outstandingCount: number;
   };
   monthly: { month: string; total: number }[];
+  ytd: number;
+  quarterly: { q: number; total: number }[];
   byService: { serviceType: string; label: string; total: number }[];
   topClients: {
     endUserId: string;
