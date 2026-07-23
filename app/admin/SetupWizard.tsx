@@ -88,7 +88,7 @@ export function SetupWizard({
   /** Reloads the dashboard's settings after the wizard writes (same as addService's refresh). */
   onApplied: () => Promise<void>;
 }) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(() => makeProfileDraft(settings));
   // Snapshot the profile PUT diffs against; advanced to the saved draft after each successful
   // save so Back-then-Next doesn't resend fields (resending is harmless, just noisy).
@@ -149,7 +149,7 @@ export function SetupWizard({
 
   // Step navigation clears any stale error so e.g. a step-1 validation message can't linger
   // over the price step.
-  const goTo = (next: 1 | 2 | 3 | 4) => {
+  const goTo = (next: 1 | 2 | 3 | 4 | 5) => {
     setError('');
     setStep(next);
   };
@@ -398,7 +398,7 @@ export function SetupWizard({
           </>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <>
             <h2>You&rsquo;re bookable!</h2>
             <p>Fine-tune options, capacities, and questions anytime in Services &amp; rates.</p>
