@@ -325,14 +325,21 @@ export function OwnerConsole({
                         </thead>
                         <tbody>
                           {sortSitters(roster.sitters, sort).map((s) => (
-                            <tr
-                              key={s.tenantId}
-                              onClick={() =>
-                                setSelected({ tenantId: s.tenantId, displayName: s.displayName })
-                              }
-                              style={{ cursor: 'pointer' }}
-                            >
-                              <td>{s.displayName}</td>
+                            <tr key={s.tenantId}>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="pb-linklike"
+                                  onClick={() =>
+                                    setSelected({
+                                      tenantId: s.tenantId,
+                                      displayName: s.displayName,
+                                    })
+                                  }
+                                >
+                                  {s.displayName}
+                                </button>
+                              </td>
                               <td>{s.clients}</td>
                               <td>{s.bookings}</td>
                               <td>${s.earned}</td>
