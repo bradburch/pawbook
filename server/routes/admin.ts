@@ -757,6 +757,8 @@ export const adminRoutes = new Hono<AppEnv>()
 
   .get('/:slug/admin/providers/calendar/oauth/start', async (c) => {
     const tenant = c.get('tenant');
+    // Disabled tenants are read-only — connecting a calendar is a settings write via the callback.
+    if (tenant.DisabledAt) return c.json({ error: 'account_disabled' }, 403);
     if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET || !c.env.GOOGLE_OAUTH_REDIRECT_URI)
       return c.json({ error: 'Google Calendar is not configured on this server.' }, 503);
     const nonce = crypto.randomUUID();
@@ -1013,7 +1015,8 @@ export const adminRoutes = new Hono<AppEnv>()
 
   .get('/:slug/admin/bookings', async (c) => {
     const tenant = c.get('tenant');
-    await reconcileIfStale(c.env, tenant);
+    // A disabled tenant is read-only: don't run the calendar self-heal (a write) on this GET.
+    if (!tenant.DisabledAt) await reconcileIfStale(c.env, tenant);
     const rows = await listBookingsForTenant(c.env.PAWBOOK_DB, tenant.Id);
     // Cancellation policy per service, so each confirmed row can preview the fee it would owe if
     // cancelled today (one query, keyed by ServiceType; NULL/missing = no policy).
@@ -1222,7 +1225,8 @@ export const adminRoutes = new Hono<AppEnv>()
   // here in JS from the aggregates — no extra queries, no KV caching (prototype-scale D1).
   .get('/:slug/admin/analytics', async (c) => {
     const tenant = c.get('tenant');
-    await reconcileIfStale(c.env, tenant);
+    // A disabled tenant is read-only: don't run the calendar self-heal (a write) on this GET.
+    if (!tenant.DisabledAt) await reconcileIfStale(c.env, tenant);
     const today = getPacificDateStr(undefined, tenant.Timezone ?? undefined);
     const data = await getAnalytics(c.env.PAWBOOK_DB, tenant.Id, today);
     return c.json(serializeAnalytics(data));
