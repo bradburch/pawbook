@@ -1576,6 +1576,27 @@ export async function deleteUnclaimedAllowedSitter(
 }
 
 /**
+ * Owner-scope: flip a tenant's disabled state. `true` → DisabledAt = now (widget dark + admin
+ * read-only via the tenantMiddleware guard); `false` → NULL (active). Returns whether a row
+ * changed (false = no such tenant, so the route can 404). Caller must invalidateTenantCache.
+ */
+export async function setTenantDisabled(
+  db: D1Database,
+  tenantId: string,
+  disabled: boolean,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      disabled
+        ? "UPDATE Tenants SET DisabledAt = datetime('now') WHERE Id = ?"
+        : 'UPDATE Tenants SET DisabledAt = NULL WHERE Id = ?',
+    )
+    .bind(tenantId)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+/**
  * Signup provisioning as ONE atomic batch (deleteService precedent; the test shim's batch is
  * transactional): Tenants → TenantUsers → claim the allowlist row. A replay that beat the
  * nonce race dies on TenantUsers.Email UNIQUE, aborting the WHOLE batch — no orphan tenant.
