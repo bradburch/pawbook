@@ -29,7 +29,8 @@ import { constantTimeEqual } from '../lib/timing';
  * is a defect.
  */
 
-const TENANT_COLS = 'Id, Slug, DisplayName, AccentColor, Timezone, ContactEmail, ContactPhone';
+const TENANT_COLS =
+  'Id, Slug, DisplayName, AccentColor, Timezone, ContactEmail, ContactPhone, DisabledAt';
 
 const BOOKING_COLS =
   'Id, TenantId, EndUserId, ServiceType, StartDate, EndDate, StartTime, OptionKey, PetType, PetCount, EstCost, CancellationFee, GCalEventId, Status, Declined, CreatedAt';
@@ -1513,6 +1514,7 @@ export type SitterRosterRow = {
   Slug: string;
   DisplayName: string;
   CreatedAt: string;
+  DisabledAt: string | null; // null = active
   Clients: number; // COUNT(EndUsers), all-time
   Bookings: number; // confirmed, non-blocked, CreatedAt >= sinceDate
   Earned: number; // SUM(Payments.Amount), PaidDate >= sinceDate
@@ -1539,6 +1541,7 @@ export async function listSitterRoster(
          t.Slug AS Slug,
          t.DisplayName AS DisplayName,
          t.CreatedAt AS CreatedAt,
+         t.DisabledAt AS DisabledAt,
          (SELECT COUNT(*) FROM EndUsers u WHERE u.TenantId = t.Id) AS Clients,
          (SELECT COUNT(*) FROM BookingRequests b
             WHERE b.TenantId = t.Id AND b.Status = 'confirmed'
@@ -1572,6 +1575,61 @@ export async function deleteUnclaimedAllowedSitter(
     .bind(email)
     .run();
   return (result.meta as { changes?: number }).changes !== 0;
+}
+
+/**
+ * Owner-scope: flip a tenant's disabled state. `true` → DisabledAt = now (widget dark + admin
+ * read-only via the tenantMiddleware guard); `false` → NULL (active). Returns whether a row
+ * changed (false = no such tenant, so the route can 404). Caller must invalidateTenantCache.
+ */
+export async function setTenantDisabled(
+  db: D1Database,
+  tenantId: string,
+  disabled: boolean,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      disabled
+        ? "UPDATE Tenants SET DisabledAt = datetime('now') WHERE Id = ?"
+        : 'UPDATE Tenants SET DisabledAt = NULL WHERE Id = ?',
+    )
+    .bind(tenantId)
+    .run();
+  return (result.meta as { changes?: number }).changes !== 0;
+}
+
+/**
+ * Owner-scope: irreversibly delete a tenant and ALL its data. One child-first batch (D1 enforces
+ * FKs with no ON DELETE CASCADE, so leaves must go before parents; the single batch means a
+ * failure leaves every table untouched together). Covers all tenant-keyed tables, the
+ * transitively-scoped BookingRequestPets, and the claimed AllowedSitters row (email fully
+ * deleted — the owner must re-invite to bring the sitter back). Returns whether the Tenants row
+ * was deleted (false = no such tenant). Caller must resolve the slug first and
+ * invalidateTenantCache after.
+ */
+export async function deleteTenantCompletely(db: D1Database, tenantId: string): Promise<boolean> {
+  const results = await db.batch([
+    db
+      .prepare(
+        `DELETE FROM BookingRequestPets
+           WHERE BookingRequestId IN (SELECT Id FROM BookingRequests WHERE TenantId = ?)`,
+      )
+      .bind(tenantId),
+    db.prepare('DELETE FROM Payments WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM BookingRequests WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM EndUserPets WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM LoginCodes WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM EndUsers WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM TenantServiceOptions WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM TenantServices WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM TenantPetTypes WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM ProviderConnections WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM TenantUsers WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM AllowedSitters WHERE TenantId = ?').bind(tenantId),
+    db.prepare('DELETE FROM Tenants WHERE Id = ?').bind(tenantId),
+  ]);
+  const tenantResult = results[results.length - 1] as { meta: { changes?: number } };
+  return (tenantResult.meta.changes ?? 0) > 0;
 }
 
 /**

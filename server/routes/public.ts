@@ -14,6 +14,7 @@ export const publicRoutes = new Hono<AppEnv>()
     ]);
     return c.json({
       slug: tenant.Slug,
+      disabled: tenant.DisabledAt != null,
       displayName: tenant.DisplayName,
       accentColor: tenant.AccentColor,
       timezone: tenant.Timezone,

@@ -18,6 +18,14 @@ export const tenantMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const tenant = slug ? await resolveTenant(slug, c.env) : null;
   if (!tenant) return c.json({ error: 'Unknown tenant' }, 404);
   c.set('tenant', tenant);
+  // Disabled sitter = read-only: GET requests pass (widget shows an "unavailable" card via the
+  // config `disabled` flag; sitter dashboard renders read-only), every mutation is rejected here
+  // at the one chokepoint the whole /api/:slug/* surface flows through. Sitter LOGIN and owner
+  // routes bypass tenantMiddleware, so a disabled sitter can still sign in and the owner can still
+  // manage them.
+  if (tenant.DisabledAt && c.req.method !== 'GET') {
+    return c.json({ error: 'account_disabled' }, 403);
+  }
   await next();
 });
 
