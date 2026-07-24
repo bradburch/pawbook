@@ -350,6 +350,7 @@ export const adminRoutes = new Hono<AppEnv>()
       listProviderConnections(c.env.PAWBOOK_DB, tenant.Id),
     ]);
     return c.json({
+      disabled: tenant.DisabledAt != null,
       displayName: tenant.DisplayName,
       accentColor: tenant.AccentColor,
       timezone: tenant.Timezone,
