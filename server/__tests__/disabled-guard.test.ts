@@ -18,26 +18,38 @@ describe('disabled tenant guard', () => {
     // Widget config GET: allowed, flagged disabled.
     const cfg = await app.request('/api/sunny-paws/config', {}, env);
     expect(cfg.status).toBe(200);
-    expect((await cfg.json() as { disabled: boolean }).disabled).toBe(true);
+    expect(((await cfg.json()) as { disabled: boolean }).disabled).toBe(true);
 
     // Customer login POST: blocked before the handler.
     const identify = await app.request(
       '/api/sunny-paws/identify',
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"email":"x@y.test"}' },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"email":"x@y.test"}',
+      },
       env,
     );
     expect(identify.status).toBe(403);
     expect(await identify.json()).toEqual({ error: 'account_disabled' });
 
     // Sitter admin GET: read-only dashboard still works.
-    const settings = await app.request('/api/sunny-paws/admin/settings', { headers: await adminHeaders() }, env);
+    const settings = await app.request(
+      '/api/sunny-paws/admin/settings',
+      { headers: await adminHeaders() },
+      env,
+    );
     expect(settings.status).toBe(200);
-    expect((await settings.json() as { disabled: boolean }).disabled).toBe(true);
+    expect(((await settings.json()) as { disabled: boolean }).disabled).toBe(true);
 
     // Sitter admin mutation: blocked by the guard even with a valid token.
     const put = await app.request(
       '/api/sunny-paws/admin/settings',
-      { method: 'PUT', headers: { ...(await adminHeaders()), 'Content-Type': 'application/json' }, body: '{}' },
+      {
+        method: 'PUT',
+        headers: { ...(await adminHeaders()), 'Content-Type': 'application/json' },
+        body: '{}',
+      },
       env,
     );
     expect(put.status).toBe(403);
@@ -48,6 +60,6 @@ describe('disabled tenant guard', () => {
     const { env } = createTestEnv(); // TENANT_A not disabled
     const cfg = await app.request('/api/sunny-paws/config', {}, env);
     expect(cfg.status).toBe(200);
-    expect((await cfg.json() as { disabled: boolean }).disabled).toBe(false);
+    expect(((await cfg.json()) as { disabled: boolean }).disabled).toBe(false);
   });
 });
