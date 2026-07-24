@@ -1514,6 +1514,7 @@ export type SitterRosterRow = {
   Slug: string;
   DisplayName: string;
   CreatedAt: string;
+  DisabledAt: string | null; // null = active
   Clients: number; // COUNT(EndUsers), all-time
   Bookings: number; // confirmed, non-blocked, CreatedAt >= sinceDate
   Earned: number; // SUM(Payments.Amount), PaidDate >= sinceDate
@@ -1540,6 +1541,7 @@ export async function listSitterRoster(
          t.Slug AS Slug,
          t.DisplayName AS DisplayName,
          t.CreatedAt AS CreatedAt,
+         t.DisabledAt AS DisabledAt,
          (SELECT COUNT(*) FROM EndUsers u WHERE u.TenantId = t.Id) AS Clients,
          (SELECT COUNT(*) FROM BookingRequests b
             WHERE b.TenantId = t.Id AND b.Status = 'confirmed'

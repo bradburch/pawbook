@@ -2,18 +2,21 @@ import { Hono } from 'hono';
 import * as v from 'valibot';
 import {
   addAllowedSitter,
+  deleteTenantCompletely,
   deleteUnclaimedAllowedSitter,
   getAllowedSitter,
   getAnalytics,
   getTenantById,
   listAllowedSitters,
   listSitterRoster,
+  setTenantDisabled,
 } from '../db/repo';
 import { isEmailConfigured, sendSitterInvite } from '../lib/email';
 import { serializeAnalytics } from '../lib/analytics';
 import { ownerAuth } from '../lib/middleware';
 import { isOwnerEmail } from '../lib/owners';
 import { INVITE_LINK_TTL_SECONDS, mintLink } from '../lib/signup-link';
+import { invalidateTenantCache } from '../lib/tenant-resolve';
 import { EMAIL_RE } from '../lib/validation';
 import type { AppEnv } from '../types';
 import { quarterSinceDate } from '../../src/shared/analytics/periods.js';
@@ -152,6 +155,7 @@ export const ownerRoutes = new Hono<AppEnv>()
       slug: r.Slug,
       displayName: r.DisplayName,
       createdAt: r.CreatedAt,
+      disabled: r.DisabledAt != null,
       clients: r.Clients,
       bookings: r.Bookings,
       earned: r.Earned,
@@ -175,5 +179,26 @@ export const ownerRoutes = new Hono<AppEnv>()
     // 12-month breakdown, anchored to the sitter's own timezone.
     const today = getPacificDateStr(new Date(), tenant.Timezone ?? DEFAULT_TIMEZONE);
     const data = await getAnalytics(c.env.PAWBOOK_DB, tenantId, today);
-    return c.json(serializeAnalytics(data));
+    return c.json({ ...serializeAnalytics(data), disabled: tenant.DisabledAt != null });
+  })
+
+  .patch('/owner/sitters/:tenantId', async (c) => {
+    const tenantId = c.req.param('tenantId');
+    const raw = await c.req.json<unknown>().catch(() => ({}));
+    const parsed = v.safeParse(v.object({ disabled: v.boolean() }), raw);
+    if (!parsed.success) return c.json({ error: 'Expected { disabled: boolean }.' }, 400);
+    const tenant = await getTenantById(c.env.PAWBOOK_DB, tenantId);
+    if (!tenant) return c.json({ error: 'Not found.' }, 404);
+    await setTenantDisabled(c.env.PAWBOOK_DB, tenantId, parsed.output.disabled);
+    await invalidateTenantCache(tenant.Slug, c.env); // widget/dashboard sees the change at once
+    return c.json({ disabled: parsed.output.disabled });
+  })
+
+  .delete('/owner/sitters/:tenantId', async (c) => {
+    const tenantId = c.req.param('tenantId');
+    const tenant = await getTenantById(c.env.PAWBOOK_DB, tenantId);
+    if (!tenant) return c.json({ error: 'Not found.' }, 404);
+    await deleteTenantCompletely(c.env.PAWBOOK_DB, tenantId);
+    await invalidateTenantCache(tenant.Slug, c.env);
+    return c.body(null, 204);
   });
