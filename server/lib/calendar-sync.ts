@@ -231,7 +231,7 @@ export async function deleteBookingCalendarEvent(
 }
 
 const CALENDAR_SYNC_TTL_SECONDS = 120;
-const calendarSyncKey = (tenantId: string) => `calendar-sync:${tenantId}:last`;
+export const calendarSyncKey = (tenantId: string) => `calendar-sync:${tenantId}:last`;
 
 /**
  * Reconciles this tenant's synced bookings against Google Calendar: if a booking's event was

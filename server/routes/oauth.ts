@@ -45,6 +45,9 @@ export const oauthRoutes = new Hono<AppEnv>().get('/oauth/google/callback', asyn
 
   const tenant = await getTenantById(c.env.PAWBOOK_DB, payload.tenantId);
   if (!tenant) return resultPage(false);
+  // The callback bypasses tenantMiddleware (fixed /oauth path carries no slug), so re-apply the
+  // disabled check here: a disabled tenant must not connect a calendar even if start slipped through.
+  if (tenant.DisabledAt) return resultPage(false);
 
   try {
     const tokens = await exchangeCode(c.env, code);
